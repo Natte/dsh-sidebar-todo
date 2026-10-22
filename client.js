@@ -73,7 +73,7 @@ window.__ModuleLoader__.load({
       count: { fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' },
       grow: { flex: 1 },
       search: { width: 200, height: 32, padding: '0 10px', borderRadius: 8, border: 'none', fontSize: 12.5, background: 'var(--dsw-alias-bg-module-platform)', color: 'var(--dsw-alias-label-primary)' },
-      body: { display: 'flex', flex: 1, minHeight: 0 },
+      body: { display: 'flex', flex: 1, minHeight: 0, width: '100%', maxWidth: 1240, margin: '0 auto' },
       list: { flex: 1, minWidth: 0, overflowY: 'auto', padding: '10px 8px 10px 12px' },
       sec: { display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 8px', marginTop: 6 },
       secT: { fontSize: 12, fontWeight: 600, color: 'var(--dsw-alias-label-secondary)' },
@@ -87,7 +87,7 @@ window.__ModuleLoader__.load({
       tag: { fontSize: 10.5, padding: '0 6px', borderRadius: 4, color: 'var(--dsw-alias-label-secondary)', background: 'var(--dsw-alias-bg-module-platform)', flex: 'none' },
       due: { fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none', minWidth: 52, textAlign: 'right' },
       dueLate: { fontSize: 11, color: 'var(--dsw-alias-state-error-primary)', flex: 'none', minWidth: 52, textAlign: 'right' },
-      detail: { width: 300, flex: 'none', borderLeft: '0.5px solid var(--dsw-alias-border-l2)', padding: 16, fontSize: 12.5, color: 'var(--dsw-alias-label-secondary)' },
+      detail: { width: 380, flex: 'none', borderLeft: '0.5px solid var(--dsw-alias-border-l2)', padding: 16, fontSize: 12.5, color: 'var(--dsw-alias-label-secondary)' },
       empty: { padding: 40, textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 },
       error: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent)' },
       warn: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-warn-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent)', display: 'flex', alignItems: 'center', gap: 8 },
@@ -99,6 +99,20 @@ window.__ModuleLoader__.load({
 
     // 标题是真正的 <button>（键盘可达），但外观仍是普通文本。
     const TITLE_BTN = { padding: 0, border: 'none', background: 'transparent', color: 'inherit', fontFamily: 'inherit', textAlign: 'left', cursor: 'pointer', borderRadius: 4 }
+
+    const FOCUS_RING = 'inset 0 0 0 1.5px var(--dsw-alias-state-business-primary)'
+
+    /** 只在键盘（:focus-visible）时画焦点框；鼠标点选不留常驻蓝框。 */
+    function focusVisible(event) {
+      return event?.target?.matches?.(':focus-visible') === true
+    }
+
+    /** 详情列的「标签 + 值」竖排行，标签列固定 56px。 */
+    function detailRow(label, value) {
+      return h('div', { style: { display: 'flex', gap: 8, lineHeight: '20px' } },
+        h('span', { style: { width: 56, flex: 'none', color: 'var(--dsw-alias-label-tertiary)' } }, label),
+        h('span', null, value))
+    }
 
     function priorityDot(priority) {
       const bg = priority === 'high' ? 'var(--dsw-alias-state-error-primary)'
@@ -199,6 +213,7 @@ window.__ModuleLoader__.load({
     function Row({ item, selected, onSelect, onToggle, t }) {
       const [hover, setHover] = useState(false)
       const [titleFocus, setTitleFocus] = useState(false)
+      const [checkboxFocus, setCheckboxFocus] = useState(false)
       const today = new Date()
       const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
       const late = !item.done && item.dueDate && item.dueDate < todayKey
@@ -215,8 +230,14 @@ window.__ModuleLoader__.load({
         'aria-checked': item.done ? 'true' : 'false',
         'aria-label': item.title,
         tabIndex: 0,
-        style: item.done ? S.cbDone : S.cb,
+        style: {
+          ...(item.done ? S.cbDone : S.cb),
+          outline: 'none',
+          boxShadow: checkboxFocus ? FOCUS_RING : 'none',
+        },
         onClick: (e) => { e.stopPropagation(); onToggle(item) },
+        onFocus: (e) => setCheckboxFocus(focusVisible(e)),
+        onBlur: () => setCheckboxFocus(false),
         onKeyDown: (e) => {
           if (e.nativeEvent?.isComposing === true) return
           if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onToggle(item) }
@@ -231,11 +252,11 @@ window.__ModuleLoader__.load({
         style: {
           ...TITLE_BTN,
           ...(item.done ? S.nmDone : S.nm),
-          outline: titleFocus ? '2px solid var(--dsw-alias-state-business-primary)' : 'none',
-          outlineOffset: 1,
+          outline: 'none',
+          boxShadow: titleFocus ? FOCUS_RING : 'none',
         },
         onClick: (e) => { e.stopPropagation(); onSelect(item.id) },
-        onFocus: () => setTitleFocus(true),
+        onFocus: (e) => setTitleFocus(focusVisible(e)),
         onBlur: () => setTitleFocus(false),
       }, item.title),
       item.priority ? priorityDot(item.priority) : null,
@@ -368,6 +389,7 @@ window.__ModuleLoader__.load({
       const [confirming, setConfirming] = useState(false)
       const [doneOpen, setDoneOpen] = useState(false)
       const [noticeHidden, setNoticeHidden] = useState(corruptDismissed)
+      const [compactDetail, setCompactDetail] = useState(() => window.innerWidth < 1000)
 
       // t 走 ref：语言切换时调用方可能换掉 props.t，但不该让 reload 重新排队。
       const tRef = useRef(t)
@@ -438,6 +460,13 @@ window.__ModuleLoader__.load({
 
       // 卸载时清掉计时器，避免组件没了还 setConfirming。
       useEffect(() => () => clearConfirmTimer(), [clearConfirmTimer])
+
+      // 窄窗口（< 1000px）把详情列从 380 收到 320，避免挤压列表；监听随卸载解绑。
+      useEffect(() => {
+        const onResize = () => setCompactDetail(window.innerWidth < 1000)
+        window.addEventListener('resize', onResize)
+        return () => window.removeEventListener('resize', onResize)
+      }, [])
 
       const items = state.items
       const pendingCount = items.filter((item) => item.done && item.doneBy === 'agent' && !item.verifiedAt).length
@@ -551,18 +580,16 @@ window.__ModuleLoader__.load({
                   ),
                 ),
           ),
-          h('div', { style: S.detail },
+          h('div', { style: compactDetail ? { ...S.detail, width: 320 } : S.detail },
             selectedItem
               ? h('div', null,
                 h('div', { style: { fontSize: 15, fontWeight: 600, color: 'var(--dsw-alias-label-primary)', marginBottom: 12 } }, selectedItem.title),
                 selectedItem.note ? h('div', { style: { marginBottom: 10, lineHeight: '20px', whiteSpace: 'pre-wrap' } }, selectedItem.note) : null,
-                h('div', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 } },
-                  [
-                    selectedItem.priority ? `${t('priority')} ${priorityLabel(selectedItem.priority, t)}` : null,
-                    selectedItem.dueDate ? `${t('dueDate')} ${selectedItem.dueDate}${selectedItem.dueTime ? ' ' + selectedItem.dueTime : ''}` : null,
-                    selectedItem.category ? selectedItem.category : null,
-                    selectedItem.createdAt ? `${t('created')} ${formatDateTime(selectedItem.createdAt)}` : null,
-                  ].filter(Boolean).join(' · ')),
+                h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 } },
+                  selectedItem.priority ? detailRow(t('priority'), priorityLabel(selectedItem.priority, t)) : null,
+                  selectedItem.dueDate ? detailRow(t('dueDate'), `${selectedItem.dueDate}${selectedItem.dueTime ? ' ' + selectedItem.dueTime : ''}`) : null,
+                  selectedItem.category ? detailRow(t('category'), selectedItem.category) : null,
+                  selectedItem.createdAt ? detailRow(t('created'), formatDateTime(selectedItem.createdAt)) : null),
                 h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
                   h('button', {
                     style: { flex: 1, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: '#fff', fontSize: 12.5 },
