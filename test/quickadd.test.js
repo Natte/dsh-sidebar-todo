@@ -150,6 +150,19 @@ test('多字段组合，标题只剩正文', () => {
   assert.deepEqual(out.matched, ['#工作', 'p1', '明天', '下午3点'])
 })
 
+test('一句里多个日期短语：只用第一个，其余留在标题', () => {
+  const out = parse('下周三吃饭下周五请假')
+  assert.equal(out.dueDate, '2026-10-28')
+  assert.equal(out.title, '吃饭下周五请假')   // 「下周三」被摘，其余原样
+  assert.deepEqual(out.matched, ['下周三'])
+})
+
+test('月份与星期混写时只取第一个', () => {
+  const out = parse('10月25日 交材料 下周三')
+  assert.equal(out.dueDate, '2026-10-25')
+  assert.equal(out.title, '交材料 下周三')
+})
+
 test('整行都是语法时退回原文当标题', () => {
   const out = parse('明天 p1 #工作')
   assert.equal(out.title, '明天 p1 #工作')

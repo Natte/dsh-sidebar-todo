@@ -9,7 +9,7 @@ window.__ModuleLoader__.load({
     const dict = {
       zh: {
         nav: '待办', title: '待办', new: '新建', search: '搜索待办',
-        today: '今天', tomorrow: '明天', week: '本周', stale: '积压',
+        today: '今天', tomorrow: '明天', week: '本周', later: '以后', stale: '积压',
         unplanned: '未排期', done: '已完成', empty: '还没有待办',
         staleHint: '超过 {n} 天未完成', loading: '加载中…', failed: '读取失败',
         retry: '重试', pickOne: '选一条看详情',
@@ -29,7 +29,7 @@ window.__ModuleLoader__.load({
       },
       en: {
         nav: 'To-do', title: 'To-do', new: 'New', search: 'Search',
-        today: 'Today', tomorrow: 'Tomorrow', week: 'This week', stale: 'Backlog',
+        today: 'Today', tomorrow: 'Tomorrow', week: 'This week', later: 'Later', stale: 'Backlog',
         unplanned: 'Unscheduled', done: 'Completed', empty: 'No todos yet',
         staleHint: 'Open for more than {n} days', loading: 'Loading…', failed: 'Failed to load',
         retry: 'Retry', pickOne: 'Select an item',
@@ -48,7 +48,7 @@ window.__ModuleLoader__.load({
         badResponse: 'Unexpected response', requestFailed: 'Request failed', dismiss: 'Dismiss',
       },
     }
-    const ORDER = ['today', 'tomorrow', 'week', 'stale', 'unplanned', 'done']
+    const ORDER = ['today', 'tomorrow', 'week', 'later', 'stale', 'unplanned', 'done']
 
     function apiUrl(method) {
       return new URL(`todo/api/${method}`, document.baseURI).href
