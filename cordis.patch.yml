@@ -1,0 +1,5 @@
+- insert:
+    - id: dsh-todolist
+      name: dsh-todolist
+      config:
+        staleDays: 7
