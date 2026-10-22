@@ -19,6 +19,8 @@ window.__ModuleLoader__.load({
         note: '备注', priority: '优先级', dueDate: '截止日期', dueTime: '时间', category: '分类',
         emptyHint: '新建第一条',
         yesterday: '昨天', earlier: '更早', created: '创建于',
+        dayAfter: '后天', weekdaySun: '周日', weekdayMon: '周一', weekdayTue: '周二', weekdayWed: '周三',
+        weekdayThu: '周四', weekdayFri: '周五', weekdaySat: '周六',
         noMatch: '没有匹配的待办', staleFor: '挂了 {n} 天',
         priorityHigh: '高', priorityMedium: '中', priorityLow: '低',
         badResponse: '响应格式不正确', requestFailed: '请求失败', dismiss: '关闭',
@@ -35,6 +37,8 @@ window.__ModuleLoader__.load({
         note: 'Note', priority: 'Priority', dueDate: 'Due date', dueTime: 'Time', category: 'Category',
         emptyHint: 'Create the first one',
         yesterday: 'Yesterday', earlier: 'Earlier', created: 'Created',
+        dayAfter: 'Day after tomorrow', weekdaySun: 'Sun', weekdayMon: 'Mon', weekdayTue: 'Tue', weekdayWed: 'Wed',
+        weekdayThu: 'Thu', weekdayFri: 'Fri', weekdaySat: 'Sat',
         noMatch: 'No matching todos', staleFor: 'Open {n} days',
         priorityHigh: 'High', priorityMedium: 'Medium', priorityLow: 'Low',
         badResponse: 'Unexpected response', requestFailed: 'Request failed', dismiss: 'Dismiss',
@@ -106,6 +110,42 @@ window.__ModuleLoader__.load({
 
     function dateKeyOf(date) {
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    }
+
+    const WEEKDAY_KEYS = ['weekdaySun', 'weekdayMon', 'weekdayTue', 'weekdayWed', 'weekdayThu', 'weekdayFri', 'weekdaySat']
+
+    /** `YYYY-MM-DD` → 本地午夜 Date；非法返回 null（不把时区交给 `new Date(string)`）。 */
+    function parseDateKey(key) {
+      if (typeof key !== 'string') return null
+      const [y, m, d] = key.split('-').map(Number)
+      if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return null
+      const at = new Date(y, m - 1, d)
+      if (at.getFullYear() !== y || at.getMonth() !== m - 1 || at.getDate() !== d) return null
+      return at
+    }
+
+    /**
+     * 截止日 chip 文案：今天 / 明天 / 后天 → 本周内周X → `MM-DD`；有 `dueTime`
+     * 就追加 ` HH:mm`。默认中文，传 locale 的 `t` 可本地化。
+     */
+    function formatDueChip(dueDate, dueTime, todayKey, t = defaultT) {
+      if (typeof dueDate !== 'string' || dueDate === '') return ''
+      const suffix = dueTime ? ` ${dueTime}` : ''
+      const due = parseDateKey(dueDate)
+      const today = parseDateKey(todayKey)
+      if (due === null || today === null) return `${dueDate}${suffix}`
+      const days = Math.round((due.getTime() - today.getTime()) / 86400000)
+      if (days === 0) return `${t('today')}${suffix}`
+      if (days === 1) return `${t('tomorrow')}${suffix}`
+      if (days === 2) return `${t('dayAfter')}${suffix}`
+      const monday = new Date(today)
+      monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+      const sunday = new Date(monday)
+      sunday.setDate(sunday.getDate() + 6)
+      if (due.getTime() >= monday.getTime() && due.getTime() <= sunday.getTime()) {
+        return `${t(WEEKDAY_KEYS[due.getDay()])}${suffix}`
+      }
+      return `${dueDate.slice(5)}${suffix}`
     }
 
     function startOfDay(date) {
@@ -193,6 +233,9 @@ window.__ModuleLoader__.load({
      * 两个资源坑都兜住：防抖 timer 在 effect cleanup 里清掉；解析响应回来时
      * 组件可能已经没了（父组件 create 成功后关掉草稿行），所以先用 alive/seq
      * 判断，已卸载组件和过期响应都不 setState。
+     *
+     * 回车时若防抖结果还没到，会绕过防抖立刻解析一次（手快的人不该丢日期）；
+     * 这次即时请求同样占用 seq，旧的防抖响应不会反过来覆盖它。
      */
     function QuickAdd({ t, onCreated }) {
       const [text, setText] = useState('')
@@ -226,20 +269,36 @@ window.__ModuleLoader__.load({
         return () => window.clearTimeout(timer)
       }, [text, t])
 
+      /** 绕过 200ms 防抖立刻解析；同样走 seq，避免和防抖响应互相覆盖。 */
+      const parseNow = async (value) => {
+        const current = ++seq.current
+        try {
+          const result = await fetchApi('parse', { text: value }, t)
+          if (!alive.current || current !== seq.current) return null
+          setParsed(result)
+          return result
+        } catch {
+          return null
+        }
+      }
+
       const submit = async () => {
         if (busy || text.trim() === '') return
-        // 只挑后端认识的字段：matched 只是本地预览用的，不进创建契约。
-        const fields = parsed === null
-          ? { title: text.trim() }
-          : {
-            title: parsed.title ?? text.trim(),
-            dueDate: parsed.dueDate,
-            dueTime: parsed.dueTime,
-            priority: parsed.priority,
-            category: parsed.category,
-          }
+        const value = text.trim()
         setBusy(true)
         try {
+          // 防抖还没跑完就回车：立即补一次解析，失败才退回 { title }。
+          const result = parsed ?? (await parseNow(value))
+          // 只挑后端认识的字段：matched 只是本地预览用的，不进创建契约。
+          const fields = result === null
+            ? { title: value }
+            : {
+              title: result.title ?? value,
+              dueDate: result.dueDate,
+              dueTime: result.dueTime,
+              priority: result.priority,
+              category: result.category,
+            }
           await onCreated(fields)
           if (alive.current) { setText(''); setParsed(null) }
         } finally {
@@ -247,8 +306,9 @@ window.__ModuleLoader__.load({
         }
       }
 
+      const todayKey = dateKeyOf(new Date())
       const chips = parsed === null ? [] : [
-        parsed.dueDate ? (parsed.dueTime ? `${parsed.dueDate.slice(5)} ${parsed.dueTime}` : parsed.dueDate.slice(5)) : null,
+        parsed.dueDate ? formatDueChip(parsed.dueDate, parsed.dueTime, todayKey, t) : null,
         parsed.category ? `#${parsed.category}` : null,
         parsed.priority ? priorityLabel(parsed.priority, t) : null,
       ].filter(Boolean)
