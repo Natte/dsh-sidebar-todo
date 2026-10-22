@@ -1,0 +1,1675 @@
+# DSH 待办插件 Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 在 DSH 左侧栏增加「待办」入口行，点开是一张管理日常工作的待办页，数据落在宿主侧 JSON 文件，agent 通过工具读写同一份数据。
+
+**Architecture:** 单包双半结构。Host（`index.js` + `lib/`）持有内存态与 JSON 文件，暴露 `POST /todo/api/*` 路由与 `todo_write` 工具；Client（`client.js`）只做渲染与调用路由，通过 `sidebar.panellist` 注册入口行、`main` 注册 `key: 'todo'` 的面板页。分类（今天/明天/本周/积压/未排期/已完成）在 Host 侧算一次写进 `bucket` 字段，UI 与工具共用。
+
+**Tech Stack:** 纯 ESM JavaScript（无构建）、Node 内置 `node:test`、宿主 Cordis 服务（`webServer` / `connection` / `tools` / `slots` / `locale`）、React（浏览器模块表提供）。
+
+**Spec:** [docs/specs/2026-10-22-dsh-todolist-design.md](../specs/2026-10-22-dsh-todolist-design.md)
+
+## Global Constraints
+
+- 包名 `dsh-todolist`，`"type": "module"`，无构建步骤，无运行时依赖。
+- 面板 key 与 panellist id 都是 `todo`；`order: 20`（宿主 `plugins=0`、`dsh-market=1`、`schedules=10`，待办排在最后、紧贴工作区上方）。
+- 所有可见文案走 `ctx.locale`，命名空间 `dsh-todolist`，同时提供 `zh` 与 `en`。
+- 颜色与间距只用 `--dsw-alias-*` 与 `--dsw-specific-sidebar-fill`，禁止写死色值（图标文件除外）。
+- 数据文件默认 `%DSH_PROFILE_DIR%/data/dsh-todolist/todos.json`。
+- 路由必须过 `ctx.connection.requestRejection(req)`，非本页来源一律 403。
+- 每个任务结束必须 `git commit`；提交信息用中文，前缀 `feat:` / `test:` / `chore:` / `docs:`。
+- 测试命令统一 `node --test test/`。
+
+---
+
+## 文件结构
+
+| 文件 | 职责 |
+|---|---|
+| `package.json` | 包声明、`dsh.bundle.patch`、`dsh.client` |
+| `cordis.patch.yml` | 插入插件行 |
+| `index.js` | Host 入口：装配 store、路由、工具、配置 |
+| `client.js` | Client 入口：两个槽位注册 + 页面组件 + 字典 |
+| `lib/model.js` | 记录校验、默认值、id 生成、`TodoError` |
+| `lib/bucket.js` | 纯函数：日期推进、`bucketOf`、`compareTodos`、`summarize` |
+| `lib/store.js` | 持久化 + CRUD（原子写、串行队列、损坏备份） |
+| `lib/api.js` | 方法分发表（路由与工具共用） |
+| `lib/tool.js` | `todo_write` 的 ToolDefinition |
+| `test/bucket.test.js` | 分组/排序 |
+| `test/store.test.js` | 增删改查 + 重载 + 损坏恢复 |
+| `test/api.test.js` | 分发、未知方法、错误码 |
+| `test/tool.test.js` | 工具各 action |
+| `locale/{zh,en}.json` | 插件显示元数据（`meta.title` / `meta.description`） |
+| `icon.svg` | 插件图标 |
+| `README.md` | 安装、数据位置、工具用法 |
+
+数据形状（来自 spec §4.1，全任务共用）：
+
+```js
+{ id, title, note, priority, category, dueDate, dueTime, done, doneAt, createdAt, updatedAt }
+// priority: 'high' | 'medium' | 'low' | null
+// bucket（仅响应里出现）: 'today' | 'tomorrow' | 'week' | 'stale' | 'unplanned' | 'done'
+```
+
+---
+
+## Task 1: 插件骨架与槽位链路
+
+**Files:**
+- Create: `package.json`, `cordis.patch.yml`, `index.js`, `client.js`, `locale/zh.json`, `locale/en.json`, `icon.svg`
+
+**Interfaces:**
+- Consumes: 无
+- Produces: `sidebar.panellist` 里 id 为 `todo` 的图标注册、`main` 里 key 为 `todo` 的面板注册；后续任务替换这两个占位实现
+
+- [ ] **Step 1: 写 `package.json`**
+
+```json
+{
+  "name": "dsh-todolist",
+  "version": "0.1.0",
+  "private": true,
+  "description": "侧栏待办清单：今天 / 本周 / 积压，agent 可读写",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["index.js", "client.js", "lib/**/*.js", "cordis.patch.yml", "locale/*.json", "icon.svg"],
+  "scripts": { "test": "node --test test/" },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-sidebar"] }
+  }
+}
+```
+
+- [ ] **Step 2: 写 `cordis.patch.yml`**
+
+```yaml
+- insert:
+    - id: dsh-todolist
+      name: dsh-todolist
+      config:
+        staleDays: 7
+```
+
+- [ ] **Step 3: 写 `index.js`（占位 Host 半）**
+
+```js
+/** Host half of the todo bundle. Data, routes and the agent tool live here. */
+export const inject = ['webServer', 'connection', 'tools']
+
+export function apply() {}
+```
+
+- [ ] **Step 4: 写 `client.js`（占位 Client 半）**
+
+```js
+window.__ModuleLoader__.load({
+  id: 'dsh-todolist',
+  factory(require) {
+    const React = require('react')
+    const h = React.createElement
+
+    function TodoIcon({ size = 16 }) {
+      return h(
+        'svg',
+        {
+          width: size, height: size, viewBox: '0 0 16 16', fill: 'none',
+          stroke: 'currentColor', strokeWidth: 1.4, 'aria-hidden': true,
+        },
+        h('rect', { x: 2.4, y: 2.4, width: 11.2, height: 11.2, rx: 2.4 }),
+        h('path', { d: 'M5.4 8.2l1.9 1.9 3.4-3.6', strokeLinecap: 'round', strokeLinejoin: 'round' }),
+      )
+    }
+
+    function TodoPage() {
+      return h('div', { style: { padding: 24, fontSize: 14 } }, '待办（占位）')
+    }
+
+    return {
+      inject: ['slots'],
+      apply(ctx) {
+        ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+          name: 'sidebar.panellist', id: 'todo', order: 20, label: () => '待办',
+        }, ({ size } = {}) => h(TodoIcon, { size: size ?? 16 })))
+
+        ctx.slots.inject('main', () => ctx.slots.register({
+          name: 'main', key: 'todo',
+        }, TodoPage))
+      },
+    }
+  },
+})
+```
+
+- [ ] **Step 5: 写 `locale/zh.json`、`locale/en.json`、`icon.svg`**
+
+`locale/zh.json`:
+
+```json
+{ "meta": { "title": "待办", "description": "侧栏待办清单：今天 / 本周 / 积压，agent 可读可写。" } }
+```
+
+`locale/en.json`:
+
+```json
+{ "meta": { "title": "To-do", "description": "Sidebar todo list: today, this week, backlog. Readable and writable by the agent." } }
+```
+
+`icon.svg`:
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="14" fill="#4176e6"/>
+  <path d="M18 33.5l8.6 8.6L47 20.5" fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M17 52h30" stroke="#fff" stroke-opacity=".55" stroke-width="4.5" stroke-linecap="round"/>
+</svg>
+```
+
+- [ ] **Step 6: 语法检查**
+
+Run: `node --check index.js; node --check client.js`
+Expected: 无输出、退出码 0。
+
+- [ ] **Step 7: 安装并验证槽位链路**
+
+用 `plugin_manager` `action: install_bundle`、`target: D:\dsh-todolist`（绝对路径）安装。
+然后 `cordis_inspect_query`（client / Slots / `listSubTree`，`root: "sidebar.panellist"`）确认 `occupants` 里出现 `{ id: "todo", order: 20 }`。
+再用 `root: "main"` 确认 `occupants` 里有 `key: "todo"`。
+最后在页面上点一次「待办」：主区应出现「待办（占位）」，侧栏折叠成图标轨时该行应变成 36×36 图标。
+
+- [ ] **Step 8: 提交**
+
+```bash
+git add package.json cordis.patch.yml index.js client.js locale icon.svg
+git commit -m "feat: 插件骨架，打通侧栏入口行与主面板槽位"
+```
+
+---
+
+## Task 2: 分组与排序（纯函数）
+
+**Files:**
+- Create: `lib/bucket.js`
+- Test: `test/bucket.test.js`
+
+**Interfaces:**
+- Consumes: 无
+- Produces:
+  - `dateKey(date: Date): string` — 本地 `YYYY-MM-DD`
+  - `shiftKey(key: string, days: number): string`
+  - `bucketOf(todo, now?: Date, staleDays?: number): string`
+  - `compareTodos(a, b): number`
+  - `summarize(items): { today, tomorrow, week, stale, unplanned, doneToday }`
+
+- [ ] **Step 1: 写失败测试**
+
+`test/bucket.test.js`:
+
+```js
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { dateKey, shiftKey, bucketOf, compareTodos, summarize } from '../lib/bucket.js'
+
+const NOW = new Date(2026, 9, 22, 10, 0, 0) // 2026-10-22 周四
+
+const base = {
+  id: 't1', title: 'x', note: '', priority: null, category: null,
+  dueDate: null, dueTime: null, done: false, doneAt: null,
+  createdAt: new Date(2026, 9, 21, 9).toISOString(),
+  updatedAt: new Date(2026, 9, 21, 9).toISOString(),
+}
+
+test('dateKey 用本地日期', () => {
+  assert.equal(dateKey(NOW), '2026-10-22')
+})
+
+test('shiftKey 跨月', () => {
+  assert.equal(shiftKey('2026-10-31', 1), '2026-11-01')
+  assert.equal(shiftKey('2026-11-01', -1), '2026-10-31')
+})
+
+test('截止今天与过期的都进 today', () => {
+  assert.equal(bucketOf({ ...base, dueDate: '2026-10-22' }, NOW), 'today')
+  assert.equal(bucketOf({ ...base, dueDate: '2026-10-20' }, NOW), 'today')
+})
+
+test('明天、本周、下周分桶', () => {
+  assert.equal(bucketOf({ ...base, dueDate: '2026-10-23' }, NOW), 'tomorrow')
+  assert.equal(bucketOf({ ...base, dueDate: '2026-10-25' }, NOW), 'week')
+  assert.equal(bucketOf({ ...base, dueDate: '2026-10-26' }, NOW), 'stale')
+})
+
+test('无截止：7 天内未排期，超过进积压', () => {
+  assert.equal(bucketOf({ ...base }, NOW, 7), 'unplanned')
+  const old = new Date(2026, 9, 10, 9).toISOString()
+  assert.equal(bucketOf({ ...base, createdAt: old }, NOW, 7), 'stale')
+})
+
+test('已完成不参与未完成分桶', () => {
+  assert.equal(bucketOf({ ...base, done: true, dueDate: '2026-10-22' }, NOW), 'done')
+})
+
+test('排序：先按截止时间，再按优先级，再按创建时间倒序', () => {
+  const a = { ...base, id: 'a', dueDate: '2026-10-23' }
+  const b = { ...base, id: 'b', dueDate: '2026-10-22', dueTime: '18:00' }
+  const c = { ...base, id: 'c', dueDate: '2026-10-22', dueTime: '09:00' }
+  assert.deepEqual([a, b, c].sort(compareTodos).map((t) => t.id), ['c', 'b', 'a'])
+
+  const high = { ...base, id: 'h', priority: 'high' }
+  const low = { ...base, id: 'l', priority: 'low' }
+  assert.deepEqual([low, high].sort(compareTodos).map((t) => t.id), ['h', 'l'])
+})
+
+test('摘要按 bucket 计数', () => {
+  const items = [
+    { bucket: 'today' }, { bucket: 'today' }, { bucket: 'stale' },
+    { bucket: 'done', doneAt: new Date(2026, 9, 22, 8).toISOString() },
+  ]
+  assert.deepEqual(summarize(items), {
+    today: 2, tomorrow: 0, week: 0, stale: 1, unplanned: 0, doneToday: 1,
+  })
+})
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `node --test test/bucket.test.js`
+Expected: FAIL，`Cannot find module '../lib/bucket.js'`
+
+- [ ] **Step 3: 实现 `lib/bucket.js`**
+
+```js
+/** Pure bucketing and ordering for todo records. No IO, no host services. */
+
+const PRIORITY_RANK = { high: 0, medium: 1, low: 2 }
+
+/** Local calendar key `YYYY-MM-DD`. */
+export function dateKey(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/** Shift a `YYYY-MM-DD` key by whole days. */
+export function shiftKey(key, days) {
+  const [y, m, d] = key.split('-').map(Number)
+  const at = new Date(y, m - 1, d)
+  at.setDate(at.getDate() + days)
+  return dateKey(at)
+}
+
+function daysSince(iso, now) {
+  const then = Date.parse(iso)
+  if (Number.isNaN(then)) return 0
+  return Math.floor((now.getTime() - then) / 86400000)
+}
+
+/** Bucket of one record relative to `now`: today|tomorrow|week|stale|unplanned|done. */
+export function bucketOf(todo, now = new Date(), staleDays = 7) {
+  if (todo.done) return 'done'
+  const today = dateKey(now)
+  const due = todo.dueDate
+  if (typeof due === 'string' && due !== '') {
+    if (due <= today) return 'today'
+    if (due === shiftKey(today, 1)) return 'tomorrow'
+    const weekEnd = shiftKey(today, (7 - now.getDay()) % 7)
+    if (due <= weekEnd) return 'week'
+  }
+  if (daysSince(todo.createdAt, now) > staleDays) return 'stale'
+  return 'unplanned'
+}
+
+/** Due date+time first, then priority, then newest created. */
+export function compareTodos(a, b) {
+  const ak = a.dueDate ? `${a.dueDate} ${a.dueTime ?? '99:99'}` : null
+  const bk = b.dueDate ? `${b.dueDate} ${b.dueTime ?? '99:99'}` : null
+  if (ak !== null && bk !== null) {
+    const byDue = ak.localeCompare(bk)
+    if (byDue !== 0) return byDue
+  } else if (ak !== null) return -1
+  else if (bk !== null) return 1
+
+  const ap = PRIORITY_RANK[a.priority] ?? 3
+  const bp = PRIORITY_RANK[b.priority] ?? 3
+  if (ap !== bp) return ap - bp
+
+  return String(b.createdAt).localeCompare(String(a.createdAt))
+}
+
+/** Counts per bucket, plus how many finished today. */
+export function summarize(items, now = new Date()) {
+  const out = { today: 0, tomorrow: 0, week: 0, stale: 0, unplanned: 0, doneToday: 0 }
+  const today = dateKey(now)
+  for (const item of items) {
+    if (item.bucket === 'done') {
+      if (item.doneAt && dateKey(new Date(item.doneAt)) === today) out.doneToday += 1
+      continue
+    }
+    if (item.bucket in out) out[item.bucket] += 1
+  }
+  return out
+}
+```
+
+- [ ] **Step 4: 运行确认通过**
+
+Run: `node --test test/bucket.test.js`
+Expected: PASS，8 个测试全绿。
+
+- [ ] **Step 5: 提交**
+
+```bash
+git add lib/bucket.js test/bucket.test.js
+git commit -m "feat: 待办分组与排序纯函数"
+```
+
+---
+
+## Task 3: 记录校验与存储层
+
+**Files:**
+- Create: `lib/model.js`, `lib/store.js`
+- Test: `test/store.test.js`
+
+**Interfaces:**
+- Consumes: `bucketOf`, `compareTodos`, `summarize`（Task 2）
+- Produces:
+  - `TodoError`（`code` + 中文 `message`）
+  - `normalizeCreate(input): Todo`、`applyPatch(todo, patch): Todo`
+  - `createStore({ file, staleDays }): Store`
+  - `Store.load(): Promise<void>`、`Store.list(filter?): Promise<{ items, summary }>`、`Store.create(input)`、`Store.update(id, patch)`、`Store.complete(id, done?)`、`Store.remove(id)`、`Store.close()`
+
+- [ ] **Step 1: 写失败测试**
+
+`test/store.test.js`:
+
+```js
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { mkdtemp, readFile, writeFile, readdir } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createStore } from '../lib/store.js'
+import { TodoError } from '../lib/model.js'
+
+async function tempStore(staleDays = 7) {
+  const dir = await mkdtemp(join(tmpdir(), 'todo-'))
+  const file = join(dir, 'todos.json')
+  const store = createStore({ file, staleDays })
+  await store.load()
+  return { store, file, dir }
+}
+
+test('新建后能读回，字段齐全', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({ title: '交周报', dueDate: '2026-10-22', priority: 'high' })
+  assert.equal(todo.title, '交周报')
+  assert.equal(todo.done, false)
+  assert.equal(todo.bucket, 'today')
+  assert.ok(todo.id.startsWith('t_'))
+
+  const { items } = await store.list()
+  assert.equal(items.length, 1)
+  assert.equal(items[0].id, todo.id)
+  await store.close()
+})
+
+test('落盘后重建 store 仍能读到', async () => {
+  const { store, file } = await tempStore()
+  await store.create({ title: '续签域名' })
+  await store.close()
+
+  const again = createStore({ file })
+  await again.load()
+  const { items } = await again.list()
+  assert.equal(items.length, 1)
+  assert.equal(items[0].title, '续签域名')
+  await again.close()
+})
+
+test('完成写 doneAt，取消完成清空', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({ title: '预约体检' })
+  const done = await store.complete(todo.id, true)
+  assert.equal(done.done, true)
+  assert.ok(done.doneAt)
+  const undone = await store.complete(todo.id, false)
+  assert.equal(undone.done, false)
+  assert.equal(undone.doneAt, null)
+  await store.close()
+})
+
+test('update 只改允许的字段', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({ title: '整理预算表' })
+  const next = await store.update(todo.id, { title: '整理 Q4 预算表', priority: 'medium', id: 'hack', createdAt: 'x' })
+  assert.equal(next.title, '整理 Q4 预算表')
+  assert.equal(next.priority, 'medium')
+  assert.equal(next.id, todo.id)
+  assert.notEqual(next.createdAt, 'x')
+  await store.close()
+})
+
+test('删除后不再返回', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({ title: 'x' })
+  await store.remove(todo.id)
+  const { items } = await store.list()
+  assert.equal(items.length, 0)
+  await store.close()
+})
+
+test('空标题与非法日期被拒绝', async () => {
+  const { store } = await tempStore()
+  await assert.rejects(() => store.create({ title: '   ' }), (err) => err instanceof TodoError && err.code === 'invalid-input')
+  await assert.rejects(() => store.create({ title: 'x', dueDate: '2026/10/22' }), (err) => err.code === 'invalid-input')
+  await assert.rejects(() => store.update('nope', { title: 'y' }), (err) => err.code === 'not-found')
+  await store.close()
+})
+
+test('文件损坏时备份并空表启动', async () => {
+  const { store, file, dir } = await tempStore()
+  await store.create({ title: 'a' })
+  await store.close()
+
+  await writeFile(file, '{ this is not json', 'utf8')
+  const broken = createStore({ file })
+  const info = await broken.load()
+  assert.equal(info.corrupt, true)
+  const { items, notices } = await broken.list()
+  assert.equal(items.length, 0)
+  assert.deepEqual(notices, ['corrupt'])
+  const names = await readdir(dir)
+  assert.ok(names.some((n) => n.startsWith('todos.corrupt-')), 'corrupt backup written')
+  await broken.close()
+})
+
+test('list 支持 view 与 q 过滤', async () => {
+  const { store } = await tempStore()
+  await store.create({ title: '交周报', dueDate: '2026-10-22' })
+  await store.create({ title: '买牛奶' })
+  const byText = await store.list({ q: '牛奶' })
+  assert.deepEqual(byText.items.map((t) => t.title), ['买牛奶'])
+  const onlyToday = await store.list({ view: 'today' })
+  assert.deepEqual(onlyToday.items.map((t) => t.title), ['交周报'])
+  await store.close()
+})
+
+test('并发写不会丢（串行队列）', async () => {
+  const { store, file } = await tempStore()
+  await Promise.all(Array.from({ length: 20 }, (_, i) => store.create({ title: `t${i}` })))
+  const raw = JSON.parse(await readFile(file, 'utf8'))
+  assert.equal(raw.todos.length, 20)
+  await store.close()
+})
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `node --test test/store.test.js`
+Expected: FAIL，`Cannot find module '../lib/store.js'`
+
+- [ ] **Step 3: 实现 `lib/model.js`**
+
+```js
+/** Record validation and normalization for todo entries. */
+
+export class TodoError extends Error {
+  constructor(code, message) {
+    super(message)
+    this.name = 'TodoError'
+    this.code = code
+  }
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const TIME_RE = /^\d{2}:\d{2}$/
+const PRIORITIES = new Set(['high', 'medium', 'low'])
+
+export function newId() {
+  const rand = Math.random().toString(36).slice(2, 6)
+  return `t_${Date.now().toString(36)}_${rand}`
+}
+
+function text(value, max, field) {
+  if (value === undefined || value === null) return ''
+  if (typeof value !== 'string') throw new TodoError('invalid-input', `${field} 必须是文本`)
+  const out = value.trim()
+  if (out.length > max) throw new TodoError('invalid-input', `${field} 过长（上限 ${max} 字）`)
+  return out
+}
+
+function nullableText(value, max, field) {
+  if (value === undefined || value === null || value === '') return null
+  return text(value, max, field)
+}
+
+function pickPriority(value) {
+  if (value === undefined || value === null || value === '') return null
+  if (!PRIORITIES.has(value)) throw new TodoError('invalid-input', '优先级只能是 high / medium / low')
+  return value
+}
+
+function pickDate(value) {
+  if (value === undefined || value === null || value === '') return null
+  if (typeof value !== 'string' || !DATE_RE.test(value)) throw new TodoError('invalid-input', '截止日期格式应为 YYYY-MM-DD')
+  return value
+}
+
+function pickTime(value) {
+  if (value === undefined || value === null || value === '') return null
+  if (typeof value !== 'string' || !TIME_RE.test(value)) throw new TodoError('invalid-input', '截止时间格式应为 HH:mm')
+  return value
+}
+
+export function normalizeCreate(input = {}) {
+  const title = text(input.title, 200, '标题')
+  if (title === '') throw new TodoError('invalid-input', '标题不能为空')
+  const now = new Date().toISOString()
+  return {
+    id: newId(),
+    title,
+    note: text(input.note, 2000, '备注'),
+    priority: pickPriority(input.priority),
+    category: nullableText(input.category, 24, '分类'),
+    dueDate: pickDate(input.dueDate),
+    dueTime: pickTime(input.dueTime),
+    done: false,
+    doneAt: null,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+const PATCHABLE = new Set(['title', 'note', 'priority', 'category', 'dueDate', 'dueTime'])
+
+export function applyPatch(todo, patch = {}) {
+  const next = { ...todo }
+  for (const key of Object.keys(patch)) {
+    if (!PATCHABLE.has(key)) continue
+    if (key === 'title') {
+      const value = text(patch.title, 200, '标题')
+      if (value === '') throw new TodoError('invalid-input', '标题不能为空')
+      next.title = value
+    } else if (key === 'note') next.note = text(patch.note, 2000, '备注')
+    else if (key === 'priority') next.priority = pickPriority(patch.priority)
+    else if (key === 'category') next.category = nullableText(patch.category, 24, '分类')
+    else if (key === 'dueDate') next.dueDate = pickDate(patch.dueDate)
+    else if (key === 'dueTime') next.dueTime = pickTime(patch.dueTime)
+  }
+  next.updatedAt = new Date().toISOString()
+  return next
+}
+```
+
+- [ ] **Step 4: 实现 `lib/store.js`**
+
+```js
+/** File-backed todo store: one JSON document, serialized atomic writes. */
+
+import { readFile, writeFile, rename, mkdir, copyFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { bucketOf, compareTodos, summarize } from './bucket.js'
+import { TodoError, normalizeCreate, applyPatch } from './model.js'
+
+const EMPTY = { version: 1, todos: [] }
+
+async function readDoc(file) {
+  let raw
+  try {
+    raw = await readFile(file, 'utf8')
+  } catch (err) {
+    if (err.code === 'ENOENT') return { doc: structuredClone(EMPTY), corrupt: false }
+    throw new TodoError('io-error', `无法读取待办数据：${err.message}`)
+  }
+  try {
+    const doc = JSON.parse(raw)
+    if (!doc || !Array.isArray(doc.todos)) throw new Error('shape')
+    return { doc, corrupt: false }
+  } catch {
+    return { doc: structuredClone(EMPTY), corrupt: true }
+  }
+}
+
+export function createStore({ file, staleDays = 7 }) {
+  const state = { todos: [], corrupt: false }
+  let queue = Promise.resolve()
+  let closed = false
+
+  const withBucket = (todo) => ({ ...todo, bucket: bucketOf(todo, new Date(), staleDays) })
+
+  async function persist() {
+    const snapshot = JSON.stringify({ version: 1, todos: state.todos }, null, 2)
+    queue = queue.then(async () => {
+      await mkdir(dirname(file), { recursive: true })
+      const tmp = `${file}.tmp`
+      await writeFile(tmp, snapshot, 'utf8')
+      await rename(tmp, file)
+    })
+    return queue
+  }
+
+  async function guard(fn) {
+    try {
+      return await fn()
+    } catch (err) {
+      if (err instanceof TodoError) throw err
+      throw new TodoError('io-error', `待办数据写入失败：${err.message}`)
+    }
+  }
+
+  return {
+    async load() {
+      const { doc, corrupt } = await readDoc(file)
+      state.todos = doc.todos
+      state.corrupt = corrupt
+      if (corrupt) {
+        const backup = `${file.replace(/\.json$/, '')}.corrupt-${Date.now()}.json`
+        try {
+          await copyFile(file, backup)
+        } catch {}
+        await persist()
+      }
+      return { corrupt }
+    },
+
+    async list(filter = {}) {
+      const now = new Date()
+      let items = state.todos.map((todo) => ({ ...todo, bucket: bucketOf(todo, now, staleDays) }))
+      const view = filter.view
+      if (view === 'today') items = items.filter((t) => t.bucket === 'today')
+      else if (view === 'week') items = items.filter((t) => t.bucket === 'today' || t.bucket === 'tomorrow' || t.bucket === 'week')
+      else if (view === 'stale') items = items.filter((t) => t.bucket === 'stale')
+      else if (view === 'done') items = items.filter((t) => t.bucket === 'done')
+      else if (view === 'open') items = items.filter((t) => t.bucket !== 'done')
+
+      const q = typeof filter.q === 'string' ? filter.q.trim().toLowerCase() : ''
+      if (q !== '') {
+        items = items.filter((t) =>
+          t.title.toLowerCase().includes(q) ||
+          (t.note ?? '').toLowerCase().includes(q) ||
+          (t.category ?? '').toLowerCase().includes(q))
+      }
+      items.sort(compareTodos)
+      return {
+        items,
+        summary: summarize(items, now),
+        notices: state.corrupt ? ['corrupt'] : [],
+      }
+    },
+
+    async create(input) {
+      const todo = normalizeCreate(input)
+      state.todos.push(todo)
+      await guard(persist)
+      return withBucket(todo)
+    },
+
+    async update(id, patch) {
+      const index = state.todos.findIndex((t) => t.id === id)
+      if (index === -1) throw new TodoError('not-found', '这条待办已经不在了')
+      const next = applyPatch(state.todos[index], patch)
+      state.todos[index] = next
+      await guard(persist)
+      return withBucket(next)
+    },
+
+    async complete(id, done = true) {
+      const index = state.todos.findIndex((t) => t.id === id)
+      if (index === -1) throw new TodoError('not-found', '这条待办已经不在了')
+      const finished = done !== false
+      const next = {
+        ...state.todos[index],
+        done: finished,
+        doneAt: finished ? new Date().toISOString() : null,
+        updatedAt: new Date().toISOString(),
+      }
+      state.todos[index] = next
+      await guard(persist)
+      return withBucket(next)
+    },
+
+    async remove(id) {
+      const index = state.todos.findIndex((t) => t.id === id)
+      if (index === -1) throw new TodoError('not-found', '这条待办已经不在了')
+      state.todos.splice(index, 1)
+      await guard(persist)
+      return { id }
+    },
+
+    async close() {
+      if (closed) return
+      closed = true
+      await queue
+    },
+  }
+}
+
+/** Default data file, resolved from the running profile. */
+export function resolveDataFile(override) {
+  if (typeof override === 'string' && override.trim() !== '') return override
+  const base = process.env.DSH_PROFILE_DIR || process.cwd()
+  return join(base, 'data', 'dsh-todolist', 'todos.json')
+}
+```
+
+- [ ] **Step 5: 运行确认通过**
+
+Run: `node --test test/store.test.js`
+Expected: PASS，9 个测试全绿。
+
+- [ ] **Step 6: 提交**
+
+```bash
+git add lib/model.js lib/store.js test/store.test.js
+git commit -m "feat: 待办存储层，原子写与损坏恢复"
+```
+
+---
+
+## Task 4: HTTP 路由
+
+**Files:**
+- Create: `lib/api.js`
+- Modify: `index.js`（整份替换）
+- Test: `test/api.test.js`
+
+**Interfaces:**
+- Consumes: `createStore`、`resolveDataFile`（Task 3）
+- Produces: `createApi(store): Record<string, (input) => Promise<unknown>>`，方法名固定为 `list` / `create` / `update` / `complete` / `remove`
+
+- [ ] **Step 1: 写失败测试**
+
+`test/api.test.js`:
+
+```js
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createStore } from '../lib/store.js'
+import { createApi } from '../lib/api.js'
+import { TodoError } from '../lib/model.js'
+
+async function api() {
+  const dir = await mkdtemp(join(tmpdir(), 'todo-api-'))
+  const store = createStore({ file: join(dir, 'todos.json') })
+  await store.load()
+  return { api: createApi(store), store }
+}
+
+test('create → list → complete → remove 全链路', async () => {
+  const { api, store } = await api()
+  const created = await api.create({ title: '交周报' })
+  const listed = await api.list({})
+  assert.equal(listed.items.length, 1)
+  const done = await api.complete({ id: created.id, done: true })
+  assert.equal(done.done, true)
+  const removed = await api.remove({ id: created.id })
+  assert.deepEqual(removed, { id: created.id })
+  await store.close()
+})
+
+test('update 接受 { id, patch } 与扁平两种形状', async () => {
+  const { api, store } = await api()
+  const created = await api.create({ title: 'a' })
+  const one = await api.update({ id: created.id, patch: { title: 'b' } })
+  assert.equal(one.title, 'b')
+  const two = await api.update({ id: created.id, title: 'c' })
+  assert.equal(two.title, 'c')
+  await store.close()
+})
+
+test('错误带 code，未知 id 是 not-found', async () => {
+  const { api, store } = await api()
+  await assert.rejects(() => api.remove({ id: 'ghost' }), (err) => err instanceof TodoError && err.code === 'not-found')
+  await store.close()
+})
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `node --test test/api.test.js`
+Expected: FAIL，`Cannot find module '../lib/api.js'`
+
+- [ ] **Step 3: 实现 `lib/api.js`**
+
+```js
+/** One dispatch table shared by the HTTP route and the agent tool. */
+
+export function createApi(store) {
+  return {
+    list: (input = {}) => store.list(input),
+    create: (input = {}) => store.create(input),
+    update: (input = {}) => {
+      const patch = input.patch ?? stripKeys(input, ['id', 'patch'])
+      return store.update(input.id, patch)
+    },
+    complete: (input = {}) => store.complete(input.id, input.done !== false),
+    remove: (input = {}) => store.remove(input.id),
+  }
+}
+
+function stripKeys(input, keys) {
+  const out = {}
+  for (const [key, value] of Object.entries(input)) {
+    if (!keys.includes(key)) out[key] = value
+  }
+  return out
+}
+```
+
+- [ ] **Step 4: 运行确认通过**
+
+Run: `node --test test/api.test.js`
+Expected: PASS，3 个测试全绿。
+
+- [ ] **Step 5: 用真实路由替换 `index.js`**
+
+```js
+/** Host half of the todo bundle: data file, HTTP route, agent tool. */
+
+import { createStore, resolveDataFile } from './lib/store.js'
+import { createApi } from './lib/api.js'
+
+export const inject = ['webServer', 'connection', 'tools']
+
+const PREFIX = '/todo/api/'
+const STATUS = { 'invalid-input': 400, 'not-found': 404, 'io-error': 500 }
+
+function writeJson(res, status, body) {
+  const text = JSON.stringify(body)
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' })
+  res.end(text)
+}
+
+async function readJson(req) {
+  const chunks = []
+  for await (const chunk of req) chunks.push(chunk)
+  if (chunks.length === 0) return {}
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  } catch {
+    return {}
+  }
+}
+
+export function apply(ctx, config = {}) {
+  const store = createStore({
+    file: resolveDataFile(config.dataPath),
+    staleDays: Number.isInteger(config.staleDays) ? config.staleDays : 7,
+  })
+  const ready = store.load()
+  const api = createApi(store)
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'prefix',
+    path: '/todo/api',
+    handler: async (req, res) => {
+      if (ctx.connection.requestRejection(req) !== undefined) {
+        writeJson(res, 403, { ok: false, error: { code: 'forbidden', message: 'forbidden' } })
+        return
+      }
+      if (req.method !== 'POST') {
+        writeJson(res, 405, { ok: false, error: { code: 'method', message: '只支持 POST' } })
+        return
+      }
+      const pathname = new URL(req.url ?? '/', 'http://dsh.internal').pathname
+      const method = pathname.startsWith(PREFIX) ? pathname.slice(PREFIX.length) : ''
+      if (method === '' || method.includes('/') || !Object.hasOwn(api, method)) {
+        writeJson(res, 404, { ok: false, error: { code: 'not-found', message: '未知接口' } })
+        return
+      }
+      try {
+        await ready
+        const body = await readJson(req)
+        const result = await api[method](body)
+        writeJson(res, 200, { ok: true, result })
+      } catch (err) {
+        const code = err?.code ?? 'internal'
+        writeJson(res, STATUS[code] ?? 500, {
+          ok: false,
+          error: { code, message: err?.message ?? '待办操作失败' },
+        })
+      }
+    },
+  }), 'dsh-todolist: http')
+
+  ctx.effect(() => () => { void store.close() }, 'dsh-todolist: store')
+}
+```
+
+- [ ] **Step 6: 语法检查并重装**
+
+Run: `node --check index.js; node --check lib/api.js`
+Expected: 退出码 0。
+再执行 `plugin_manager` `install_bundle`（`target: D:\dsh-todolist`）。
+
+- [ ] **Step 7: 真实请求验证**
+
+在 `D:\dsh-todolist` 下用 Node 打一次真实请求（端口取自当前 GUI 地址的 origin）：
+
+```bash
+node -e "fetch('http://127.0.0.1:54843/todo/api/create',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title:'路由连通性测试'})}).then(r=>r.text()).then(console.log)"
+```
+
+Expected: `{"ok":true,"result":{...}}`，且 `%DSH_PROFILE_DIR%/data/dsh-todolist/todos.json` 出现该条。
+若返回 `{"ok":false,"error":{"code":"forbidden"}}`，说明 `requestRejection` 判定为非本页来源——这在命令行请求下是**预期行为**，改用浏览器面板验证（Task 6 之后）。
+
+- [ ] **Step 8: 提交**
+
+```bash
+git add lib/api.js index.js test/api.test.js
+git commit -m "feat: 待办 HTTP 路由与分发"
+```
+
+---
+
+## Task 5: agent 工具 `todo_write`
+
+**Files:**
+- Create: `lib/tool.js`
+- Modify: `index.js`（在 `apply` 内追加工具注册）
+- Test: `test/tool.test.js`
+
+**Interfaces:**
+- Consumes: `createApi`（Task 4）
+- Produces: `createTool(api, ready): ToolDefinition`，工具名 `todo_write`，参数 `{ action, ... }`
+
+- [ ] **Step 1: 写失败测试**
+
+`test/tool.test.js`:
+
+```js
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createStore } from '../lib/store.js'
+import { createApi } from '../lib/api.js'
+import { createTool } from '../lib/tool.js'
+
+async function tool() {
+  const dir = await mkdtemp(join(tmpdir(), 'todo-tool-'))
+  const store = createStore({ file: join(dir, 'todos.json') })
+  const ready = store.load()
+  return { tool: createTool(createApi(store), ready), store }
+}
+
+test('add 返回新记录与摘要', async () => {
+  const { tool, store } = await tool()
+  const out = await tool.execute({ action: 'add', title: '交周报', dueDate: '2026-10-22' }, {})
+  assert.equal(out.item.title, '交周报')
+  assert.equal(out.summary.today, 1)
+  await store.close()
+})
+
+test('list 默认只给未完成', async () => {
+  const { tool, store } = await tool()
+  const a = await tool.execute({ action: 'add', title: 'a' }, {})
+  await tool.execute({ action: 'complete', id: a.item.id }, {})
+  const out = await tool.execute({ action: 'list' }, {})
+  assert.equal(out.items.length, 0)
+  const all = await tool.execute({ action: 'list', view: 'done' }, {})
+  assert.equal(all.items.length, 1)
+  await store.close()
+})
+
+test('未知 action 报错', async () => {
+  const { tool, store } = await tool()
+  await assert.rejects(() => tool.execute({ action: 'nope' }, {}), /不支持的 action/)
+  await store.close()
+})
+
+test('render 产出文本块', async () => {
+  const { tool, store } = await tool()
+  const out = await tool.execute({ action: 'add', title: 'x' }, {})
+  const blocks = tool.output.render({ action: 'add' }, out)
+  assert.equal(blocks[0].type, 'text')
+  assert.match(blocks[0].text, /x/)
+  await store.close()
+})
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `node --test test/tool.test.js`
+Expected: FAIL，`Cannot find module '../lib/tool.js'`
+
+- [ ] **Step 3: 实现 `lib/tool.js`**
+
+```js
+/** The `todo_write` agent tool: same dispatch table the UI calls. */
+
+import { TodoError } from './model.js'
+import { summarize } from './bucket.js'
+
+const ACTIONS = ['list', 'add', 'update', 'complete', 'delete']
+
+function describe(item) {
+  const due = item.dueDate ? `（截止 ${item.dueDate}${item.dueTime ? ' ' + item.dueTime : ''}）` : ''
+  const flag = item.bucket === 'stale' ? '【积压】' : ''
+  return `- ${item.done ? '[x]' : '[ ]'} ${item.title}${due}${flag}`
+}
+
+export function createTool(api, ready) {
+  async function run(input = {}) {
+    await ready
+    const action = input.action
+    if (!ACTIONS.includes(action)) {
+      throw new TodoError('invalid-input', `不支持的 action：${String(action)}，可用 ${ACTIONS.join(' / ')}`)
+    }
+    if (action === 'list') return api.list(input)
+    if (action === 'add') {
+      const { action: _a, ...fields } = input
+      const item = await api.create(fields)
+      return { item, summary: summarize((await api.list({ view: 'open' })).items) }
+    }
+    if (action === 'update') {
+      const { action: _a, id, ...patch } = input
+      const item = await api.update({ id, patch })
+      return { item }
+    }
+    if (action === 'complete') {
+      const item = await api.complete({ id: input.id, done: input.done !== false })
+      return { item }
+    }
+    const removed = await api.remove({ id: input.id })
+    return { removed }
+  }
+
+  return {
+    name: 'todo_write',
+    description:
+      '读写用户本人的日常工作待办清单（与 DSH 会话无关）。' +
+      'action=list 查询；add 新建；update 修改；complete 勾选/取消；delete 删除。' +
+      '只在用户明确要求记录、查询或更新待办时调用，不要用它记录当前会话的任务步骤。',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ACTIONS, description: '要执行的操作' },
+        id: { type: 'string', description: '待办 id（update / complete / delete 必填）' },
+        title: { type: 'string', description: '标题' },
+        note: { type: 'string', description: '备注' },
+        priority: { type: 'string', enum: ['high', 'medium', 'low'], description: '优先级' },
+        category: { type: 'string', description: '分类，如 工作 / 生活' },
+        dueDate: { type: 'string', description: '截止日期 YYYY-MM-DD' },
+        dueTime: { type: 'string', description: '截止时间 HH:mm' },
+        view: { type: 'string', enum: ['open', 'today', 'week', 'stale', 'done'], description: 'list 的过滤视图' },
+        q: { type: 'string', description: 'list 的关键词' },
+        done: { type: 'boolean', description: 'complete 时传 false 表示取消完成' },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+    output: {
+      schema: { type: 'object' },
+      render(_args, value) {
+        if (Array.isArray(value?.items)) {
+          const lines = value.items.map(describe)
+          const s = value.summary ?? {}
+          const head = `待办：今天 ${s.today ?? 0} · 积压 ${s.stale ?? 0} · 未排期 ${s.unplanned ?? 0}`
+          return [{ type: 'text', text: [head, ...lines].join('\n') }]
+        }
+        if (value?.item) return [{ type: 'text', text: `已保存：${value.item.title}` }]
+        if (value?.removed) return [{ type: 'text', text: '已删除' }]
+        return [{ type: 'text', text: JSON.stringify(value) }]
+      },
+    },
+    execute: run,
+  }
+}
+```
+
+- [ ] **Step 4: 运行确认通过**
+
+Run: `node --test test/tool.test.js`
+Expected: PASS，4 个测试全绿。
+
+- [ ] **Step 5: 在 `index.js` 里注册工具**
+
+在 `apply` 末尾、`ctx.effect(() => () => { void store.close() }, ...)` 之前插入：
+
+```js
+  ctx.effect(() => ctx.tools.register(createTool(api, ready)), 'dsh-todolist: tool')
+```
+
+并在文件顶部补 import：
+
+```js
+import { createTool } from './lib/tool.js'
+```
+
+- [ ] **Step 6: 语法检查并重装**
+
+Run: `node --check index.js`
+Expected: 退出码 0。
+执行 `plugin_manager` `install_bundle`（`target: D:\dsh-todolist`）。
+
+- [ ] **Step 7: 确认真实工具已可见**
+
+`cordis_inspect_query`（host / Tool / `listTools`），在返回里找 `todo_write`。
+Expected: 存在，`parameters.required == ["action"]`，`enum` 含 5 个 action。
+
+- [ ] **Step 8: 提交**
+
+```bash
+git add lib/tool.js index.js test/tool.test.js
+git commit -m "feat: todo_write 工具，与 UI 共用同一套分发"
+```
+
+---
+
+## Task 6: 待办页（只读渲染）
+
+**Files:**
+- Modify: `client.js`（整份替换）
+
+**Interfaces:**
+- Consumes: `POST todo/api/{list,create,update,complete,remove}`（Task 4）
+- Produces: `TodoPage` 组件；`fetchApi(method, payload)` 辅助函数（Task 7 复用）
+
+- [ ] **Step 1: 替换 `client.js` 为只读版本**
+
+```js
+window.__ModuleLoader__.load({
+  id: 'dsh-todolist',
+  factory(require) {
+    const React = require('react')
+    const h = React.createElement
+    const { useState, useEffect, useCallback } = React
+
+    const NS = 'dsh-todolist'
+    const dict = {
+      zh: {
+        nav: '待办', title: '待办', new: '新建', search: '搜索待办',
+        today: '今天', tomorrow: '明天', week: '本周', stale: '积压',
+        unplanned: '未排期', done: '已完成', empty: '还没有待办',
+        staleHint: '超过 7 天未完成', loading: '加载中…', failed: '读取失败',
+        retry: '重试', pickOne: '选一条看详情',
+        corruptNotice: '数据文件损坏，已备份并以空清单启动',
+      },
+      en: {
+        nav: 'To-do', title: 'To-do', new: 'New', search: 'Search',
+        today: 'Today', tomorrow: 'Tomorrow', week: 'This week', stale: 'Backlog',
+        unplanned: 'Unscheduled', done: 'Completed', empty: 'No todos yet',
+        staleHint: 'Open for more than 7 days', loading: 'Loading…', failed: 'Failed to load',
+        retry: 'Retry', pickOne: 'Select an item',
+        corruptNotice: 'Data file was corrupt; it is backed up and the list started empty.',
+      },
+    }
+    const ORDER = ['today', 'tomorrow', 'week', 'stale', 'unplanned', 'done']
+
+    function apiUrl(method) {
+      return new URL(`todo/api/${method}`, document.baseURI).href
+    }
+
+    async function fetchApi(method, payload) {
+      const res = await fetch(apiUrl(method), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload ?? {}),
+      })
+      const body = await res.json().catch(() => ({ ok: false, error: { message: '响应不是 JSON' } }))
+      if (!body.ok) throw new Error(body.error?.message ?? '请求失败')
+      return body.result
+    }
+
+    const S = {
+      page: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, color: 'var(--dsw-alias-label-primary)' },
+      head: { display: 'flex', alignItems: 'center', gap: 10, height: 56, padding: '0 20px', flex: 'none', borderBottom: '0.5px solid var(--dsw-alias-border-l2)' },
+      h1: { fontSize: 17, fontWeight: 600, margin: 0 },
+      count: { fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' },
+      grow: { flex: 1 },
+      search: { width: 200, height: 32, padding: '0 10px', borderRadius: 8, border: 'none', fontSize: 12.5, background: 'var(--dsw-alias-bg-module-platform)', color: 'var(--dsw-alias-label-primary)' },
+      body: { display: 'flex', flex: 1, minHeight: 0 },
+      list: { flex: 1, minWidth: 0, overflowY: 'auto', padding: '10px 8px 10px 12px' },
+      sec: { display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 8px', marginTop: 6 },
+      secT: { fontSize: 12, fontWeight: 600, color: 'var(--dsw-alias-label-secondary)' },
+      secN: { fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
+      line: { flex: 1, height: '0.5px', background: 'var(--dsw-alias-border-l2)' },
+      row: { display: 'flex', alignItems: 'center', gap: 9, height: 34, padding: '0 8px', borderRadius: 6, cursor: 'pointer' },
+      cb: { width: 14, height: 14, borderRadius: 4, border: '0.5px solid var(--dsw-alias-border-l4)', flex: 'none', background: 'var(--dsw-alias-bg-layer-1)' },
+      cbDone: { width: 14, height: 14, borderRadius: 4, flex: 'none', background: 'var(--dsw-alias-state-business-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+      nm: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13.5 },
+      nmDone: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13.5, color: 'var(--dsw-alias-label-tertiary)', textDecoration: 'line-through' },
+      tag: { fontSize: 10.5, padding: '0 6px', borderRadius: 4, color: 'var(--dsw-alias-label-secondary)', background: 'var(--dsw-alias-bg-module-platform)', flex: 'none' },
+      due: { fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none', minWidth: 52, textAlign: 'right' },
+      dueLate: { fontSize: 11, color: 'var(--dsw-alias-state-error-primary)', flex: 'none', minWidth: 52, textAlign: 'right' },
+      detail: { width: 300, flex: 'none', borderLeft: '0.5px solid var(--dsw-alias-border-l2)', padding: 16, fontSize: 12.5, color: 'var(--dsw-alias-label-secondary)' },
+      empty: { padding: 40, textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 },
+      error: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent)' },
+      warn: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-warn-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent)' },
+    }
+
+    function priorityDot(priority) {
+      const bg = priority === 'high' ? 'var(--dsw-alias-state-error-primary)'
+        : priority === 'medium' ? 'var(--dsw-alias-state-warn-primary)'
+          : priority === 'low' ? 'var(--dsw-static-blue-450)' : 'transparent'
+      return h('span', { style: { width: 5, height: 5, borderRadius: '50%', background: bg, flex: 'none' } })
+    }
+
+    function dueLabel(item) {
+      if (!item.dueDate) return ''
+      if (item.dueTime) return `${item.dueDate.slice(5)} ${item.dueTime}`
+      return item.dueDate.slice(5)
+    }
+
+    function Row({ item, selected, onSelect, t }) {
+      const today = new Date()
+      const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      const late = !item.done && item.dueDate && item.dueDate < todayKey
+      return h('div', {
+        style: { ...S.row, background: selected ? 'var(--dsw-alias-interactive-bg-hover)' : 'transparent' },
+        onClick: () => onSelect(item.id),
+        onMouseEnter: (e) => { if (!selected) e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover)' },
+        onMouseLeave: (e) => { if (!selected) e.currentTarget.style.background = 'transparent' },
+      },
+      item.done
+        ? h('span', { style: S.cbDone }, h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: '#fff', strokeWidth: 2.4 }, h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' })))
+        : h('span', { style: S.cb }),
+      h('span', { style: item.done ? S.nmDone : S.nm }, item.title),
+      item.priority ? priorityDot(item.priority) : null,
+      item.category ? h('span', { style: S.tag }, item.category) : null,
+      h('span', { style: late ? S.dueLate : S.due }, item.bucket === 'stale' ? `${t('stale')} ${item.dueDate ?? ''}`.trim() : dueLabel(item)),
+      )
+    }
+
+    function TodoPage(props) {
+      const t = props.t ?? ((key) => dict.zh[key] ?? key)
+      const [state, setState] = useState({ loading: true, error: null, items: [], summary: {}, notices: [] })
+      const [query, setQuery] = useState('')
+      const [selected, setSelected] = useState(null)
+
+      const reload = useCallback(async () => {
+        try {
+          const result = await fetchApi('list', query ? { q: query } : {})
+          setState({ loading: false, error: null, items: result.items, summary: result.summary, notices: result.notices ?? [] })
+        } catch (err) {
+          setState((prev) => ({ ...prev, loading: false, error: err.message }))
+        }
+      }, [query])
+
+      useEffect(() => { void reload() }, [reload])
+
+      useEffect(() => {
+        const timer = window.setInterval(() => { void reload() }, 2500)
+        return () => window.clearInterval(timer)
+      }, [reload])
+
+      const groups = ORDER
+        .map((bucket) => ({ bucket, items: state.items.filter((item) => item.bucket === bucket) }))
+        .filter((group) => group.items.length > 0)
+      const selectedItem = state.items.find((item) => item.id === selected) ?? null
+
+      return h('div', { style: S.page },
+        h('div', { style: S.head },
+          h('h2', { style: S.h1 }, t('title')),
+          h('span', { style: S.count }, `${t('today')} ${state.summary.today ?? 0} · ${t('stale')} ${state.summary.stale ?? 0}`),
+          h('div', { style: S.grow }),
+          h('input', {
+            style: S.search, placeholder: t('search'), value: query,
+            onChange: (e) => setQuery(e.target.value),
+          }),
+        ),
+        state.notices.includes('corrupt') ? h('div', { style: S.warn }, t('corruptNotice')) : null,
+        state.error ? h('div', { style: S.error }, `${t('failed')}：${state.error}　`, h('button', { onClick: () => void reload() }, t('retry'))) : null,
+        h('div', { style: S.body },
+          h('div', { style: S.list },
+            state.loading && state.items.length === 0
+              ? h('div', { style: S.empty }, t('loading'))
+              : groups.length === 0
+                ? h('div', { style: S.empty }, t('empty'))
+                : groups.map((group) => h('div', { key: group.bucket },
+                  h('div', { style: S.sec },
+                    h('span', { style: S.secT }, t(group.bucket)),
+                    h('span', { style: S.secN }, String(group.items.length)),
+                    group.bucket === 'stale' ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-error-primary)' } }, t('staleHint')) : null,
+                    h('span', { style: S.line }),
+                  ),
+                  group.items.map((item) => h(Row, {
+                    key: item.id, item, t,
+                    selected: item.id === selected,
+                    onSelect: setSelected,
+                  })),
+                )),
+          ),
+          h('div', { style: S.detail },
+            selectedItem
+              ? h('div', null,
+                h('div', { style: { fontSize: 15, fontWeight: 600, color: 'var(--dsw-alias-label-primary)', marginBottom: 12 } }, selectedItem.title),
+                selectedItem.note ? h('div', { style: { marginBottom: 10, lineHeight: '20px' } }, selectedItem.note) : null,
+                h('div', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 } },
+                  [
+                    selectedItem.priority ? `优先级 ${selectedItem.priority}` : null,
+                    selectedItem.dueDate ? `截止 ${selectedItem.dueDate}${selectedItem.dueTime ? ' ' + selectedItem.dueTime : ''}` : null,
+                    selectedItem.category ? selectedItem.category : null,
+                  ].filter(Boolean).join(' · ')),
+              )
+              : h('div', { style: { color: 'var(--dsw-alias-label-tertiary)' } }, t('pickOne')),
+          ),
+        ),
+      )
+    }
+
+    function TodoIcon({ size = 16 }) {
+      return h('svg', {
+        width: size, height: size, viewBox: '0 0 16 16', fill: 'none',
+        stroke: 'currentColor', strokeWidth: 1.4, 'aria-hidden': true,
+      },
+      h('rect', { x: 2.4, y: 2.4, width: 11.2, height: 11.2, rx: 2.4 }),
+      h('path', { d: 'M5.4 8.2l1.9 1.9 3.4-3.6', strokeLinecap: 'round', strokeLinejoin: 'round' }))
+    }
+
+    return {
+      inject: ['slots'],
+      apply(ctx) {
+        const locale = ctx.get('locale')
+        let t = (key) => dict.zh[key] ?? key
+        if (locale) {
+          ctx.effect(() => locale.register(NS, dict), 'dsh-todolist: dictionaries')
+          t = locale.bind(NS)
+        }
+
+        ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
+          name: 'sidebar.panellist', id: 'todo', order: 20,
+          label: () => t('nav'), locale: NS, inject: () => ({ t }),
+        }, ({ size } = {}) => h(TodoIcon, { size: size ?? 16 })))
+
+        ctx.slots.inject('main', () => ctx.slots.register({
+          name: 'main', key: 'todo', locale: NS, inject: () => ({ t }),
+        }, TodoPage))
+      },
+    }
+  },
+})
+```
+
+- [ ] **Step 2: 语法检查**
+
+Run: `node --check client.js`
+Expected: 退出码 0。
+
+- [ ] **Step 3: 重装并肉眼验证**
+
+执行 `plugin_manager` `install_bundle`（`target: D:\dsh-todolist`），然后：
+1. 侧栏「新会话」下方出现「待办」行，位于「定时任务」之下、「工作区」之上。
+2. 点开是待办页，空库时显示「还没有待办」。
+3. 用 Task 4 Step 7 的 `node -e` 直接往数据文件写一条（或手工编辑 JSON），等 2.5 秒页面自动出现该条，分组为「今天/未排期」正确。
+4. 侧栏折叠时该入口变成图标，不溢出。
+
+- [ ] **Step 4: 提交**
+
+```bash
+git add client.js
+git commit -m "feat: 待办页只读渲染，分组列表与详情"
+```
+
+---
+
+## Task 7: 待办页交互
+
+**Files:**
+- Modify: `client.js`
+
+**Interfaces:**
+- Consumes: `fetchApi`、`S`、`Row`、`TodoPage`（Task 6）
+- Produces: 完整的增删改查交互；`TodoPage` 对外契约不变
+
+- [ ] **Step 1: 在 `client.js` 顶部字典补文案**
+
+两个语言各补这些键：
+
+```js
+// zh
+addPlaceholder: '写点什么，回车保存', save: '保存', cancel: '取消',
+complete: '完成', reopen: '撤销完成', remove: '删除', confirmRemove: '确认删除',
+note: '备注', priority: '优先级', dueDate: '截止日期', dueTime: '时间', category: '分类',
+emptyHint: '新建第一条',
+// en
+addPlaceholder: 'What needs doing? Enter to save', save: 'Save', cancel: 'Cancel',
+complete: 'Complete', reopen: 'Reopen', remove: 'Delete', confirmRemove: 'Confirm delete',
+note: 'Note', priority: 'Priority', dueDate: 'Due date', dueTime: 'Time', category: 'Category',
+emptyHint: 'Create the first one',
+```
+
+- [ ] **Step 2: 重写 `Row`，复选框可点击**
+
+把 Task 6 的整个 `Row` 函数替换成下面这版（鼠标悬停高亮改用 `onMouseEnter`/`onMouseLeave` 的本地状态，避免直接写 `style` 造成的残留）：
+
+```js
+    function Row({ item, selected, onSelect, onToggle, t }) {
+      const [hover, setHover] = useState(false)
+      const today = new Date()
+      const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      const late = !item.done && item.dueDate && item.dueDate < todayKey
+      return h('div', {
+        style: { ...S.row, background: selected || hover ? 'var(--dsw-alias-interactive-bg-hover)' : 'transparent' },
+        onClick: () => onSelect(item.id),
+        onMouseEnter: () => setHover(true),
+        onMouseLeave: () => setHover(false),
+      },
+      h('span', {
+        role: 'checkbox',
+        'aria-checked': item.done ? 'true' : 'false',
+        tabIndex: 0,
+        style: item.done ? S.cbDone : S.cb,
+        onClick: (e) => { e.stopPropagation(); onToggle(item) },
+        onKeyDown: (e) => { if (e.key === ' ' || e.key === 'Enter') { e.stopPropagation(); onToggle(item) } },
+      }, item.done
+        ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: '#fff', strokeWidth: 2.4 },
+            h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))
+        : null),
+      h('span', { style: item.done ? S.nmDone : S.nm }, item.title),
+      item.priority ? priorityDot(item.priority) : null,
+      item.category ? h('span', { style: S.tag }, item.category) : null,
+      h('span', { style: late ? S.dueLate : S.due }, item.bucket === 'stale' ? `${t('stale')} ${item.dueDate ?? ''}`.trim() : dueLabel(item)),
+      )
+    }
+```
+
+- [ ] **Step 3: 在 `TodoPage` 里接上写操作**
+
+在 `reload` 之后加：
+
+```js
+      const mutate = useCallback(async (method, payload) => {
+        try {
+          await fetchApi(method, payload)
+          await reload()
+        } catch (err) {
+          setState((prev) => ({ ...prev, error: err.message }))
+        }
+      }, [reload])
+
+      const [draft, setDraft] = useState(null) // null | '' | string
+      const [confirming, setConfirming] = useState(false)
+
+      const submitDraft = useCallback(async () => {
+        if (draft === null) return
+        const title = draft.trim()
+        if (title === '') { setDraft(null); return }
+        await mutate('create', { title })
+        setDraft(null)
+      }, [draft, mutate])
+```
+
+- [ ] **Step 4: 页头加「+ 新建」并把草稿行插到列表最上面**
+
+页头 `input` 之前插入按钮：
+
+```js
+          h('button', {
+            style: { height: 32, padding: '0 12px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'var(--dsw-alias-button-elevated-fill)', color: 'var(--dsw-alias-label-primary)', fontSize: 13, cursor: 'pointer' },
+            onClick: () => { setDraft(''); setSelected(null) },
+          }, `+ ${t('new')}`),
+```
+
+列表最前面插入草稿行（`groups.length === 0` 分支之前）：
+
+```js
+            draft !== null ? h('div', { style: S.sec },
+              h('input', {
+                autoFocus: true, value: draft, placeholder: t('addPlaceholder'),
+                style: { ...S.search, width: '100%' },
+                onChange: (e) => setDraft(e.target.value),
+                onKeyDown: (e) => {
+                  if (e.key === 'Enter') void submitDraft()
+                  if (e.key === 'Escape') setDraft(null)
+                },
+              }),
+            ) : null,
+```
+
+- [ ] **Step 5: 详情列加完成 / 删除**
+
+替换 `S.detail` 里 `selectedItem` 分支，在信息行后追加：
+
+```js
+                h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
+                  h('button', {
+                    style: { flex: 1, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: '#fff', fontSize: 12.5 },
+                    onClick: () => void mutate('complete', { id: selectedItem.id, done: !selectedItem.done }),
+                  }, selectedItem.done ? t('reopen') : t('complete')),
+                  h('button', {
+                    style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'transparent', color: confirming ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
+                    onClick: async () => {
+                      if (!confirming) { setConfirming(true); window.setTimeout(() => setConfirming(false), 3000); return }
+                      setConfirming(false)
+                      setSelected(null)
+                      await mutate('remove', { id: selectedItem.id })
+                    },
+                  }, confirming ? t('confirmRemove') : t('remove')),
+                ),
+```
+
+`onToggle` 传给每个 `Row`：
+
+```js
+                  onToggle: (item) => { void mutate('complete', { id: item.id, done: !item.done }) },
+```
+
+- [ ] **Step 6: 语法检查并重装**
+
+Run: `node --check client.js`
+Expected: 退出码 0。
+执行 `plugin_manager` `install_bundle`，然后刷新页面（客户端代码变更需要重建/刷新）。
+
+- [ ] **Step 7: 交互验收**
+
+1. 点「+ 新建」→ 输入标题 → 回车：新条目出现在「未排期」或对应分组。
+2. 点复选框：条目移动到「已完成」，2.5 秒内不变回。
+3. 点条目看详情 → 点「完成」→ 详情按钮变成「撤销完成」。
+4. 点「删除」→ 变成「确认删除」→ 再点删除，条目消失。
+5. 切换会话、切到「插件」页再切回「待办」：状态正常，无报错。
+
+- [ ] **Step 8: 提交**
+
+```bash
+git add client.js
+git commit -m "feat: 待办页增删改查交互"
+```
+
+---
+
+## Task 8: 收尾与完整验收
+
+**Files:**
+- Create: `README.md`
+- Modify: `index.js`（仅加注释说明 `staleDays` / `dataPath`）
+
+**Interfaces:**
+- Consumes: 全部前置任务
+- Produces: 可发布状态
+
+- [ ] **Step 1: 写 `README.md`**
+
+```markdown
+# dsh-todolist
+
+DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和 agent 共用一份。
+
+## 安装
+
+在本机的 DSH 里执行插件安装（包目录为仓库根目录），装完侧栏「新会话」下方会出现「待办」。
+
+## 数据在哪
+
+默认 `%DSH_PROFILE_DIR%/data/dsh-todolist/todos.json`，普通 JSON，可以直接打开、编辑、备份。
+
+```json
+{ "version": 1, "todos": [ { "id": "t_...", "title": "交周报", "dueDate": "2026-10-22", "done": false } ] }
+```
+
+文件损坏时会备份为 `todos.corrupt-<时间戳>.json` 并以空清单启动。
+
+## 配置
+
+在 `cordis.patch.yml` 的插件行里改：
+
+```yaml
+- id: dsh-todolist
+  config:
+    staleDays: 7   # 超过多少天未完成算「积压」
+    dataPath: ''   # 可选，覆盖默认数据文件路径
+```
+
+## agent 工具
+
+`todo_write`，`action` 可选 `list` / `add` / `update` / `complete` / `delete`。
+
+## 开发
+
+```bash
+node --test test/
+```
+```
+
+- [ ] **Step 2: 跑全部测试**
+
+Run: `node --test test/`
+Expected: 24 个测试全绿（bucket 8 + store 9 + api 3 + tool 4）。
+
+- [ ] **Step 3: 按 spec §8 逐条验收**
+
+| # | 验收项 | 做法 |
+|---|---|---|
+| 1 | 重启后入口与数据都在 | 重启 DSH，看侧栏与列表 |
+| 2 | 折叠态图标不溢出 | 折叠侧栏截图对比其他面板图标 |
+| 3 | UI 建 → 工具能看到 | 页面新建一条，然后让我调用 `todo_write list` |
+| 4 | 工具建 → 面板 2.5s 内出现 | 让我调用 `todo_write add`，盯页面 |
+| 5 | 完成写 `doneAt` | 勾选后看 JSON 文件 |
+| 6 | 积压判定 | 手工把某条 `createdAt` 改成 10 天前，刷新看是否进「积压」 |
+| 7 | 删库不崩 | 删掉 `todos.json` 重启，空清单 + 不报错 |
+| 8 | 卸载恢复原样 | `plugin_manager remove_bundle` 后确认侧栏无「待办」、`main` 无 `todo` |
+
+- [ ] **Step 4: 提交并推送**
+
+```bash
+git add README.md index.js
+git commit -m "docs: README 与配置说明"
+git push
+```
+
+---
+
+## 附：任务依赖与并行度
+
+```
+Task 1 (骨架/槽位)  ─┬─> Task 6 (只读页) ──> Task 7 (交互)
+Task 2 (分组) ─> Task 3 (存储) ─> Task 4 (路由) ─> Task 5 (工具)
+Task 8 依赖全部
+```
+
+- Task 2–5 与 Task 1 并行不冲突（不同文件）。
+- Task 6 需要 Task 4 的路由已装好，否则页面一直显示「读取失败」。
+- Task 7 必须等 Task 6 的 `fetchApi` / `S` / `Row` 就位。
