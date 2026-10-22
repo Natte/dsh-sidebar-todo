@@ -1,10 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, writeFile, readdir } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, writeFile, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createStore } from '../lib/store.js'
 import { TodoError } from '../lib/model.js'
+import { dateKey } from '../lib/bucket.js'
 
 async function tempStore(staleDays = 7) {
   const dir = await mkdtemp(join(tmpdir(), 'todo-'))
@@ -16,7 +17,7 @@ async function tempStore(staleDays = 7) {
 
 test('新建后能读回，字段齐全', async () => {
   const { store } = await tempStore()
-  const todo = await store.create({ title: '交周报', dueDate: '2026-10-22', priority: 'high' })
+  const todo = await store.create({ title: '交周报', dueDate: dateKey(new Date()), priority: 'high' })
   assert.equal(todo.title, '交周报')
   assert.equal(todo.done, false)
   assert.equal(todo.bucket, 'today')
@@ -86,7 +87,8 @@ test('文件损坏时备份并空表启动', async () => {
   await store.create({ title: 'a' })
   await store.close()
 
-  await writeFile(file, '{ this is not json', 'utf8')
+  const original = '{ this is not json'
+  await writeFile(file, original, 'utf8')
   const broken = createStore({ file })
   const info = await broken.load()
   assert.equal(info.corrupt, true)
@@ -94,13 +96,16 @@ test('文件损坏时备份并空表启动', async () => {
   assert.equal(items.length, 0)
   assert.deepEqual(notices, ['corrupt'])
   const names = await readdir(dir)
-  assert.ok(names.some((n) => n.startsWith('todos.corrupt-')), 'corrupt backup written')
+  const backup = names.find((n) => n.startsWith('todos.corrupt-'))
+  assert.ok(backup, 'corrupt backup written')
+  assert.equal(await readFile(join(dir, backup), 'utf8'), original)
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), { version: 1, todos: [] })
   await broken.close()
 })
 
 test('list 支持 view 与 q 过滤', async () => {
   const { store } = await tempStore()
-  await store.create({ title: '交周报', dueDate: '2026-10-22' })
+  await store.create({ title: '交周报', dueDate: dateKey(new Date()) })
   await store.create({ title: '买牛奶' })
   const byText = await store.list({ q: '牛奶' })
   assert.deepEqual(byText.items.map((t) => t.title), ['买牛奶'])
@@ -114,5 +119,79 @@ test('并发写不会丢（串行队列）', async () => {
   await Promise.all(Array.from({ length: 20 }, (_, i) => store.create({ title: `t${i}` })))
   const raw = JSON.parse(await readFile(file, 'utf8'))
   assert.equal(raw.todos.length, 20)
+  await store.close()
+})
+
+test('一次写盘失败后队列仍可继续', async () => {
+  const { store, file } = await tempStore()
+  const tmp = `${file}.tmp`
+  await mkdir(tmp)
+  await assert.rejects(
+    () => store.create({ title: '失败的一次' }),
+    (err) => err instanceof TodoError && err.code === 'io-error',
+  )
+  await rm(tmp, { recursive: true, force: true })
+  const next = await store.create({ title: '恢复后的一次' })
+  assert.equal(next.title, '恢复后的一次')
+  const raw = JSON.parse(await readFile(file, 'utf8'))
+  assert.deepEqual(raw.todos.map((t) => t.title), ['失败的一次', '恢复后的一次'])
+  await store.close()
+})
+
+test('损坏且备份失败时抛错并保留原件', async () => {
+  const { store, file, dir } = await tempStore()
+  await store.create({ title: 'a' })
+  await store.close()
+
+  const original = '{ this is not json'
+  await writeFile(file, original, 'utf8')
+
+  const realNow = Date.now
+  const fixed = realNow()
+  Date.now = () => fixed
+  const broken = createStore({ file })
+  try {
+    await mkdir(join(dir, `todos.corrupt-${fixed}.json`))
+    await assert.rejects(
+      () => broken.load(),
+      (err) => err instanceof TodoError && err.code === 'io-error',
+    )
+    assert.equal(await readFile(file, 'utf8'), original)
+    await assert.rejects(
+      () => broken.create({ title: 'x' }),
+      (err) => err instanceof TodoError && err.code === 'io-error',
+    )
+    assert.equal(await readFile(file, 'utf8'), original)
+  } finally {
+    Date.now = realNow
+    await broken.close()
+  }
+})
+
+test('非法入参统一抛 TodoError', async () => {
+  const { store } = await tempStore()
+  await assert.rejects(() => store.create(null), (err) => err instanceof TodoError && err.code === 'invalid-input')
+  const todo = await store.create({ title: 'z' })
+  await assert.rejects(() => store.update(todo.id, null), (err) => err instanceof TodoError && err.code === 'invalid-input')
+  await assert.rejects(() => store.list(null), (err) => err instanceof TodoError && err.code === 'invalid-input')
+  await store.close()
+})
+
+test('重复完成保持 doneAt，done 只接受布尔', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({ title: '幂等' })
+  const first = await store.complete(todo.id, true)
+  await new Promise((resolve) => setTimeout(resolve, 5))
+  const again = await store.complete(todo.id, true)
+  assert.equal(again.done, true)
+  assert.equal(again.doneAt, first.doneAt)
+  await assert.rejects(() => store.complete(todo.id, 0), (err) => err instanceof TodoError && err.code === 'invalid-input')
+  await assert.rejects(() => store.complete(todo.id, null), (err) => err instanceof TodoError && err.code === 'invalid-input')
+  const undone = await store.complete(todo.id, false)
+  assert.equal(undone.done, false)
+  assert.equal(undone.doneAt, null)
+  const redone = await store.complete(todo.id, true)
+  assert.ok(redone.doneAt)
+  assert.notEqual(redone.doneAt, first.doneAt)
   await store.close()
 })
