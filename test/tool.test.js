@@ -111,9 +111,28 @@ test('complete done:false 取消完成', async (t) => {
   assert.ok(tool.output.render({ action: 'complete' }, undone)[0].text.includes(added.item.id))
 })
 
-test('update / complete / delete 缺 id 报 invalid-input', async (t) => {
+test('工具完成的记录带 doneBy=agent', async (t) => {
+  const { tool, store } = await makeTool(t)
+  const added = await tool.execute({ action: 'add', title: 'x' }, {})
+  const done = await tool.execute({ action: 'complete', id: added.item.id }, {})
+  assert.equal(done.item.doneBy, 'agent')
+  assert.equal(done.item.verifiedAt, null)
+  await store.close()
+})
+
+test('confirm 可确认 agent 完成并写入 verifiedAt', async (t) => {
   const { tool } = await makeTool(t)
-  for (const action of ['update', 'complete', 'delete']) {
+  const added = await tool.execute({ action: 'add', title: '待确认' }, {})
+  await tool.execute({ action: 'complete', id: added.item.id }, {})
+  const confirmed = await tool.execute({ action: 'confirm', id: added.item.id }, {})
+  assert.ok(confirmed.item.verifiedAt)
+  assert.equal(confirmed.item.doneBy, 'agent')
+  assert.equal(confirmed.item.done, true)
+})
+
+test('update / complete / confirm / delete 缺 id 报 invalid-input', async (t) => {
+  const { tool } = await makeTool(t)
+  for (const action of ['update', 'complete', 'confirm', 'delete']) {
     await assert.rejects(
       () => tool.execute({ action, title: 'z' }, {}),
       (err) => err instanceof TodoError && err.code === 'invalid-input',

@@ -16,6 +16,7 @@ window.__ModuleLoader__.load({
         corruptNotice: '数据文件损坏，已备份并以空清单启动',
         addPlaceholder: '写点什么，回车保存', agentHint: '没看懂时间？可以在对话里说一句，让 agent 帮你定', save: '保存', cancel: '取消',
         complete: '完成', reopen: '撤销完成', remove: '删除', confirmRemove: '确认删除',
+        needsReview: '待确认', confirmDone: '确认已完成',
         note: '备注', priority: '优先级', dueDate: '截止日期', dueTime: '时间', category: '分类',
         emptyHint: '新建第一条',
         yesterday: '昨天', earlier: '更早', created: '创建于',
@@ -34,6 +35,7 @@ window.__ModuleLoader__.load({
         corruptNotice: 'Data file was corrupt; it is backed up and the list started empty.',
         addPlaceholder: 'What needs doing? Enter to save', agentHint: 'No date understood? Ask the agent in chat to set one.', save: 'Save', cancel: 'Cancel',
         complete: 'Complete', reopen: 'Reopen', remove: 'Delete', confirmRemove: 'Confirm delete',
+        needsReview: 'Needs review', confirmDone: 'Confirm done',
         note: 'Note', priority: 'Priority', dueDate: 'Due date', dueTime: 'Time', category: 'Category',
         emptyHint: 'Create the first one',
         yesterday: 'Yesterday', earlier: 'Earlier', created: 'Created',
@@ -94,6 +96,9 @@ window.__ModuleLoader__.load({
       secBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', marginTop: 6, border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' },
       subsec: { display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px 0 16px', marginTop: 2 },
     }
+
+    // 标题是真正的 <button>（键盘可达），但外观仍是普通文本。
+    const TITLE_BTN = { padding: 0, border: 'none', background: 'transparent', color: 'inherit', fontFamily: 'inherit', textAlign: 'left', cursor: 'pointer', borderRadius: 4 }
 
     function priorityDot(priority) {
       const bg = priority === 'high' ? 'var(--dsw-alias-state-error-primary)'
@@ -193,20 +198,17 @@ window.__ModuleLoader__.load({
 
     function Row({ item, selected, onSelect, onToggle, t }) {
       const [hover, setHover] = useState(false)
+      const [titleFocus, setTitleFocus] = useState(false)
       const today = new Date()
       const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
       const late = !item.done && item.dueDate && item.dueDate < todayKey
+      // 行本身保持普通 div：按钮的子元素在 ARIA 里是 presentational，行若 role="button"，
+      // 里面的 role="checkbox" 读屏就看不到了。鼠标仍点整行选中；键盘走标题与复选框两个独立控件。
       return h('div', {
-        role: 'button',
-        tabIndex: 0,
-        'aria-current': selected ? 'true' : 'false',
         style: { ...S.row, background: selected || hover ? 'var(--dsw-alias-interactive-bg-hover)' : 'transparent' },
         onClick: () => onSelect(item.id),
         onMouseEnter: () => setHover(true),
         onMouseLeave: () => setHover(false),
-        onKeyDown: (e) => {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(item.id) }
-        },
       },
       h('span', {
         role: 'checkbox',
@@ -215,14 +217,32 @@ window.__ModuleLoader__.load({
         tabIndex: 0,
         style: item.done ? S.cbDone : S.cb,
         onClick: (e) => { e.stopPropagation(); onToggle(item) },
-        onKeyDown: (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onToggle(item) } },
+        onKeyDown: (e) => {
+          if (e.nativeEvent?.isComposing === true) return
+          if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onToggle(item) }
+        },
       }, item.done
         ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: '#fff', strokeWidth: 2.4 },
             h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))
         : null),
-      h('span', { style: item.done ? S.nmDone : S.nm }, item.title),
+      h('button', {
+        type: 'button',
+        'aria-current': selected ? 'true' : 'false',
+        style: {
+          ...TITLE_BTN,
+          ...(item.done ? S.nmDone : S.nm),
+          outline: titleFocus ? '2px solid var(--dsw-alias-state-business-primary)' : 'none',
+          outlineOffset: 1,
+        },
+        onClick: (e) => { e.stopPropagation(); onSelect(item.id) },
+        onFocus: () => setTitleFocus(true),
+        onBlur: () => setTitleFocus(false),
+      }, item.title),
       item.priority ? priorityDot(item.priority) : null,
       item.category ? h('span', { style: S.tag }, item.category) : null,
+      item.done && item.doneBy === 'agent' && !item.verifiedAt
+        ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-warn-primary)' } }, t('needsReview'))
+        : null,
       h('span', { style: late ? S.dueLate : S.due }, item.bucket === 'stale' ? staleLabel(item, t, today) : dueLabel(item)),
       )
     }
@@ -299,8 +319,9 @@ window.__ModuleLoader__.load({
               priority: result.priority,
               category: result.category,
             }
-          await onCreated(fields)
-          if (alive.current) { setText(''); setParsed(null) }
+          const ok = await onCreated(fields)
+          // 写失败时保留输入：onCreated 返回 false 就不清空、不收起。
+          if (alive.current && ok === true) { setText(''); setParsed(null) }
         } finally {
           if (alive.current) setBusy(false)
         }
@@ -322,6 +343,8 @@ window.__ModuleLoader__.load({
           style: { ...S.search, width: '100%' },
           onChange: (e) => setText(e.target.value),
           onKeyDown: (e) => {
+            // 中文输入法选词的回车不是提交：isComposing 期间一律交给 IME。
+            if (e.nativeEvent?.isComposing === true) return
             if (e.key === 'Enter') void submit()
             if (e.key === 'Escape') { setText(''); setParsed(null) }
           },
@@ -353,6 +376,16 @@ window.__ModuleLoader__.load({
       // 请求序号：只有最后一次 list 的结果能落到 state，旧响应直接丢弃。
       const seqRef = useRef(0)
 
+      // 删除二次确认的 3s 自动撤回：timer id 必须存下来，换选/卸载时才能取消，
+      // 否则上一条的旧 timer 会在新条的确认窗口里把它提前撤回。
+      const confirmTimer = useRef(null)
+      const clearConfirmTimer = useCallback(() => {
+        if (confirmTimer.current !== null) {
+          window.clearTimeout(confirmTimer.current)
+          confirmTimer.current = null
+        }
+      }, [])
+
       const reload = useCallback(async () => {
         const seq = ++seqRef.current
         try {
@@ -372,13 +405,16 @@ window.__ModuleLoader__.load({
         }
       }, [query])
 
+      /** 写操作：返回是否成功，调用方（如 QuickAdd）据此决定要不要清空用户输入。 */
       const mutate = useCallback(async (method, payload) => {
         try {
           await fetchApi(method, payload, tRef.current)
           await reload()
+          return true
         } catch (err) {
           console.error(`[dsh-todolist] ${method} failed`, err)
           setState((prev) => ({ ...prev, error: true }))
+          return false
         }
       }, [reload])
 
@@ -389,8 +425,14 @@ window.__ModuleLoader__.load({
         return () => window.clearInterval(timer)
       }, [reload])
 
-      // 换选另一条时，把「确认删除」的二段确认复位。
-      useEffect(() => { setConfirming(false) }, [selected])
+      // 换选另一条时：先取消上一条的自动撤回计时，再复位「确认删除」。
+      useEffect(() => {
+        clearConfirmTimer()
+        setConfirming(false)
+      }, [selected, clearConfirmTimer])
+
+      // 卸载时清掉计时器，避免组件没了还 setConfirming。
+      useEffect(() => () => clearConfirmTimer(), [clearConfirmTimer])
 
       const items = state.items
       const doneItems = items.filter((item) => item.bucket === 'done')
@@ -440,8 +482,9 @@ window.__ModuleLoader__.load({
             draft !== null ? h(QuickAdd, {
               t,
               onCreated: async (fields) => {
-                await mutate('create', fields)
-                setDraft(null)
+                const ok = await mutate('create', fields)
+                if (ok) setDraft(null)
+                return ok
               },
             }) : null,
             state.loading && items.length === 0
@@ -508,9 +551,14 @@ window.__ModuleLoader__.load({
                   h('button', {
                     style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'transparent', color: confirming ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
                     onClick: async () => {
+                      // 进入或结束确认态之前都先清掉旧 timer，保证只剩当前这一轮。
+                      clearConfirmTimer()
                       if (!confirming) {
                         setConfirming(true)
-                        window.setTimeout(() => setConfirming(false), 3000)
+                        confirmTimer.current = window.setTimeout(() => {
+                          confirmTimer.current = null
+                          setConfirming(false)
+                        }, 3000)
                         return
                       }
                       setConfirming(false)
@@ -519,6 +567,12 @@ window.__ModuleLoader__.load({
                     },
                   }, confirming ? t('confirmRemove') : t('remove')),
                 ),
+                selectedItem.done && selectedItem.doneBy === 'agent' && !selectedItem.verifiedAt
+                  ? h('button', {
+                      style: { width: '100%', height: 32, marginTop: 8, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5 },
+                      onClick: () => void mutate('confirm', { id: selectedItem.id }),
+                    }, t('confirmDone'))
+                  : null,
               )
               : h('div', { style: { color: 'var(--dsw-alias-label-tertiary)' } }, t('pickOne')),
           ),

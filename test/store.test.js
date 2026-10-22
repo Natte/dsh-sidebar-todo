@@ -177,6 +177,33 @@ test('非法入参统一抛 TodoError', async () => {
   await store.close()
 })
 
+test('用户完成立即视为已核实，agent 完成需要确认', async () => {
+  const { store } = await tempStore()
+  const mine = await store.create({ title: 'a' })
+  const userDone = await store.complete(mine.id, true, 'user')
+  assert.equal(userDone.doneBy, 'user')
+  assert.ok(userDone.verifiedAt)
+
+  const theirs = await store.create({ title: 'b' })
+  const agentDone = await store.complete(theirs.id, true, 'agent')
+  assert.equal(agentDone.doneBy, 'agent')
+  assert.equal(agentDone.verifiedAt, null)
+
+  const confirmed = await store.confirm(theirs.id)
+  assert.ok(confirmed.verifiedAt)
+  await store.close()
+})
+
+test('取消完成会清掉 doneBy 与 verifiedAt', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({ title: 'a' })
+  await store.complete(todo.id, true, 'agent')
+  const reopened = await store.complete(todo.id, false)
+  assert.equal(reopened.doneBy, null)
+  assert.equal(reopened.verifiedAt, null)
+  await store.close()
+})
+
 test('重复完成保持 doneAt，done 只接受布尔', async () => {
   const { store } = await tempStore()
   const todo = await store.create({ title: '幂等' })
