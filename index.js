@@ -34,6 +34,7 @@ export function apply(ctx, config = {}) {
     staleDays: Number.isInteger(config.staleDays) ? config.staleDays : 7,
   })
   const ready = store.load()
+  void ready.catch(() => {}) // 不让 load 失败变成未处理拒绝；错误仍由 await ready 的调用方拿到
   const api = createApi(store)
 
   ctx.effect(() => ctx.webServer.register({

@@ -222,3 +222,72 @@ test('重复完成保持 doneAt，done 只接受布尔', async () => {
   assert.notEqual(redone.doneAt, first.doneAt)
   await store.close()
 })
+
+test('写失败后 list 带 write-error，retryPersist 成功才清除', async () => {
+  const { store, file } = await tempStore()
+  const tmp = `${file}.tmp`
+  await mkdir(tmp)
+  await assert.rejects(
+    () => store.create({ title: '尚未落盘' }),
+    (err) => err instanceof TodoError && err.code === 'io-error',
+  )
+  assert.deepEqual((await store.list()).notices, ['write-error'])
+  await assert.rejects(
+    () => store.retryPersist(),
+    (err) => err instanceof TodoError && err.code === 'io-error',
+  )
+  assert.deepEqual((await store.list()).notices, ['write-error'])
+
+  await rm(tmp, { recursive: true, force: true })
+  assert.deepEqual(await store.retryPersist(), { ok: true })
+  assert.deepEqual((await store.list()).notices, [])
+  const raw = JSON.parse(await readFile(file, 'utf8'))
+  assert.deepEqual(raw.todos.map((todo) => todo.title), ['尚未落盘'])
+  await store.close()
+})
+
+test('损坏与写失败同时出现时 notices 同时含两个值', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'todo-'))
+  const file = join(dir, 'todos.json')
+  await writeFile(file, '{ this is not json', 'utf8')
+  const store = createStore({ file })
+  await store.load()
+
+  const tmp = `${file}.tmp`
+  await mkdir(tmp)
+  await assert.rejects(
+    () => store.create({ title: 'x' }),
+    (err) => err instanceof TodoError && err.code === 'io-error',
+  )
+  assert.deepEqual((await store.list()).notices, ['corrupt', 'write-error'])
+  await rm(tmp, { recursive: true, force: true })
+  await store.close()
+})
+
+test('list 返回 staleDays，供前端拼积压文案', async () => {
+  const { store } = await tempStore(5)
+  assert.equal((await store.list()).staleDays, 5)
+  await store.close()
+})
+
+test('confirm 只允许确认 agent 完成的记录', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({ title: 'a' })
+  await assert.rejects(
+    () => store.confirm(todo.id),
+    (err) => err instanceof TodoError && err.code === 'invalid-input' && /不需要确认/.test(err.message),
+  )
+  await store.complete(todo.id, true, 'user')
+  await assert.rejects(
+    () => store.confirm(todo.id),
+    (err) => err instanceof TodoError && err.code === 'invalid-input',
+  )
+  const agent = await store.create({ title: 'b' })
+  await store.complete(agent.id, true, 'agent')
+  assert.ok((await store.confirm(agent.id)).verifiedAt)
+  await assert.rejects(
+    () => store.confirm('ghost'),
+    (err) => err instanceof TodoError && err.code === 'not-found',
+  )
+  await store.close()
+})

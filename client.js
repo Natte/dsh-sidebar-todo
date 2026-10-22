@@ -11,9 +11,10 @@ window.__ModuleLoader__.load({
         nav: '待办', title: '待办', new: '新建', search: '搜索待办',
         today: '今天', tomorrow: '明天', week: '本周', stale: '积压',
         unplanned: '未排期', done: '已完成', empty: '还没有待办',
-        staleHint: '超过 7 天未完成', loading: '加载中…', failed: '读取失败',
+        staleHint: '超过 {n} 天未完成', loading: '加载中…', failed: '读取失败',
         retry: '重试', pickOne: '选一条看详情',
         corruptNotice: '数据文件损坏，已备份并以空清单启动',
+        writeNotice: '有改动尚未写入磁盘', retryWrite: '重试写入',
         addPlaceholder: '写点什么，回车保存', agentHint: '没看懂时间？可以在对话里说一句，让 agent 帮你定', save: '保存', cancel: '取消',
         complete: '完成', reopen: '撤销完成', remove: '删除', confirmRemove: '确认删除',
         needsReview: '待确认', confirmDone: '确认已完成',
@@ -30,9 +31,10 @@ window.__ModuleLoader__.load({
         nav: 'To-do', title: 'To-do', new: 'New', search: 'Search',
         today: 'Today', tomorrow: 'Tomorrow', week: 'This week', stale: 'Backlog',
         unplanned: 'Unscheduled', done: 'Completed', empty: 'No todos yet',
-        staleHint: 'Open for more than 7 days', loading: 'Loading…', failed: 'Failed to load',
+        staleHint: 'Open for more than {n} days', loading: 'Loading…', failed: 'Failed to load',
         retry: 'Retry', pickOne: 'Select an item',
         corruptNotice: 'Data file was corrupt; it is backed up and the list started empty.',
+        writeNotice: 'Some changes are not on disk yet', retryWrite: 'Retry write',
         addPlaceholder: 'What needs doing? Enter to save', agentHint: 'No date understood? Ask the agent in chat to set one.', save: 'Save', cancel: 'Cancel',
         complete: 'Complete', reopen: 'Reopen', remove: 'Delete', confirmRemove: 'Confirm delete',
         needsReview: 'Needs review', confirmDone: 'Confirm done',
@@ -121,10 +123,16 @@ window.__ModuleLoader__.load({
       return h('span', { style: { width: 5, height: 5, borderRadius: '50%', background: bg, flex: 'none' } })
     }
 
+    /** 手改 JSON 可能让字符串字段变成任意类型；渲染按空串兜底，别让整页被错误边界摘掉。 */
+    function asText(value) {
+      return typeof value === 'string' ? value : ''
+    }
+
     function dueLabel(item) {
-      if (!item.dueDate) return ''
-      if (item.dueTime) return `${item.dueDate.slice(5)} ${item.dueTime}`
-      return item.dueDate.slice(5)
+      const dueDate = asText(item.dueDate)
+      if (dueDate === '') return ''
+      const dueTime = asText(item.dueTime)
+      return dueTime === '' ? dueDate.slice(5) : `${dueDate.slice(5)} ${dueTime}`
     }
 
     function dateKeyOf(date) {
@@ -182,7 +190,7 @@ window.__ModuleLoader__.load({
       if (priority === 'high') return t('priorityHigh')
       if (priority === 'medium') return t('priorityMedium')
       if (priority === 'low') return t('priorityLow')
-      return priority ?? ''
+      return typeof priority === 'string' ? priority : ''
     }
 
     /** 「挂了 N 天」：按 `createdAt` 算整天数，算不出来时退回分组名。 */
@@ -216,7 +224,10 @@ window.__ModuleLoader__.load({
       const [checkboxFocus, setCheckboxFocus] = useState(false)
       const today = new Date()
       const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-      const late = !item.done && item.dueDate && item.dueDate < todayKey
+      const title = asText(item.title)
+      const dueDate = asText(item.dueDate)
+      const category = asText(item.category)
+      const late = !item.done && dueDate !== '' && dueDate < todayKey
       // 行本身保持普通 div：按钮的子元素在 ARIA 里是 presentational，行若 role="button"，
       // 里面的 role="checkbox" 读屏就看不到了。鼠标仍点整行选中；键盘走标题与复选框两个独立控件。
       return h('div', {
@@ -228,7 +239,7 @@ window.__ModuleLoader__.load({
       h('span', {
         role: 'checkbox',
         'aria-checked': item.done ? 'true' : 'false',
-        'aria-label': item.title,
+        'aria-label': title,
         tabIndex: 0,
         style: {
           ...(item.done ? S.cbDone : S.cb),
@@ -258,9 +269,9 @@ window.__ModuleLoader__.load({
         onClick: (e) => { e.stopPropagation(); onSelect(item.id) },
         onFocus: (e) => setTitleFocus(focusVisible(e)),
         onBlur: () => setTitleFocus(false),
-      }, item.title),
+      }, title),
       item.priority ? priorityDot(item.priority) : null,
-      item.category ? h('span', { style: S.tag }, item.category) : null,
+      category !== '' ? h('span', { style: S.tag }, category) : null,
       item.done && item.doneBy === 'agent' && !item.verifiedAt
         ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-warn-primary)' } }, t('needsReview'))
         : null,
@@ -382,7 +393,7 @@ window.__ModuleLoader__.load({
 
     function TodoPage(props) {
       const t = props.t ?? ((key) => dict.zh[key] ?? key)
-      const [state, setState] = useState({ loading: true, error: null, items: [], summary: {}, notices: [] })
+      const [state, setState] = useState({ loading: true, error: null, items: [], summary: {}, notices: [], staleDays: 7 })
       const [query, setQuery] = useState('')
       const [selected, setSelected] = useState(null)
       const [draft, setDraft] = useState(null) // null | '' | string
@@ -390,6 +401,7 @@ window.__ModuleLoader__.load({
       const [doneOpen, setDoneOpen] = useState(false)
       const [noticeHidden, setNoticeHidden] = useState(corruptDismissed)
       const [compactDetail, setCompactDetail] = useState(() => window.innerWidth < 1000)
+      const [retrying, setRetrying] = useState(false)
 
       // t 走 ref：语言切换时调用方可能换掉 props.t，但不该让 reload 重新排队。
       const tRef = useRef(t)
@@ -424,6 +436,7 @@ window.__ModuleLoader__.load({
             items: Array.isArray(result.items) ? result.items : [],
             summary: result.summary && typeof result.summary === 'object' ? result.summary : {},
             notices: Array.isArray(result.notices) ? result.notices : [],
+            staleDays: Number.isInteger(result.staleDays) ? result.staleDays : 7,
           })
         } catch (err) {
           if (seq !== seqRef.current) return
@@ -440,10 +453,26 @@ window.__ModuleLoader__.load({
           return true
         } catch (err) {
           console.error(`[dsh-todolist] ${method} failed`, err)
-          setState((prev) => ({ ...prev, error: true }))
+          // 写失败不再占用「读取失败」的红条：重新拉一次 list，让宿主把
+          // notices 里的 write-error 带回来；轮询成功也清不掉它。
+          await reload()
           return false
         }
       }, [reload])
+
+      /** 把内存里的改动重试落盘；成功后 reload，宿主清掉 writeError，提示条随之消失。 */
+      const retryWrite = useCallback(async () => {
+        if (retrying) return
+        setRetrying(true)
+        try {
+          await fetchApi('retry', {}, tRef.current)
+          await reload()
+        } catch (err) {
+          console.error('[dsh-todolist] retry write failed', err)
+        } finally {
+          setRetrying(false)
+        }
+      }, [reload, retrying])
 
       useEffect(() => { void reload() }, [reload])
 
@@ -495,6 +524,12 @@ window.__ModuleLoader__.load({
         onToggle: toggleItem,
       })
 
+      const selectedTitle = selectedItem ? asText(selectedItem.title) : ''
+      const selectedNote = selectedItem ? asText(selectedItem.note) : ''
+      const selectedDueDate = selectedItem ? asText(selectedItem.dueDate) : ''
+      const selectedDueTime = selectedItem ? asText(selectedItem.dueTime) : ''
+      const selectedCategory = selectedItem ? asText(selectedItem.category) : ''
+
       return h('div', { style: S.page },
         h('div', { style: S.head },
           h('h2', { style: S.h1 }, t('title')),
@@ -516,6 +551,16 @@ window.__ModuleLoader__.load({
               style: S.noticeClose, 'aria-label': t('dismiss'),
               onClick: () => { corruptDismissed = true; setNoticeHidden(true) },
             }, '×'))
+          : null,
+        state.notices.includes('write-error')
+          ? h('div', { style: S.warn },
+            h('span', { style: { flex: 1 } }, t('writeNotice')),
+            h('button', {
+              type: 'button',
+              disabled: retrying,
+              style: { ...S.addBtn, height: 26, padding: '0 8px', flex: 'none', cursor: retrying ? 'default' : 'pointer' },
+              onClick: () => void retryWrite(),
+            }, t('retryWrite')))
           : null,
         state.error
           ? h('div', { style: S.error }, `${t('failed')}　`, h('button', { onClick: () => void reload() }, t('retry')))
@@ -547,7 +592,7 @@ window.__ModuleLoader__.load({
                     h('div', { style: S.sec },
                       h('span', { style: S.secT }, t(group.bucket)),
                       h('span', { style: S.secN }, String(group.items.length)),
-                      group.bucket === 'stale' ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-error-primary)' } }, t('staleHint')) : null,
+                      group.bucket === 'stale' ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-error-primary)' } }, t('staleHint').replace('{n}', String(state.staleDays))) : null,
                       h('span', { style: S.line }),
                     ),
                     group.items.map((item) => renderRow(item)),
@@ -583,12 +628,12 @@ window.__ModuleLoader__.load({
           h('div', { style: compactDetail ? { ...S.detail, width: 320 } : S.detail },
             selectedItem
               ? h('div', null,
-                h('div', { style: { fontSize: 15, fontWeight: 600, color: 'var(--dsw-alias-label-primary)', marginBottom: 12 } }, selectedItem.title),
-                selectedItem.note ? h('div', { style: { marginBottom: 10, lineHeight: '20px', whiteSpace: 'pre-wrap' } }, selectedItem.note) : null,
+                h('div', { style: { fontSize: 15, fontWeight: 600, color: 'var(--dsw-alias-label-primary)', marginBottom: 12 } }, selectedTitle),
+                selectedNote !== '' ? h('div', { style: { marginBottom: 10, lineHeight: '20px', whiteSpace: 'pre-wrap' } }, selectedNote) : null,
                 h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 } },
                   selectedItem.priority ? detailRow(t('priority'), priorityLabel(selectedItem.priority, t)) : null,
-                  selectedItem.dueDate ? detailRow(t('dueDate'), `${selectedItem.dueDate}${selectedItem.dueTime ? ' ' + selectedItem.dueTime : ''}`) : null,
-                  selectedItem.category ? detailRow(t('category'), selectedItem.category) : null,
+                  selectedDueDate !== '' ? detailRow(t('dueDate'), `${selectedDueDate}${selectedDueTime !== '' ? ' ' + selectedDueTime : ''}`) : null,
+                  selectedCategory !== '' ? detailRow(t('category'), selectedCategory) : null,
                   selectedItem.createdAt ? detailRow(t('created'), formatDateTime(selectedItem.createdAt)) : null),
                 h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
                   h('button', {

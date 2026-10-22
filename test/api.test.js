@@ -1,10 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createStore } from '../lib/store.js'
 import { createApi } from '../lib/api.js'
+import { apply } from '../index.js'
 import { TodoError } from '../lib/model.js'
 
 async function makeApi() {
@@ -52,5 +53,67 @@ test('parse 只解析不落库', async () => {
   assert.equal(out.priority, 'high')
   const listed = await api.list({})
   assert.equal(listed.items.length, 0)
+  await store.close()
+})
+
+test('数据文件损坏且无法备份时，插件激活不产生未处理拒绝，路由与工具都返回 io-error', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'todo-api-'))
+  const file = join(dir, 'todos.json')
+  await writeFile(file, '{ this is not json', 'utf8')
+
+  const realNow = Date.now
+  const fixed = realNow()
+  Date.now = () => fixed
+  const effects = []
+  let handler = null
+  let tool = null
+  const unhandled = []
+  const onUnhandled = (reason) => { unhandled.push(reason) }
+  process.on('unhandledRejection', onUnhandled)
+  try {
+    // 备份路径是 todos.corrupt-<Date.now()>.json；先占成目录，copyFile 必然失败。
+    await mkdir(join(dir, `todos.corrupt-${fixed}.json`))
+    apply({
+      effect(fn) { effects.push(fn()) },
+      webServer: { register(route) { handler = route.handler; return () => {} } },
+      connection: { requestRejection: () => undefined },
+      tools: { register(created) { tool = created; return () => {} } },
+    }, { dataPath: file })
+
+    // load 的拒绝就发生在这 100ms 内；修复前它没人观察，会变成 unhandledRejection。
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    assert.deepEqual(unhandled, [], 'ready 的拒绝必须被观察，不能变成未处理拒绝')
+
+    await assert.rejects(
+      () => tool.execute({ action: 'list' }, {}),
+      (err) => err instanceof TodoError && err.code === 'io-error',
+      '工具应把 load 失败按 io-error 抛给调用方',
+    )
+
+    const res = {
+      status: 0,
+      payload: '',
+      writeHead(status) { this.status = status },
+      end(chunk) { this.payload = String(chunk ?? '') },
+    }
+    await handler({ method: 'POST', url: '/todo/api/list', async *[Symbol.asyncIterator]() {} }, res)
+    assert.equal(res.status, 500)
+    assert.equal(JSON.parse(res.payload).error.code, 'io-error')
+  } finally {
+    Date.now = realNow
+    process.off('unhandledRejection', onUnhandled)
+    for (const cleanup of effects) {
+      if (typeof cleanup === 'function') await cleanup()
+    }
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('retry 走 api 分发，list 带回 staleDays', async () => {
+  const { api, store } = await makeApi()
+  await api.create({ title: 'a' })
+  assert.deepEqual(await api.retry({}), { ok: true })
+  const listed = await api.list({})
+  assert.equal(listed.staleDays, 7)
   await store.close()
 })
