@@ -35,6 +35,30 @@ test('N 天后与绝对日期', () => {
   assert.equal(parse('月底 对账').dueDate, '2026-10-31')
 })
 
+test('越界月份不吞字', () => {
+  const out = parse('31/10 交房租')
+  assert.equal(out.dueDate, null)
+  assert.equal(out.title, '31/10 交房租')
+})
+
+test('合法的 M/D 仍解析', () => {
+  const out = parse('10/25 交材料')
+  assert.equal(out.dueDate, '2026-10-25')
+  assert.equal(out.title, '交材料')
+})
+
+test('下个月底整体匹配，不被「月底」抢先', () => {
+  const out = parse('下个月底 交材料')
+  assert.equal(out.dueDate, '2026-11-30')
+  assert.equal(out.title, '交材料')
+})
+
+test('「下周末」不啃掉半个词', () => {
+  const out = parse('下周末 打球')
+  assert.equal(out.dueDate, null)
+  assert.equal(out.title, '下周末 打球')
+})
+
 test('「每周一」不能被当成日期', () => {
   const out = parse('每周一开会')
   assert.equal(out.dueDate, null)
@@ -42,10 +66,26 @@ test('「每周一」不能被当成日期', () => {
 })
 
 test('时间：显式与中文时段', () => {
-  assert.equal(parse('明天 15:00 交周报').dueTime, '15:00')
+  const explicit = parse('明天 15:00 交周报')
+  assert.equal(explicit.dueTime, '15:00')
+  assert.equal(explicit.title, '交周报')
   assert.equal(parse('明天下午3点 交周报').dueTime, '15:00')
   assert.equal(parse('明天下午3点半 交周报').dueTime, '15:30')
-  assert.equal(parse('明天中午 吃饭').dueTime, '12:00')
+  const noon = parse('明天中午 吃饭')
+  assert.equal(noon.dueTime, '12:00')
+  assert.equal(noon.title, '吃饭')
+})
+
+test('中午1点按下午换算为 13:00', () => {
+  const out = parse('中午1点 吃饭')
+  assert.equal(out.dueTime, '13:00')
+  assert.equal(out.title, '吃饭')
+})
+
+test('中午12点仍是 12:00', () => {
+  const out = parse('中午12点 吃饭')
+  assert.equal(out.dueTime, '12:00')
+  assert.equal(out.title, '吃饭')
 })
 
 test('只给时间不给日期时按今天', () => {
@@ -62,10 +102,17 @@ test('优先级', () => {
 })
 
 test('分类，且不吃进 C#编程', () => {
-  assert.equal(parse('交周报 #工作').category, '工作')
+  const work = parse('交周报 #工作')
+  assert.equal(work.category, '工作')
+  assert.equal(work.title, '交周报')
   const code = parse('学 C#编程')
   assert.equal(code.category, null)
   assert.equal(code.title, '学 C#编程')
+})
+
+test('分类不吃尾随 ASCII 标点', () => {
+  assert.equal(parse('交周报 #工作, 明天').category, '工作')
+  assert.equal(parse('交周报 #工作，明天').category, '工作')
 })
 
 test('多字段组合，标题只剩正文', () => {
@@ -74,7 +121,7 @@ test('多字段组合，标题只剩正文', () => {
     { title: out.title, dueDate: out.dueDate, dueTime: out.dueTime, priority: out.priority, category: out.category },
     { title: '交周报', dueDate: '2026-10-23', dueTime: '15:00', priority: 'high', category: '工作' },
   )
-  assert.equal(out.matched.length, 4)
+  assert.deepEqual(out.matched, ['#工作', 'p1', '明天', '下午3点'])
 })
 
 test('整行都是语法时退回原文当标题', () => {
