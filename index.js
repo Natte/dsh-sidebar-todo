@@ -27,6 +27,8 @@ async function readJson(req) {
 }
 
 export function apply(ctx, config = {}) {
+  // config.dataPath: 可选，覆盖默认数据文件（默认 %DSH_PROFILE_DIR%/data/dsh-todolist/todos.json）。
+  // config.staleDays: 超过多少天未完成的待办算「积压」，默认 7 天。
   const store = createStore({
     file: resolveDataFile(config.dataPath),
     staleDays: Number.isInteger(config.staleDays) ? config.staleDays : 7,
