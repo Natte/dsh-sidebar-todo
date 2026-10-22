@@ -88,6 +88,20 @@ test('中午12点仍是 12:00', () => {
   assert.equal(out.title, '吃饭')
 })
 
+test('半夜12点按 00:00 且整段匹配', () => {
+  const out = parse('半夜12点 交周报')
+  assert.equal(out.dueTime, '00:00')
+  assert.ok(out.matched.includes('半夜12点'))
+})
+
+test('午夜1点按 01:00', () => {
+  assert.equal(parse('午夜1点 交周报').dueTime, '01:00')
+})
+
+test('中午10点按 10:00，不再 +12', () => {
+  assert.equal(parse('中午10点 开会').dueTime, '10:00')
+})
+
 test('只给时间不给日期时按今天', () => {
   const out = parse('下午3点 交周报')
   assert.equal(out.dueDate, '2026-10-22')
