@@ -16,7 +16,8 @@
 - 面板 key 与 panellist id 都是 `todo`；`order: 20`（宿主 `plugins=0`、`dsh-market=1`、`schedules=10`，待办排在最后、紧贴工作区上方）。
 - 所有可见文案走 `ctx.locale`，命名空间 `dsh-todolist`，同时提供 `zh` 与 `en`。
 - 颜色与间距只用 `--dsw-alias-*` 与 `--dsw-specific-sidebar-fill`，禁止写死色值（图标文件除外）。
-- 数据文件默认 `%DSH_PROFILE_DIR%/data/dsh-todolist/todos.json`。
+- 数据文件默认 `%DSH_PROFILE_DIR%/data/dsh-todolist/todos.json`；当前环境即 `C:\Users\12756\.dsh\profiles\desktop\data\dsh-todolist\todos.json`。
+- 运行环境是官方桌面版（Electron 外壳 + 本机 http 提供的 Web GUI，profile 名 `desktop`）：客户端代码不得依赖固定端口或地址栏，路由一律用 `document.baseURI` 相对解析。
 - 路由必须过 `ctx.connection.requestRejection(req)`，非本页来源一律 403。
 - 每个任务结束必须 `git commit`；提交信息用中文，前缀 `feat:` / `test:` / `chore:` / `docs:`。
 - 测试命令统一 `node --test test/`。
@@ -181,7 +182,8 @@ Expected: 无输出、退出码 0。
 用 `plugin_manager` `action: install_bundle`、`target: D:\dsh-todolist`（绝对路径）安装。
 然后 `cordis_inspect_query`（client / Slots / `listSubTree`，`root: "sidebar.panellist"`）确认 `occupants` 里出现 `{ id: "todo", order: 20 }`。
 再用 `root: "main"` 确认 `occupants` 里有 `key: "todo"`。
-最后在页面上点一次「待办」：主区应出现「待办（占位）」，侧栏折叠成图标轨时该行应变成 36×36 图标。
+最后在页面上点一次「待办」：主区应出现「待办（占位）」。
+折叠验证：Windows 自定义标题栏模式下，宿主折叠侧栏会整列隐藏面板导航（`[data-windows-titlebar] .collapsed .panelList{display:none}`），「待办」随「插件」「定时任务」一起消失是**预期**；只有非标题栏模式（浏览器打开）才缩成 36×36 图标。两种都属于宿主行为，插件不做补偿。
 
 - [ ] **Step 8: 提交**
 
@@ -1644,7 +1646,7 @@ Expected: 24 个测试全绿（bucket 8 + store 9 + api 3 + tool 4）。
 | # | 验收项 | 做法 |
 |---|---|---|
 | 1 | 重启后入口与数据都在 | 重启 DSH，看侧栏与列表 |
-| 2 | 折叠态图标不溢出 | 折叠侧栏截图对比其他面板图标 |
+| 2 | 折叠态行为与其他导航行一致 | 折叠侧栏：「待办」要与「插件」「定时任务」同进同退，不能单独错位或残留 |
 | 3 | UI 建 → 工具能看到 | 页面新建一条，然后让我调用 `todo_write list` |
 | 4 | 工具建 → 面板 2.5s 内出现 | 让我调用 `todo_write add`，盯页面 |
 | 5 | 完成写 `doneAt` | 勾选后看 JSON 文件 |

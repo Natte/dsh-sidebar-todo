@@ -205,7 +205,7 @@ todo.remove(id)
 
 - 位置：`sidebar.panellist`，`id: 'todo'`，`order: 20`，label 走 locale（zh `待办` / en `To-do`）
 - 图标：16px 线性复选框（1.4 stroke、`currentColor`），与宿主其余面板图标同视觉重量
-- 折叠态由宿主接管（36×36），无需额外处理
+- 折叠态由宿主接管：非标题栏模式缩成 36×36 图标列；Windows 自定义标题栏模式下宿主整列隐藏 `panelList`（`[data-windows-titlebar] .collapsed .panelList{display:none}`），「待办」会随「插件」「定时任务」一起消失——这是宿主既有行为，插件不做补偿，也不该让这一行成为例外。
 
 ### 6.2 主面板
 
