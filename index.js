@@ -2,6 +2,7 @@
 
 import { createStore, resolveDataFile } from './lib/store.js'
 import { createApi } from './lib/api.js'
+import { createTool } from './lib/tool.js'
 
 export const inject = ['webServer', 'connection', 'tools']
 
@@ -65,6 +66,8 @@ export function apply(ctx, config = {}) {
       }
     },
   }), 'dsh-todolist: http')
+
+  ctx.effect(() => ctx.tools.register(createTool(api, ready)), 'dsh-todolist: tool')
 
   ctx.effect(() => () => { void store.close() }, 'dsh-todolist: store')
 }
