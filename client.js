@@ -3,7 +3,7 @@ window.__ModuleLoader__.load({
   factory(require) {
     const React = require('react')
     const h = React.createElement
-    const { useState, useEffect, useCallback } = React
+    const { useState, useEffect, useCallback, useRef } = React
 
     const NS = 'dsh-todolist'
     const dict = {
@@ -14,6 +14,14 @@ window.__ModuleLoader__.load({
         staleHint: '超过 7 天未完成', loading: '加载中…', failed: '读取失败',
         retry: '重试', pickOne: '选一条看详情',
         corruptNotice: '数据文件损坏，已备份并以空清单启动',
+        addPlaceholder: '写点什么，回车保存', save: '保存', cancel: '取消',
+        complete: '完成', reopen: '撤销完成', remove: '删除', confirmRemove: '确认删除',
+        note: '备注', priority: '优先级', dueDate: '截止日期', dueTime: '时间', category: '分类',
+        emptyHint: '新建第一条',
+        yesterday: '昨天', earlier: '更早', created: '创建于',
+        noMatch: '没有匹配的待办', staleFor: '挂了 {n} 天',
+        priorityHigh: '高', priorityMedium: '中', priorityLow: '低',
+        badResponse: '响应格式不正确', requestFailed: '请求失败', dismiss: '关闭',
       },
       en: {
         nav: 'To-do', title: 'To-do', new: 'New', search: 'Search',
@@ -22,6 +30,14 @@ window.__ModuleLoader__.load({
         staleHint: 'Open for more than 7 days', loading: 'Loading…', failed: 'Failed to load',
         retry: 'Retry', pickOne: 'Select an item',
         corruptNotice: 'Data file was corrupt; it is backed up and the list started empty.',
+        addPlaceholder: 'What needs doing? Enter to save', save: 'Save', cancel: 'Cancel',
+        complete: 'Complete', reopen: 'Reopen', remove: 'Delete', confirmRemove: 'Confirm delete',
+        note: 'Note', priority: 'Priority', dueDate: 'Due date', dueTime: 'Time', category: 'Category',
+        emptyHint: 'Create the first one',
+        yesterday: 'Yesterday', earlier: 'Earlier', created: 'Created',
+        noMatch: 'No matching todos', staleFor: 'Open {n} days',
+        priorityHigh: 'High', priorityMedium: 'Medium', priorityLow: 'Low',
+        badResponse: 'Unexpected response', requestFailed: 'Request failed', dismiss: 'Dismiss',
       },
     }
     const ORDER = ['today', 'tomorrow', 'week', 'stale', 'unplanned', 'done']
@@ -30,14 +46,17 @@ window.__ModuleLoader__.load({
       return new URL(`todo/api/${method}`, document.baseURI).href
     }
 
-    async function fetchApi(method, payload) {
+    const defaultT = (key) => dict.zh[key] ?? key
+
+    async function fetchApi(method, payload, t = defaultT) {
       const res = await fetch(apiUrl(method), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload ?? {}),
       })
-      const body = await res.json().catch(() => ({ ok: false, error: { message: '响应不是 JSON' } }))
-      if (!body.ok) throw new Error(body.error?.message ?? '请求失败')
+      const body = await res.json().catch(() => null)
+      if (!body) throw new Error(t('badResponse'))
+      if (!body.ok) throw new Error(body.error?.message ?? t('requestFailed'))
       return body.result
     }
 
@@ -65,13 +84,17 @@ window.__ModuleLoader__.load({
       detail: { width: 300, flex: 'none', borderLeft: '0.5px solid var(--dsw-alias-border-l2)', padding: 16, fontSize: 12.5, color: 'var(--dsw-alias-label-secondary)' },
       empty: { padding: 40, textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 },
       error: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent)' },
-      warn: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-warn-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent)' },
+      warn: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-warn-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent)', display: 'flex', alignItems: 'center', gap: 8 },
+      addBtn: { height: 32, padding: '0 12px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'var(--dsw-alias-button-elevated-fill)', color: 'var(--dsw-alias-label-primary)', fontSize: 13, cursor: 'pointer' },
+      noticeClose: { flex: 'none', width: 20, height: 20, padding: 0, lineHeight: '18px', textAlign: 'center', border: 'none', borderRadius: 4, background: 'transparent', color: 'inherit', fontSize: 14, cursor: 'pointer' },
+      secBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', marginTop: 6, border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' },
+      subsec: { display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px 0 16px', marginTop: 2 },
     }
 
     function priorityDot(priority) {
       const bg = priority === 'high' ? 'var(--dsw-alias-state-error-primary)'
         : priority === 'medium' ? 'var(--dsw-alias-state-warn-primary)'
-          : priority === 'low' ? 'var(--dsw-static-blue-450)' : 'transparent'
+          : priority === 'low' ? 'var(--dsw-alias-state-business-primary)' : 'transparent'
       return h('span', { style: { width: 5, height: 5, borderRadius: '50%', background: bg, flex: 'none' } })
     }
 
@@ -81,40 +104,144 @@ window.__ModuleLoader__.load({
       return item.dueDate.slice(5)
     }
 
-    function Row({ item, selected, onSelect, t }) {
+    function dateKeyOf(date) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    }
+
+    function startOfDay(date) {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    }
+
+    /** `createdAt` 按本地时区格式化成 `YYYY-MM-DD HH:mm`。 */
+    function formatDateTime(iso) {
+      const at = new Date(iso)
+      if (Number.isNaN(at.getTime())) return ''
+      return `${dateKeyOf(at)} ${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`
+    }
+
+    function priorityLabel(priority, t) {
+      if (priority === 'high') return t('priorityHigh')
+      if (priority === 'medium') return t('priorityMedium')
+      if (priority === 'low') return t('priorityLow')
+      return priority ?? ''
+    }
+
+    /** 「挂了 N 天」：按 `createdAt` 算整天数，算不出来时退回分组名。 */
+    function staleLabel(item, t, now = new Date()) {
+      const created = Date.parse(item.createdAt)
+      if (Number.isNaN(created)) return t('stale')
+      const days = Math.max(0, Math.floor((now.getTime() - created) / 86400000))
+      return days > 0 ? t('staleFor').replace('{n}', String(days)) : t('stale')
+    }
+
+    /** 客户端按 `doneAt` 分「今天 / 昨天 / 本周 / 更早」，不改服务端契约。 */
+    function doneGroupOf(item, now = new Date()) {
+      if (!item.doneAt) return 'earlier'
+      const at = new Date(item.doneAt)
+      if (Number.isNaN(at.getTime())) return 'earlier'
+      const day = startOfDay(at).getTime()
+      const today = startOfDay(now)
+      if (day === today.getTime()) return 'today'
+      const yesterday = new Date(today)
+      yesterday.setDate(yesterday.getDate() - 1)
+      if (day === yesterday.getTime()) return 'yesterday'
+      const monday = new Date(today)
+      monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+      if (day >= monday.getTime()) return 'week'
+      return 'earlier'
+    }
+
+    function Row({ item, selected, onSelect, onToggle, t }) {
+      const [hover, setHover] = useState(false)
       const today = new Date()
       const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
       const late = !item.done && item.dueDate && item.dueDate < todayKey
       return h('div', {
-        style: { ...S.row, background: selected ? 'var(--dsw-alias-interactive-bg-hover)' : 'transparent' },
+        role: 'button',
+        tabIndex: 0,
+        'aria-current': selected ? 'true' : 'false',
+        style: { ...S.row, background: selected || hover ? 'var(--dsw-alias-interactive-bg-hover)' : 'transparent' },
         onClick: () => onSelect(item.id),
-        onMouseEnter: (e) => { if (!selected) e.currentTarget.style.background = 'var(--dsw-alias-interactive-bg-hover)' },
-        onMouseLeave: (e) => { if (!selected) e.currentTarget.style.background = 'transparent' },
+        onMouseEnter: () => setHover(true),
+        onMouseLeave: () => setHover(false),
+        onKeyDown: (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(item.id) }
+        },
       },
-      item.done
-        ? h('span', { style: S.cbDone }, h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: '#fff', strokeWidth: 2.4 }, h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' })))
-        : h('span', { style: S.cb }),
+      h('span', {
+        role: 'checkbox',
+        'aria-checked': item.done ? 'true' : 'false',
+        'aria-label': item.title,
+        tabIndex: 0,
+        style: item.done ? S.cbDone : S.cb,
+        onClick: (e) => { e.stopPropagation(); onToggle(item) },
+        onKeyDown: (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onToggle(item) } },
+      }, item.done
+        ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: '#fff', strokeWidth: 2.4 },
+            h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))
+        : null),
       h('span', { style: item.done ? S.nmDone : S.nm }, item.title),
       item.priority ? priorityDot(item.priority) : null,
       item.category ? h('span', { style: S.tag }, item.category) : null,
-      h('span', { style: late ? S.dueLate : S.due }, item.bucket === 'stale' ? `${t('stale')} ${item.dueDate ?? ''}`.trim() : dueLabel(item)),
+      h('span', { style: late ? S.dueLate : S.due }, item.bucket === 'stale' ? staleLabel(item, t, today) : dueLabel(item)),
       )
     }
+
+    let corruptDismissed = false
 
     function TodoPage(props) {
       const t = props.t ?? ((key) => dict.zh[key] ?? key)
       const [state, setState] = useState({ loading: true, error: null, items: [], summary: {}, notices: [] })
       const [query, setQuery] = useState('')
       const [selected, setSelected] = useState(null)
+      const [draft, setDraft] = useState(null) // null | '' | string
+      const [confirming, setConfirming] = useState(false)
+      const [doneOpen, setDoneOpen] = useState(false)
+      const [noticeHidden, setNoticeHidden] = useState(corruptDismissed)
+
+      // t 走 ref：语言切换时调用方可能换掉 props.t，但不该让 reload 重新排队。
+      const tRef = useRef(t)
+      useEffect(() => { tRef.current = t }, [t])
+
+      // 请求序号：只有最后一次 list 的结果能落到 state，旧响应直接丢弃。
+      const seqRef = useRef(0)
 
       const reload = useCallback(async () => {
+        const seq = ++seqRef.current
         try {
-          const result = await fetchApi('list', query ? { q: query } : {})
-          setState({ loading: false, error: null, items: result.items, summary: result.summary, notices: result.notices ?? [] })
+          const result = await fetchApi('list', query ? { q: query } : {}, tRef.current)
+          if (seq !== seqRef.current) return
+          setState({
+            loading: false,
+            error: null,
+            items: Array.isArray(result.items) ? result.items : [],
+            summary: result.summary && typeof result.summary === 'object' ? result.summary : {},
+            notices: Array.isArray(result.notices) ? result.notices : [],
+          })
         } catch (err) {
-          setState((prev) => ({ ...prev, loading: false, error: err.message }))
+          if (seq !== seqRef.current) return
+          console.error('[dsh-todolist] list failed', err)
+          setState((prev) => ({ ...prev, loading: false, error: true }))
         }
       }, [query])
+
+      const mutate = useCallback(async (method, payload) => {
+        try {
+          await fetchApi(method, payload, tRef.current)
+          await reload()
+        } catch (err) {
+          console.error(`[dsh-todolist] ${method} failed`, err)
+          setState((prev) => ({ ...prev, error: true }))
+        }
+      }, [reload])
+
+      const submitDraft = useCallback(async () => {
+        if (draft === null) return
+        const title = draft.trim()
+        if (title === '') { setDraft(null); return }
+        await mutate('create', { title })
+        setDraft(null)
+      }, [draft, mutate])
 
       useEffect(() => { void reload() }, [reload])
 
@@ -123,54 +250,140 @@ window.__ModuleLoader__.load({
         return () => window.clearInterval(timer)
       }, [reload])
 
-      const groups = ORDER
-        .map((bucket) => ({ bucket, items: state.items.filter((item) => item.bucket === bucket) }))
+      // 换选另一条时，把「确认删除」的二段确认复位。
+      useEffect(() => { setConfirming(false) }, [selected])
+
+      const items = state.items
+      const doneItems = items.filter((item) => item.bucket === 'done')
+      const openGroups = ORDER
+        .filter((bucket) => bucket !== 'done')
+        .map((bucket) => ({ bucket, items: items.filter((item) => item.bucket === bucket) }))
         .filter((group) => group.items.length > 0)
-      const selectedItem = state.items.find((item) => item.id === selected) ?? null
+      const doneSections = ['today', 'yesterday', 'week', 'earlier']
+        .map((bucket) => ({ bucket, items: doneItems.filter((item) => doneGroupOf(item) === bucket) }))
+        .filter((section) => section.items.length > 0)
+      const selectedItem = items.find((item) => item.id === selected) ?? null
+      const toggleItem = (item) => { void mutate('complete', { id: item.id, done: !item.done }) }
+      const renderRow = (item) => h(Row, {
+        key: item.id, item, t,
+        selected: item.id === selected,
+        onSelect: setSelected,
+        onToggle: toggleItem,
+      })
 
       return h('div', { style: S.page },
         h('div', { style: S.head },
           h('h2', { style: S.h1 }, t('title')),
           h('span', { style: S.count }, `${t('today')} ${state.summary.today ?? 0} · ${t('stale')} ${state.summary.stale ?? 0}`),
           h('div', { style: S.grow }),
+          h('button', {
+            style: S.addBtn,
+            onClick: () => { setDraft(''); setSelected(null) },
+          }, `+ ${t('new')}`),
           h('input', {
             style: S.search, placeholder: t('search'), value: query,
             onChange: (e) => setQuery(e.target.value),
           }),
         ),
-        state.notices.includes('corrupt') ? h('div', { style: S.warn }, t('corruptNotice')) : null,
-        state.error ? h('div', { style: S.error }, `${t('failed')}：${state.error}　`, h('button', { onClick: () => void reload() }, t('retry'))) : null,
+        state.notices.includes('corrupt') && !noticeHidden
+          ? h('div', { style: S.warn },
+            h('span', { style: { flex: 1 } }, t('corruptNotice')),
+            h('button', {
+              style: S.noticeClose, 'aria-label': t('dismiss'),
+              onClick: () => { corruptDismissed = true; setNoticeHidden(true) },
+            }, '×'))
+          : null,
+        state.error
+          ? h('div', { style: S.error }, `${t('failed')}　`, h('button', { onClick: () => void reload() }, t('retry')))
+          : null,
         h('div', { style: S.body },
           h('div', { style: S.list },
-            state.loading && state.items.length === 0
+            draft !== null ? h('div', { style: S.sec },
+              h('input', {
+                autoFocus: true, value: draft, placeholder: t('addPlaceholder'),
+                style: { ...S.search, width: '100%' },
+                onChange: (e) => setDraft(e.target.value),
+                onKeyDown: (e) => {
+                  if (e.key === 'Enter') void submitDraft()
+                  if (e.key === 'Escape') setDraft(null)
+                },
+              }),
+            ) : null,
+            state.loading && items.length === 0
               ? h('div', { style: S.empty }, t('loading'))
-              : groups.length === 0
-                ? h('div', { style: S.empty }, t('empty'))
-                : groups.map((group) => h('div', { key: group.bucket },
-                  h('div', { style: S.sec },
-                    h('span', { style: S.secT }, t(group.bucket)),
-                    h('span', { style: S.secN }, String(group.items.length)),
-                    group.bucket === 'stale' ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-error-primary)' } }, t('staleHint')) : null,
+              : items.length === 0
+                ? (query !== ''
+                  ? h('div', { style: S.empty }, t('noMatch'))
+                  : h('div', { style: S.empty },
+                    h('div', null, t('empty')),
+                    h('div', { style: { marginTop: 12 } },
+                      h('button', {
+                        style: S.addBtn,
+                        onClick: () => { setDraft(''); setSelected(null) },
+                      }, t('emptyHint')))))
+                : h('div', null,
+                  openGroups.map((group) => h('div', { key: group.bucket },
+                    h('div', { style: S.sec },
+                      h('span', { style: S.secT }, t(group.bucket)),
+                      h('span', { style: S.secN }, String(group.items.length)),
+                      group.bucket === 'stale' ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-error-primary)' } }, t('staleHint')) : null,
+                      h('span', { style: S.line }),
+                    ),
+                    group.items.map((item) => renderRow(item)),
+                  )),
+                  doneItems.length === 0 ? null : h('div', { key: 'done' },
+                    h('button', {
+                      style: S.secBtn,
+                      'aria-expanded': doneOpen ? 'true' : 'false',
+                      onClick: () => setDoneOpen((open) => !open),
+                    },
+                    h('span', { style: S.secT }, t('done')),
+                    h('span', { style: S.secN }, String(doneItems.length)),
                     h('span', { style: S.line }),
+                    h('span', { style: { ...S.secN, fontSize: 10 } }, doneOpen ? '▾' : '▸'),
+                    ),
+                    doneOpen ? doneSections.map((section) => h('div', { key: section.bucket },
+                      h('div', { style: S.subsec },
+                        h('span', { style: S.secT }, t(section.bucket)),
+                        h('span', { style: S.secN }, String(section.items.length)),
+                        h('span', { style: S.line }),
+                      ),
+                      section.items.map((item) => renderRow(item)),
+                    )) : null,
                   ),
-                  group.items.map((item) => h(Row, {
-                    key: item.id, item, t,
-                    selected: item.id === selected,
-                    onSelect: setSelected,
-                  })),
-                )),
+                ),
           ),
           h('div', { style: S.detail },
             selectedItem
               ? h('div', null,
                 h('div', { style: { fontSize: 15, fontWeight: 600, color: 'var(--dsw-alias-label-primary)', marginBottom: 12 } }, selectedItem.title),
-                selectedItem.note ? h('div', { style: { marginBottom: 10, lineHeight: '20px' } }, selectedItem.note) : null,
+                selectedItem.note ? h('div', { style: { marginBottom: 10, lineHeight: '20px', whiteSpace: 'pre-wrap' } }, selectedItem.note) : null,
                 h('div', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: 12 } },
                   [
-                    selectedItem.priority ? `优先级 ${selectedItem.priority}` : null,
-                    selectedItem.dueDate ? `截止 ${selectedItem.dueDate}${selectedItem.dueTime ? ' ' + selectedItem.dueTime : ''}` : null,
+                    selectedItem.priority ? `${t('priority')} ${priorityLabel(selectedItem.priority, t)}` : null,
+                    selectedItem.dueDate ? `${t('dueDate')} ${selectedItem.dueDate}${selectedItem.dueTime ? ' ' + selectedItem.dueTime : ''}` : null,
                     selectedItem.category ? selectedItem.category : null,
+                    selectedItem.createdAt ? `${t('created')} ${formatDateTime(selectedItem.createdAt)}` : null,
                   ].filter(Boolean).join(' · ')),
+                h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
+                  h('button', {
+                    style: { flex: 1, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: '#fff', fontSize: 12.5 },
+                    onClick: () => void mutate('complete', { id: selectedItem.id, done: !selectedItem.done }),
+                  }, selectedItem.done ? t('reopen') : t('complete')),
+                  h('button', {
+                    style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'transparent', color: confirming ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
+                    onClick: async () => {
+                      if (!confirming) {
+                        setConfirming(true)
+                        window.setTimeout(() => setConfirming(false), 3000)
+                        return
+                      }
+                      setConfirming(false)
+                      setSelected(null)
+                      await mutate('remove', { id: selectedItem.id })
+                    },
+                  }, confirming ? t('confirmRemove') : t('remove')),
+                ),
               )
               : h('div', { style: { color: 'var(--dsw-alias-label-tertiary)' } }, t('pickOne')),
           ),
