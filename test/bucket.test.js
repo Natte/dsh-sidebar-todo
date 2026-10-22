@@ -25,10 +25,16 @@ test('截止今天与过期的都进 today', () => {
   assert.equal(bucketOf({ ...base, dueDate: '2026-10-20' }, NOW), 'today')
 })
 
-test('明天、本周、下周分桶', () => {
+test('明天、本周分桶；下周之后不因截止日而进积压', () => {
   assert.equal(bucketOf({ ...base, dueDate: '2026-10-23' }, NOW), 'tomorrow')
   assert.equal(bucketOf({ ...base, dueDate: '2026-10-25' }, NOW), 'week')
-  assert.equal(bucketOf({ ...base, dueDate: '2026-10-26' }, NOW), 'stale')
+  // 截止日在遥远未来、但才创建一天：不是积压（spec §4.3：积压只看创建时长）
+  assert.equal(bucketOf({ ...base, dueDate: '2026-10-26' }, NOW), 'unplanned')
+})
+
+test('截止日在遥远未来、但创建超过阈值，仍算积压', () => {
+  const old = new Date(2026, 9, 10, 9).toISOString()
+  assert.equal(bucketOf({ ...base, createdAt: old, dueDate: '2026-12-01' }, NOW, 7), 'stale')
 })
 
 test('无截止：7 天内未排期，超过进积压', () => {
@@ -57,7 +63,8 @@ test('摘要按 bucket 计数', () => {
     { bucket: 'today' }, { bucket: 'today' }, { bucket: 'stale' },
     { bucket: 'done', doneAt: new Date(2026, 9, 22, 8).toISOString() },
   ]
-  assert.deepEqual(summarize(items), {
+  // now 必须显式传入，否则 doneToday 依赖跑测试当天是不是 2026-10-22
+  assert.deepEqual(summarize(items, NOW), {
     today: 2, tomorrow: 0, week: 0, stale: 1, unplanned: 0, doneToday: 1,
   })
 })
