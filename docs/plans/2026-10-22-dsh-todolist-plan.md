@@ -4,7 +4,7 @@
 
 **Goal:** 在 DSH 左侧栏增加「待办」入口行，点开是一张管理日常工作的待办页，数据落在宿主侧 JSON 文件，agent 通过工具读写同一份数据。
 
-**Architecture:** 单包双半结构。Host（`index.js` + `lib/`）持有内存态与 JSON 文件，暴露 `POST /todo/api/*` 路由与 `todo_write` 工具；Client（`client.js`）只做渲染与调用路由，通过 `sidebar.panellist` 注册入口行、`main` 注册 `key: 'todo'` 的面板页。分类（今天/明天/本周/积压/未排期/已完成）在 Host 侧算一次写进 `bucket` 字段，UI 与工具共用。
+**Architecture:** 单包双半结构。Host（`index.js` + `lib/`）持有内存态与 JSON 文件，暴露 `POST /todo/api/*` 路由与 `todo_write` 工具；Client（`client.js`）只做渲染与调用路由，通过 `sidebar.panellist` 注册入口行、`main` 注册 `key: 'todo'` 的面板页。分类（今天/明天/本周/积压/未排期/已完成）与自然语言解析都在 Host 侧实现一次（`lib/bucket.js`、`lib/quickadd.js`），UI 只消费结果。
 
 **Tech Stack:** 纯 ESM JavaScript（无构建）、Node 内置 `node:test`、宿主 Cordis 服务（`webServer` / `connection` / `tools` / `slots` / `locale`）、React（浏览器模块表提供）。
 
@@ -19,6 +19,8 @@
 - 数据文件默认 `%DSH_PROFILE_DIR%/data/dsh-todolist/todos.json`；当前环境即 `C:\Users\12756\.dsh\profiles\desktop\data\dsh-todolist\todos.json`。
 - 运行环境是官方桌面版（Electron 外壳 + 本机 http 提供的 Web GUI，profile 名 `desktop`）：客户端代码不得依赖固定端口或地址栏，路由一律用 `document.baseURI` 相对解析。
 - 路由必须过 `ctx.connection.requestRejection(req)`，非本页来源一律 403。
+- 自然语言解析只在宿主侧实现（`lib/quickadd.js`），客户端不得自行解析，也不得在 UI 里调用模型；「让 agent 帮我记」走对话 + `todo_write` 工具。
+- 借鉴自其他插件仓库的设计模式（见 [docs/notes/2026-10-22-borrowed-patterns.md](../notes/2026-10-22-borrowed-patterns.md)），在对应源码位置写一行注释标出处，不复制代码。
 - 每个任务结束必须 `git commit`；提交信息用中文，前缀 `feat:` / `test:` / `chore:` / `docs:`。
 - 测试命令统一 `node --test test/`。
 
@@ -36,11 +38,14 @@
 | `lib/bucket.js` | 纯函数：日期推进、`bucketOf`、`compareTodos`、`summarize` |
 | `lib/store.js` | 持久化 + CRUD（原子写、串行队列、损坏备份） |
 | `lib/api.js` | 方法分发表（路由与工具共用） |
+| `lib/quickadd.js` | 纯函数：一行自然语言的剥离式解析 |
 | `lib/tool.js` | `todo_write` 的 ToolDefinition |
 | `test/bucket.test.js` | 分组/排序 |
-| `test/store.test.js` | 增删改查 + 重载 + 损坏恢复 |
-| `test/api.test.js` | 分发、未知方法、错误码 |
+| `test/store.test.js` | 增删改查 + 重载 + 损坏恢复 + 待确认 |
+| `test/api.test.js` | 分发、未知方法、错误码、解析路由 |
+| `test/quickadd.test.js` | 自然语言解析的 12 个用例 |
 | `test/tool.test.js` | 工具各 action |
+| `test/theme-tokens.json` + `test/client-tokens.test.js` | 主题 token 白名单校验 |
 | `locale/{zh,en}.json` | 插件显示元数据（`meta.title` / `meta.description`） |
 | `icon.svg` | 插件图标 |
 | `README.md` | 安装、数据位置、工具用法 |
@@ -48,8 +53,9 @@
 数据形状（来自 spec §4.1，全任务共用）：
 
 ```js
-{ id, title, note, priority, category, dueDate, dueTime, done, doneAt, createdAt, updatedAt }
+{ id, title, note, priority, category, dueDate, dueTime, done, doneAt, doneBy, verifiedAt, createdAt, updatedAt }
 // priority: 'high' | 'medium' | 'low' | null
+// doneBy: 'user' | 'agent' | null；verifiedAt 为人工核实时间
 // bucket（仅响应里出现）: 'today' | 'tomorrow' | 'week' | 'stale' | 'unplanned' | 'done'
 ```
 
@@ -1583,7 +1589,595 @@ git commit -m "feat: 待办页增删改查交互"
 
 ---
 
-## Task 8: 收尾与完整验收
+## Task 8: 自然语言解析器（纯函数）
+
+**Files:**
+- Create: `lib/quickadd.js`
+- Test: `test/quickadd.test.js`
+
+**Interfaces:**
+- Consumes: 无
+- Produces: `parseQuickAdd(text, options?): { title, dueDate, dueTime, priority, category, matched }`，`options.today` 为本地 `YYYY-MM-DD`
+
+- [ ] **Step 1: 写失败测试**
+
+`test/quickadd.test.js`（`today` 固定为 2026-10-22，周四）：
+
+```js
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { parseQuickAdd } from '../lib/quickadd.js'
+
+const TODAY = { today: '2026-10-22' }
+const parse = (text) => parseQuickAdd(text, TODAY)
+
+test('没有任何语法时整句都是标题', () => {
+  assert.deepEqual(parse('买牛奶'), {
+    title: '买牛奶', dueDate: null, dueTime: null,
+    priority: null, category: null, matched: [],
+  })
+})
+
+test('相对日期', () => {
+  assert.equal(parse('明天交周报').dueDate, '2026-10-23')
+  assert.equal(parse('后天交周报').dueDate, '2026-10-24')
+  assert.equal(parse('昨天交周报').dueDate, '2026-10-21')
+})
+
+test('中文不需要空格，句中也能解析', () => {
+  const out = parse('记得明天交周报给我')
+  assert.equal(out.dueDate, '2026-10-23')
+  assert.equal(out.title, '记得交周报给我')
+})
+
+test('星期与下周', () => {
+  assert.equal(parse('周五 周会').dueDate, '2026-10-23')
+  assert.equal(parse('下周三 交材料').dueDate, '2026-10-28')
+})
+
+test('N 天后与绝对日期', () => {
+  assert.equal(parse('3天后 续签域名').dueDate, '2026-10-25')
+  assert.equal(parse('10月25日 面试').dueDate, '2026-10-25')
+  assert.equal(parse('月底 对账').dueDate, '2026-10-31')
+})
+
+test('「每周一」不能被当成日期', () => {
+  const out = parse('每周一开会')
+  assert.equal(out.dueDate, null)
+  assert.equal(out.title, '每周一开会')
+})
+
+test('时间：显式与中文时段', () => {
+  assert.equal(parse('明天 15:00 交周报').dueTime, '15:00')
+  assert.equal(parse('明天下午3点 交周报').dueTime, '15:00')
+  assert.equal(parse('明天下午3点半 交周报').dueTime, '15:30')
+  assert.equal(parse('明天中午 吃饭').dueTime, '12:00')
+})
+
+test('只给时间不给日期时按今天', () => {
+  const out = parse('下午3点 交周报')
+  assert.equal(out.dueDate, '2026-10-22')
+  assert.equal(out.dueTime, '15:00')
+})
+
+test('优先级', () => {
+  assert.equal(parse('交周报 p1').priority, 'high')
+  assert.equal(parse('交周报 p2').priority, 'medium')
+  assert.equal(parse('交周报 p3').priority, 'low')
+  assert.equal(parse('交周报!').priority, 'high')
+})
+
+test('分类，且不吃进 C#编程', () => {
+  assert.equal(parse('交周报 #工作').category, '工作')
+  const code = parse('学 C#编程')
+  assert.equal(code.category, null)
+  assert.equal(code.title, '学 C#编程')
+})
+
+test('多字段组合，标题只剩正文', () => {
+  const out = parse('明天下午3点 交周报 #工作 p1')
+  assert.deepEqual(
+    { title: out.title, dueDate: out.dueDate, dueTime: out.dueTime, priority: out.priority, category: out.category },
+    { title: '交周报', dueDate: '2026-10-23', dueTime: '15:00', priority: 'high', category: '工作' },
+  )
+  assert.equal(out.matched.length, 4)
+})
+
+test('整行都是语法时退回原文当标题', () => {
+  const out = parse('明天 p1 #工作')
+  assert.equal(out.title, '明天 p1 #工作')
+})
+
+test('空输入', () => {
+  assert.deepEqual(parse(''), {
+    title: '', dueDate: null, dueTime: null, priority: null, category: null, matched: [],
+  })
+})
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `node --test test/quickadd.test.js`
+Expected: FAIL，`Cannot find module '../lib/quickadd.js'`
+
+- [ ] **Step 3: 实现 `lib/quickadd.js`**
+
+```js
+/**
+ * One-line natural-language quick add.
+ *
+ * 剥离式解析：每识别一个片段就从原文里摘掉，剩下的就是标题；识别不了的
+ * 一律留在标题里，绝不吞字符。
+ * 顺序即语法：分类 → 优先级 → 日期 → 时间。
+ * 模式借鉴 dsh-todos 的 quickadd.js（MIT），代码按本插件字段重写。
+ */
+
+const CN_WEEKDAY = { 日: 0, 天: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 0 }
+const RELATIVE = { 今天: 0, 今日: 0, 明天: 1, 明日: 1, 后天: 2, 大后天: 3, 昨天: -1, 前天: -2 }
+
+/** `#`、`pN`、`!` 必须出现在行首/空白/中文之后，避免 C#编程、p1abc 被误伤。 */
+const SIGIL = '(?<=^|[\\s\\u3000-\\u303f\\u4e00-\\u9fff])'
+
+function localKey(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function parseKey(key) {
+  const [y, m, d] = key.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+function shift(key, days) {
+  const at = parseKey(key)
+  at.setDate(at.getDate() + days)
+  return localKey(at)
+}
+
+function nextWeekday(todayKey, weekday) {
+  const current = parseKey(todayKey).getDay()
+  let delta = (weekday - current + 7) % 7
+  if (delta === 0) delta = 7
+  return shift(todayKey, delta)
+}
+
+export function parseQuickAdd(input, options = {}) {
+  const today = options.today ?? localKey(new Date())
+  let text = ` ${String(input ?? '')} `
+  const matched = []
+
+  const take = (re) => {
+    const m = re.exec(text)
+    if (m === null) return null
+    text = `${text.slice(0, m.index)} ${text.slice(m.index + m[0].length)}`
+    matched.push(m[0].trim())
+    return m
+  }
+
+  let dueDate = null
+  let dueTime = null
+  let priority = null
+  let category = null
+
+  // ---- 1. 分类
+  const tag = take(new RegExp(`${SIGIL}#([^\\s#]+)`))
+  if (tag !== null) category = tag[1]
+
+  // ---- 2. 优先级
+  const p = take(new RegExp(`${SIGIL}[pP]([123])(?=\\s|$)`))
+  if (p !== null) priority = { 1: 'high', 2: 'medium', 3: 'low' }[p[1]]
+  else if (take(new RegExp(`${SIGIL}[!！](?=\\s|$)`)) !== null) priority = 'high'
+
+  // ---- 3. 日期
+  const relative = take(new RegExp(`(${Object.keys(RELATIVE).join('|')})`))
+  if (relative !== null) {
+    dueDate = shift(today, RELATIVE[relative[1]])
+  } else {
+    const inDays = take(/(\d{1,3})\s*天后/)
+    const nextMonthDay = take(/下(?:个)?月(\d{1,2})[号日]/)
+    const absolute = take(/(?<!\d)(\d{1,2})\s*[月/]\s*(\d{1,2})\s*[日号]?/)
+    const monthEnd = take(/(?:本|下)?月底/)
+    const nextWeek = take(/下(?:个)?(?:周|星期|礼拜)([一二三四五六日天])?/)
+    const thisWeek = take(/(?:本|这)(?:周|星期|礼拜)([一二三四五六日天])?/)
+    const weekday = take(/(?<!每)(?:周|星期|礼拜)([一二三四五六日天])/)
+
+    if (inDays !== null) dueDate = shift(today, Number(inDays[1]))
+    else if (nextMonthDay !== null) {
+      const base = parseKey(today)
+      const year = base.getFullYear() + (base.getMonth() + 1 > 11 ? 1 : 0)
+      const month = (base.getMonth() + 1) % 12
+      const last = new Date(year, month + 1, 0).getDate()
+      dueDate = localKey(new Date(year, month, Math.min(Number(nextMonthDay[1]), last)))
+    } else if (absolute !== null) {
+      const month = Number(absolute[1])
+      const day = Number(absolute[2])
+      if (month >= 1 && month <= 12) {
+        const year = parseKey(today).getFullYear()
+        const last = new Date(year, month, 0).getDate()
+        let candidate = localKey(new Date(year, month - 1, Math.min(day, last)))
+        if (candidate < shift(today, -180)) candidate = localKey(new Date(year + 1, month - 1, Math.min(day, last)))
+        dueDate = candidate
+      }
+    } else if (monthEnd !== null) {
+      const base = parseKey(today)
+      const month = base.getMonth() + (monthEnd[0].startsWith('下') ? 1 : 0)
+      dueDate = localKey(new Date(base.getFullYear(), month + 1, 0))
+    } else if (nextWeek !== null) {
+      const weekdayIndex = nextWeek[1] === undefined ? 1 : CN_WEEKDAY[nextWeek[1]]
+      dueDate = shift(nextWeekday(today, 1), (weekdayIndex - 1 + 7) % 7)
+    } else if (thisWeek !== null) {
+      const weekdayIndex = thisWeek[1] === undefined ? 1 : CN_WEEKDAY[thisWeek[1]]
+      dueDate = shift(today, weekdayIndex - parseKey(today).getDay())
+    } else if (weekday !== null) {
+      dueDate = nextWeekday(today, CN_WEEKDAY[weekday[1]])
+    }
+  }
+
+  // ---- 4. 时间
+  const colon = take(/(?<!\d)([01]?\d|2[0-3])\s*[:：]\s*([0-5]\d)(?!\d)/)
+  if (colon !== null) {
+    dueTime = `${String(Number(colon[1])).padStart(2, '0')}:${colon[2]}`
+  } else if (take(/(?:正午|中午)/) !== null) {
+    dueTime = '12:00'
+  } else if (take(/(?:午夜|半夜)/) !== null) {
+    dueTime = '00:00'
+  } else {
+    const cn = take(/(上午|早上|早晨|凌晨|中午|下午|傍晚|晚上|夜里)?\s*(\d{1,2})\s*[点時时](半|\d{1,2}\s*分?)?/)
+    if (cn !== null) {
+      const period = cn[1] ?? ''
+      let hour = Number(cn[2])
+      let minute = 0
+      if (cn[3] === '半') minute = 30
+      else if (cn[3] !== undefined) minute = Number(cn[3].replace(/\D/g, '')) || 0
+      if (['下午', '傍晚', '晚上', '夜里'].includes(period) && hour < 12) hour += 12
+      if (['上午', '早上', '早晨', '凌晨'].includes(period) && hour === 12) hour = 0
+      if (hour <= 23 && minute <= 59) dueTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+    }
+  }
+  if (dueTime !== null && dueDate === null) dueDate = today
+
+  const cleaned = text.replace(/\s+/g, ' ').trim()
+  const raw = String(input ?? '').trim()
+
+  return {
+    title: cleaned === '' ? raw : cleaned,
+    dueDate,
+    dueTime,
+    priority,
+    category,
+    matched,
+  }
+}
+```
+
+- [ ] **Step 4: 运行确认通过**
+
+Run: `node --test test/quickadd.test.js`
+Expected: PASS，12 个测试全绿。
+若「每周一开会」用例失败，检查 `weekday` 正则里的 `(?<!每)` 是否被写在最前面。
+
+- [ ] **Step 5: 提交**
+
+```bash
+git add lib/quickadd.js test/quickadd.test.js
+git commit -m "feat: 自然语言快速添加解析器"
+```
+
+---
+
+## Task 9: 解析路由与快速添加入口
+
+**Files:**
+- Modify: `lib/api.js`、`index.js`（无需改动，分发是通用的）、`client.js`
+- Test: `test/api.test.js`（追加用例）
+
+**Interfaces:**
+- Consumes: `parseQuickAdd`（Task 8）
+- Produces: `POST todo/api/parse { text }` → 解析结果；客户端 `QuickAdd` 组件
+
+- [ ] **Step 1: 在 `lib/api.js` 里加 `parse`**
+
+顶部补 import：
+
+```js
+import { parseQuickAdd } from './quickadd.js'
+```
+
+分发表里加一行：
+
+```js
+    parse: (input = {}) => parseQuickAdd(input.text, input.today ? { today: input.today } : undefined),
+```
+
+- [ ] **Step 2: 追加测试**
+
+`test/api.test.js` 末尾：
+
+```js
+test('parse 只解析不落库', async () => {
+  const { api, store } = await api()
+  const out = await api.parse({ text: '明天下午3点 交周报 #工作 p1', today: '2026-10-22' })
+  assert.equal(out.title, '交周报')
+  assert.equal(out.dueDate, '2026-10-23')
+  assert.equal(out.dueTime, '15:00')
+  assert.equal(out.category, '工作')
+  assert.equal(out.priority, 'high')
+  const listed = await api.list({})
+  assert.equal(listed.items.length, 0)
+  await store.close()
+})
+```
+
+- [ ] **Step 3: 运行确认通过**
+
+Run: `node --test test/api.test.js`
+Expected: PASS，4 个测试。
+
+- [ ] **Step 4: 客户端加 `QuickAdd` 输入框**
+
+在 `client.js` 的 `TodoPage` 之前加组件：
+
+```js
+    function QuickAdd({ t, onCreated }) {
+      const [text, setText] = useState('')
+      const [parsed, setParsed] = useState(null)
+      const [busy, setBusy] = useState(false)
+
+      useEffect(() => {
+        if (text.trim() === '') { setParsed(null); return }
+        const timer = window.setTimeout(() => {
+          fetchApi('parse', { text })
+            .then((result) => setParsed(result))
+            .catch(() => setParsed(null))
+        }, 200)
+        return () => window.clearTimeout(timer)
+      }, [text])
+
+      const submit = async () => {
+        if (busy || text.trim() === '') return
+        setBusy(true)
+        try {
+          await onCreated(parsed ?? { title: text.trim() })
+          setText('')
+          setParsed(null)
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      const chips = parsed === null ? [] : [
+        parsed.dueDate ? (parsed.dueTime ? `${parsed.dueDate.slice(5)} ${parsed.dueTime}` : parsed.dueDate.slice(5)) : null,
+        parsed.category ? `#${parsed.category}` : null,
+        parsed.priority ? { high: t('priHigh'), medium: t('priMedium'), low: t('priLow') }[parsed.priority] : null,
+      ].filter(Boolean)
+
+      return h('div', { style: { padding: '6px 8px 10px' } },
+        h('input', {
+          autoFocus: true, value: text, placeholder: t('addPlaceholder'), style: { ...S.search, width: '100%' },
+          onChange: (e) => setText(e.target.value),
+          onKeyDown: (e) => {
+            if (e.key === 'Enter') void submit()
+            if (e.key === 'Escape') { setText(''); setParsed(null) }
+          },
+        }),
+        chips.length > 0 ? h('div', { style: { display: 'flex', gap: 6, marginTop: 6 } },
+          chips.map((chip) => h('span', { key: chip, style: S.tag }, chip))) : null,
+        parsed !== null && parsed.matched.length === 0 && text.trim() !== ''
+          ? h('div', { style: { marginTop: 6, fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' } }, t('agentHint'))
+          : null,
+      )
+    }
+```
+
+字典补三个键（zh / en 各一份）：
+
+```js
+priHigh: '高', priMedium: '中', priLow: '低',
+agentHint: '没看懂时间？可以在对话里说一句，让 agent 帮你定',
+```
+
+- [ ] **Step 5: 用 `QuickAdd` 替换 Task 7 的草稿行**
+
+Task 7 里 `draft !== null ? ... : null` 那一段整块删掉，改成：
+
+```js
+            draft !== null ? h(QuickAdd, {
+              t,
+              onCreated: async (fields) => {
+                await mutate('create', fields)
+                setDraft(null)
+              },
+            }) : null,
+```
+
+- [ ] **Step 6: 语法检查、重装、验收**
+
+Run: `node --check client.js`
+Expected: 退出码 0。
+执行 `plugin_manager` `install_bundle`，刷新页面，验证：
+1. 输入「明天下午3点 交周报 #工作 p1」，停顿后出现 3 个 chip（`明天 15:00` / `#工作` / `高`）。
+2. 回车：新条目落在「明天」，优先级红点、分类胶囊、时间都对，标题是「交周报」。
+3. 输入「买牛奶」：无 chip，回车正常新建。
+4. 输入「学 C#编程」：不应出现 `#编程` 分类 chip。
+
+- [ ] **Step 7: 提交**
+
+```bash
+git add lib/api.js client.js test/api.test.js
+git commit -m "feat: 快速添加解析路由与输入框"
+```
+
+---
+
+## Task 10: agent 完成后的待确认
+
+**Files:**
+- Modify: `lib/model.js`、`lib/store.js`、`lib/api.js`、`lib/tool.js`、`client.js`
+- Test: `test/store.test.js`、`test/tool.test.js`（追加用例）
+
+**Interfaces:**
+- Consumes: `Store.complete`、`createApi`、`createTool`（Task 3/4/5）
+- Produces: `Store.confirm(id)`；`complete(id, done, by)`；记录新增 `doneBy` / `verifiedAt` 字段
+
+- [ ] **Step 1: 追加失败测试**
+
+`test/store.test.js` 末尾：
+
+```js
+test('用户完成立即视为已核实，agent 完成需要确认', async () => {
+  const { store } = await tempStore()
+  const mine = await store.create({ title: 'a' })
+  const userDone = await store.complete(mine.id, true, 'user')
+  assert.equal(userDone.doneBy, 'user')
+  assert.ok(userDone.verifiedAt)
+
+  const theirs = await store.create({ title: 'b' })
+  const agentDone = await store.complete(theirs.id, true, 'agent')
+  assert.equal(agentDone.doneBy, 'agent')
+  assert.equal(agentDone.verifiedAt, null)
+
+  const confirmed = await store.confirm(theirs.id)
+  assert.ok(confirmed.verifiedAt)
+  await store.close()
+})
+
+test('取消完成会清掉 doneBy 与 verifiedAt', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({ title: 'a' })
+  await store.complete(todo.id, true, 'agent')
+  const reopened = await store.complete(todo.id, false)
+  assert.equal(reopened.doneBy, null)
+  assert.equal(reopened.verifiedAt, null)
+  await store.close()
+})
+```
+
+`test/tool.test.js` 末尾：
+
+```js
+test('工具完成的记录带 doneBy=agent', async () => {
+  const { tool, store } = await tool()
+  const added = await tool.execute({ action: 'add', title: 'x' }, {})
+  const done = await tool.execute({ action: 'complete', id: added.item.id }, {})
+  assert.equal(done.item.doneBy, 'agent')
+  assert.equal(done.item.verifiedAt, null)
+  await store.close()
+})
+```
+
+- [ ] **Step 2: 运行确认失败**
+
+Run: `node --test test/store.test.js; node --test test/tool.test.js`
+Expected: FAIL，`doneBy` 为 `undefined`。
+
+- [ ] **Step 3: 改 `lib/store.js`**
+
+`create` 生成的记录补两个字段（改 `lib/model.js` 的 `normalizeCreate` 返回值）：
+
+```js
+    done: false,
+    doneAt: null,
+    doneBy: null,
+    verifiedAt: null,
+```
+
+`complete` 改为：
+
+```js
+    async complete(id, done = true, by = 'user') {
+      const index = state.todos.findIndex((t) => t.id === id)
+      if (index === -1) throw new TodoError('not-found', '这条待办已经不在了')
+      const finished = done !== false
+      const now = new Date().toISOString()
+      const next = {
+        ...state.todos[index],
+        done: finished,
+        doneAt: finished ? now : null,
+        doneBy: finished ? (by === 'agent' ? 'agent' : 'user') : null,
+        verifiedAt: finished && by !== 'agent' ? now : null,
+        updatedAt: now,
+      }
+      state.todos[index] = next
+      await guard(persist)
+      return withBucket(next)
+    },
+
+    async confirm(id) {
+      const index = state.todos.findIndex((t) => t.id === id)
+      if (index === -1) throw new TodoError('not-found', '这条待办已经不在了')
+      const next = { ...state.todos[index], verifiedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+      state.todos[index] = next
+      await guard(persist)
+      return withBucket(next)
+    },
+```
+
+- [ ] **Step 4: 改 `lib/api.js` 与 `lib/tool.js`**
+
+`api.js`：`complete` 透传 `by`，新增 `confirm`：
+
+```js
+    complete: (input = {}) => store.complete(input.id, input.done !== false, input.by),
+    confirm: (input = {}) => store.confirm(input.id),
+```
+
+`tool.js`：`complete` 显式传 `by: 'agent'`，`ACTIONS` 加 `'confirm'`，分发加一行：
+
+```js
+    if (action === 'complete') {
+      const item = await api.complete({ id: input.id, done: input.done !== false, by: 'agent' })
+      return { item }
+    }
+    if (action === 'confirm') {
+      const item = await api.confirm({ id: input.id })
+      return { item }
+    }
+```
+
+工具参数的 `action` 枚举同步加 `'confirm'`。
+
+- [ ] **Step 5: 运行确认通过**
+
+Run: `node --test test/`
+Expected: 全绿（bucket 8 + store 11 + api 4 + tool 5 + quickadd 12）。
+
+- [ ] **Step 6: 客户端显示「待确认」**
+
+`Row` 在分类胶囊之后加一个标记：
+
+```js
+      item.done && item.doneBy === 'agent' && !item.verifiedAt
+        ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-warn-primary)' } }, t('needsReview'))
+        : null,
+```
+
+详情列底部加确认按钮（仅在该状态显示）：
+
+```js
+                selectedItem.done && selectedItem.doneBy === 'agent' && !selectedItem.verifiedAt
+                  ? h('button', {
+                      style: { width: '100%', height: 32, marginTop: 8, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: '#fff', fontSize: 12.5 },
+                      onClick: () => void mutate('confirm', { id: selectedItem.id }),
+                    }, t('confirmDone'))
+                  : null,
+```
+
+字典补：`needsReview: '待确认'` / `confirmDone: '确认已完成'`。
+
+- [ ] **Step 7: 重装并验收**
+
+`plugin_manager` `install_bundle`，刷新页面。让 agent 调用 `todo_write` 完成一条，面板上该条应出现「待确认」；点详情里的「确认已完成」后标记消失、`verifiedAt` 落盘。
+
+- [ ] **Step 8: 提交**
+
+```bash
+git add lib/model.js lib/store.js lib/api.js lib/tool.js client.js test
+git commit -m "feat: agent 完成后的待确认与人工核实"
+```
+
+## Task 11: 收尾与完整验收
 
 **Files:**
 - Create: `README.md`
@@ -1627,7 +2221,20 @@ DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和
 
 ## agent 工具
 
-`todo_write`，`action` 可选 `list` / `add` / `update` / `complete` / `delete`。
+`todo_write`，`action` 可选 `list` / `add` / `update` / `complete` / `confirm` / `delete`。
+
+## 快速添加
+
+面板输入框支持一行自然语言，例如：
+
+```
+明天下午3点 交周报 #工作 p1
+```
+
+支持日期（今天/明天/后天/周X/下周X/N天后/M月D日/月底）、时间（15:00、下午3点、中午）、
+优先级（p1/p2/p3、!）、分类（#名称）。识别到的片段会显示成 chips，回车保存。
+
+规则解析失败时不用在面板里找 AI——直接在对话里说一句，agent 会调用 `todo_write`。
 
 ## 开发
 
@@ -1639,7 +2246,7 @@ node --test test/
 - [ ] **Step 2: 跑全部测试**
 
 Run: `node --test test/`
-Expected: 24 个测试全绿（bucket 8 + store 9 + api 3 + tool 4）。
+Expected: 40 个测试全绿（bucket 8 + store 11 + api 4 + tool 5 + quickadd 12）。
 
 - [ ] **Step 3: 按 spec §8 逐条验收**
 
@@ -1651,14 +2258,21 @@ Expected: 24 个测试全绿（bucket 8 + store 9 + api 3 + tool 4）。
 | 4 | 工具建 → 面板 2.5s 内出现 | 让我调用 `todo_write add`，盯页面 |
 | 5 | 完成写 `doneAt` | 勾选后看 JSON 文件 |
 | 6 | 积压判定 | 手工把某条 `createdAt` 改成 10 天前，刷新看是否进「积压」 |
-| 7 | 删库不崩 | 删掉 `todos.json` 重启，空清单 + 不报错 |
-| 8 | 卸载恢复原样 | `plugin_manager remove_bundle` 后确认侧栏无「待办」、`main` 无 `todo` |
+| 7 | 快速添加解析 | 输入「明天下午3点 交周报 #工作 p1」，四个字段与 chips 都对 |
+| 8 | 快速添加防误伤 | 「每周一开会」不进日期分组；「学 C#编程」不产生分类 |
+| 9 | agent 完成需确认 | 让 agent 完成一条 → 出现「待确认」→ 点确认后消失 |
+| 10 | 删库不崩 | 删掉 `todos.json` 重启，空清单 + 不报错 |
+| 11 | 卸载恢复原样 | `plugin_manager remove_bundle` 后确认侧栏无「待办」、`main` 无 `todo` |
+
+- [ ] **Step 3b: 加主题 token 白名单测试**
+
+宿主声明的 token 有 400+ 个，shell 样式表里真实定义的只有 95 个；引用不存在的 token 不报错、静默失效。把真实名单存成 `test/theme-tokens.json`（从宿主 CSS 的 `body{--dsw-…}` 与 `body[data-ds-dark-theme]{…}` 两段里抽 `--dsw-[a-z0-9-]+`），再写 `test/client-tokens.test.js`：扫描 `client.js` 里所有 `var(--dsw-…)` 引用，凡是名单里没有的就报错。
 
 - [ ] **Step 4: 提交并推送**
 
 ```bash
-git add README.md index.js
-git commit -m "docs: README 与配置说明"
+git add README.md index.js test/
+git commit -m "docs: README 与配置说明；test: 主题 token 白名单"
 git push
 ```
 
@@ -1667,11 +2281,13 @@ git push
 ## 附：任务依赖与并行度
 
 ```
-Task 1 (骨架/槽位)  ─┬─> Task 6 (只读页) ──> Task 7 (交互)
-Task 2 (分组) ─> Task 3 (存储) ─> Task 4 (路由) ─> Task 5 (工具)
-Task 8 依赖全部
+Task 1 (骨架/槽位) ──> Task 6 (只读页) ──> Task 7 (交互) ──> Task 9 (快速添加 UI)
+Task 2 (分组) ─> Task 3 (存储) ─> Task 4 (路由) ─> Task 5 (工具) ─> Task 10 (待确认)
+Task 8 (解析器) ──> Task 9
+Task 11 依赖全部
 ```
 
-- Task 2–5 与 Task 1 并行不冲突（不同文件）。
+- Task 1、Task 2、Task 8 三者互不依赖，可以并行（不同文件）。
 - Task 6 需要 Task 4 的路由已装好，否则页面一直显示「读取失败」。
-- Task 7 必须等 Task 6 的 `fetchApi` / `S` / `Row` 就位。
+- Task 9 同时依赖 Task 7（`Row` / `mutate` 就位）与 Task 8（解析器）。
+- Task 10 改的是 Task 3/4/5 的既有函数签名，必须等它们稳定后再动。
