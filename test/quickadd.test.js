@@ -98,6 +98,18 @@ test('午夜1点按 01:00', () => {
   assert.equal(parse('午夜1点 交周报').dueTime, '01:00')
 })
 
+test('晚上12点按午夜 00:00', () => {
+  assert.equal(parse('晚上12点 交周报').dueTime, '00:00')
+})
+
+test('夜里12点半按 00:30', () => {
+  assert.equal(parse('夜里12点半 交周报').dueTime, '00:30')
+})
+
+test('午夜12点按 00:00', () => {
+  assert.equal(parse('午夜12点 交周报').dueTime, '00:00')
+})
+
 test('中午10点按 10:00，不再 +12', () => {
   assert.equal(parse('中午10点 开会').dueTime, '10:00')
 })
