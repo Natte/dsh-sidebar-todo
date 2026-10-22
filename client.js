@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
         staleHint: '超过 7 天未完成', loading: '加载中…', failed: '读取失败',
         retry: '重试', pickOne: '选一条看详情',
         corruptNotice: '数据文件损坏，已备份并以空清单启动',
-        addPlaceholder: '写点什么，回车保存', save: '保存', cancel: '取消',
+        addPlaceholder: '写点什么，回车保存', agentHint: '没看懂时间？可以在对话里说一句，让 agent 帮你定', save: '保存', cancel: '取消',
         complete: '完成', reopen: '撤销完成', remove: '删除', confirmRemove: '确认删除',
         note: '备注', priority: '优先级', dueDate: '截止日期', dueTime: '时间', category: '分类',
         emptyHint: '新建第一条',
@@ -30,7 +30,7 @@ window.__ModuleLoader__.load({
         staleHint: 'Open for more than 7 days', loading: 'Loading…', failed: 'Failed to load',
         retry: 'Retry', pickOne: 'Select an item',
         corruptNotice: 'Data file was corrupt; it is backed up and the list started empty.',
-        addPlaceholder: 'What needs doing? Enter to save', save: 'Save', cancel: 'Cancel',
+        addPlaceholder: 'What needs doing? Enter to save', agentHint: 'No date understood? Ask the agent in chat to set one.', save: 'Save', cancel: 'Cancel',
         complete: 'Complete', reopen: 'Reopen', remove: 'Delete', confirmRemove: 'Confirm delete',
         note: 'Note', priority: 'Priority', dueDate: 'Due date', dueTime: 'Time', category: 'Category',
         emptyHint: 'Create the first one',
@@ -187,6 +187,93 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /**
+     * 快速添加：输入停顿 200ms 后解析，chips 预览识别结果，回车落库。
+     *
+     * 两个资源坑都兜住：防抖 timer 在 effect cleanup 里清掉；解析响应回来时
+     * 组件可能已经没了（父组件 create 成功后关掉草稿行），所以先用 alive/seq
+     * 判断，已卸载组件和过期响应都不 setState。
+     */
+    function QuickAdd({ t, onCreated }) {
+      const [text, setText] = useState('')
+      const [parsed, setParsed] = useState(null)
+      const [busy, setBusy] = useState(false)
+
+      const alive = useRef(true)
+      const seq = useRef(0)
+
+      useEffect(() => {
+        alive.current = true
+        return () => { alive.current = false }
+      }, [])
+
+      useEffect(() => {
+        const current = ++seq.current
+        // 文本一变，上一次的解析结果立即作废：否则赶在防抖前回车会提交旧标题/旧日期。
+        setParsed(null)
+        if (text.trim() === '') return
+        const timer = window.setTimeout(() => {
+          fetchApi('parse', { text }, t)
+            .then((result) => {
+              if (!alive.current || current !== seq.current) return
+              setParsed(result)
+            })
+            .catch(() => {
+              if (!alive.current || current !== seq.current) return
+              setParsed(null)
+            })
+        }, 200)
+        return () => window.clearTimeout(timer)
+      }, [text, t])
+
+      const submit = async () => {
+        if (busy || text.trim() === '') return
+        // 只挑后端认识的字段：matched 只是本地预览用的，不进创建契约。
+        const fields = parsed === null
+          ? { title: text.trim() }
+          : {
+            title: parsed.title ?? text.trim(),
+            dueDate: parsed.dueDate,
+            dueTime: parsed.dueTime,
+            priority: parsed.priority,
+            category: parsed.category,
+          }
+        setBusy(true)
+        try {
+          await onCreated(fields)
+          if (alive.current) { setText(''); setParsed(null) }
+        } finally {
+          if (alive.current) setBusy(false)
+        }
+      }
+
+      const chips = parsed === null ? [] : [
+        parsed.dueDate ? (parsed.dueTime ? `${parsed.dueDate.slice(5)} ${parsed.dueTime}` : parsed.dueDate.slice(5)) : null,
+        parsed.category ? `#${parsed.category}` : null,
+        parsed.priority ? priorityLabel(parsed.priority, t) : null,
+      ].filter(Boolean)
+
+      // 纯提示，不跳转、不调模型：只有「有文本但一个片段都没认出来」才出现。
+      const showAgentHint = parsed !== null && Array.isArray(parsed.matched) && parsed.matched.length === 0 && text.trim() !== ''
+
+      return h('div', { style: { padding: '6px 8px 10px' } },
+        h('input', {
+          autoFocus: true, value: text, placeholder: t('addPlaceholder'), 'aria-label': t('addPlaceholder'),
+          style: { ...S.search, width: '100%' },
+          onChange: (e) => setText(e.target.value),
+          onKeyDown: (e) => {
+            if (e.key === 'Enter') void submit()
+            if (e.key === 'Escape') { setText(''); setParsed(null) }
+          },
+        }),
+        chips.length > 0 ? h('div', { style: { display: 'flex', gap: 6, marginTop: 6 } },
+          chips.map((chip, index) => h('span', { key: `${index}:${chip}`, style: S.tag }, chip))) : null,
+        showAgentHint
+          ? h('div', { style: { marginTop: 6, fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' } }, t('agentHint'))
+          : null,
+      )
+    }
+
     let corruptDismissed = false
 
     function TodoPage(props) {
@@ -234,14 +321,6 @@ window.__ModuleLoader__.load({
           setState((prev) => ({ ...prev, error: true }))
         }
       }, [reload])
-
-      const submitDraft = useCallback(async () => {
-        if (draft === null) return
-        const title = draft.trim()
-        if (title === '') { setDraft(null); return }
-        await mutate('create', { title })
-        setDraft(null)
-      }, [draft, mutate])
 
       useEffect(() => { void reload() }, [reload])
 
@@ -298,17 +377,13 @@ window.__ModuleLoader__.load({
           : null,
         h('div', { style: S.body },
           h('div', { style: S.list },
-            draft !== null ? h('div', { style: S.sec },
-              h('input', {
-                autoFocus: true, value: draft, placeholder: t('addPlaceholder'),
-                style: { ...S.search, width: '100%' },
-                onChange: (e) => setDraft(e.target.value),
-                onKeyDown: (e) => {
-                  if (e.key === 'Enter') void submitDraft()
-                  if (e.key === 'Escape') setDraft(null)
-                },
-              }),
-            ) : null,
+            draft !== null ? h(QuickAdd, {
+              t,
+              onCreated: async (fields) => {
+                await mutate('create', fields)
+                setDraft(null)
+              },
+            }) : null,
             state.loading && items.length === 0
               ? h('div', { style: S.empty }, t('loading'))
               : items.length === 0

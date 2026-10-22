@@ -41,3 +41,16 @@ test('错误带 code，未知 id 是 not-found', async () => {
   await assert.rejects(() => api.remove({ id: 'ghost' }), (err) => err instanceof TodoError && err.code === 'not-found')
   await store.close()
 })
+
+test('parse 只解析不落库', async () => {
+  const { api, store } = await makeApi()
+  const out = await api.parse({ text: '明天下午3点 交周报 #工作 p1', today: '2026-10-22' })
+  assert.equal(out.title, '交周报')
+  assert.equal(out.dueDate, '2026-10-23')
+  assert.equal(out.dueTime, '15:00')
+  assert.equal(out.category, '工作')
+  assert.equal(out.priority, 'high')
+  const listed = await api.list({})
+  assert.equal(listed.items.length, 0)
+  await store.close()
+})
