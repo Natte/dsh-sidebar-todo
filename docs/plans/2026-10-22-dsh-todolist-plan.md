@@ -4,7 +4,7 @@
 
 **Goal:** 在 DSH 左侧栏增加「待办」入口行，点开是一张管理日常工作的待办页，数据落在宿主侧 JSON 文件，agent 通过工具读写同一份数据。
 
-**Architecture:** 单包双半结构。Host（`index.js` + `lib/`）持有内存态与 JSON 文件，暴露 `POST /todo/api/*` 路由与 `todo_write` 工具；Client（`client.js`）只做渲染与调用路由，通过 `sidebar.panellist` 注册入口行、`main` 注册 `key: 'todo'` 的面板页。分类（今天/明天/本周/积压/未排期/已完成）与自然语言解析都在 Host 侧实现一次（`lib/bucket.js`、`lib/quickadd.js`），UI 只消费结果。
+**Architecture:** 单包双半结构。Host（`index.js` + `lib/`）持有内存态与 JSON 文件，暴露 `POST /todo/api/*` 路由与 `personal_todo` 工具；Client（`client.js`）只做渲染与调用路由，通过 `sidebar.panellist` 注册入口行、`main` 注册 `key: 'todo'` 的面板页。分类（今天/明天/本周/积压/未排期/已完成）与自然语言解析都在 Host 侧实现一次（`lib/bucket.js`、`lib/quickadd.js`），UI 只消费结果。
 
 **Tech Stack:** 纯 ESM JavaScript（无构建）、Node 内置 `node:test`、宿主 Cordis 服务（`webServer` / `connection` / `tools` / `slots` / `locale`）、React（浏览器模块表提供）。
 
@@ -19,10 +19,10 @@
 - 数据文件默认 `%DSH_PROFILE_DIR%/data/dsh-todolist/todos.json`；当前环境即 `C:\Users\12756\.dsh\profiles\desktop\data\dsh-todolist\todos.json`。
 - 运行环境是官方桌面版（Electron 外壳 + 本机 http 提供的 Web GUI，profile 名 `desktop`）：客户端代码不得依赖固定端口或地址栏，路由一律用 `document.baseURI` 相对解析。
 - 路由必须过 `ctx.connection.requestRejection(req)`，非本页来源一律 403。
-- 自然语言解析只在宿主侧实现（`lib/quickadd.js`），客户端不得自行解析，也不得在 UI 里调用模型；「让 agent 帮我记」走对话 + `todo_write` 工具。
+- 自然语言解析只在宿主侧实现（`lib/quickadd.js`），客户端不得自行解析，也不得在 UI 里调用模型；「让 agent 帮我记」走对话 + `personal_todo` 工具。
 - 借鉴自其他插件仓库的设计模式（见 [docs/notes/2026-10-22-borrowed-patterns.md](../notes/2026-10-22-borrowed-patterns.md)），在对应源码位置写一行注释标出处，不复制代码。
 - 每个任务结束必须 `git commit`；提交信息用中文，前缀 `feat:` / `test:` / `chore:` / `docs:`。
-- 测试命令统一 `node --test test/`。
+- 测试命令统一 `node --test`。
 
 ---
 
@@ -39,7 +39,7 @@
 | `lib/store.js` | 持久化 + CRUD（原子写、串行队列、损坏备份） |
 | `lib/api.js` | 方法分发表（路由与工具共用） |
 | `lib/quickadd.js` | 纯函数：一行自然语言的剥离式解析 |
-| `lib/tool.js` | `todo_write` 的 ToolDefinition |
+| `lib/tool.js` | `personal_todo` 的 ToolDefinition |
 | `test/bucket.test.js` | 分组/排序 |
 | `test/store.test.js` | 增删改查 + 重载 + 损坏恢复 + 待确认 |
 | `test/api.test.js` | 分发、未知方法、错误码、解析路由 |
@@ -86,7 +86,7 @@
     "./icon": "./icon.svg"
   },
   "files": ["index.js", "client.js", "lib/**/*.js", "cordis.patch.yml", "locale/*.json", "icon.svg"],
-  "scripts": { "test": "node --test test/" },
+  "scripts": { "test": "node --test" },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
     "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-sidebar"] }
@@ -294,7 +294,7 @@ test('摘要按 bucket 计数', () => {
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `node --test test/bucket.test.js`
+Run: `node --testbucket.test.js`
 Expected: FAIL，`Cannot find module '../lib/bucket.js'`
 
 - [ ] **Step 3: 实现 `lib/bucket.js`**
@@ -375,7 +375,7 @@ export function summarize(items, now = new Date()) {
 
 - [ ] **Step 4: 运行确认通过**
 
-Run: `node --test test/bucket.test.js`
+Run: `node --testbucket.test.js`
 Expected: PASS，8 个测试全绿。
 
 - [ ] **Step 5: 提交**
@@ -528,7 +528,7 @@ test('并发写不会丢（串行队列）', async () => {
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `node --test test/store.test.js`
+Run: `node --teststore.test.js`
 Expected: FAIL，`Cannot find module '../lib/store.js'`
 
 - [ ] **Step 3: 实现 `lib/model.js`**
@@ -777,7 +777,7 @@ export function resolveDataFile(override) {
 
 - [ ] **Step 5: 运行确认通过**
 
-Run: `node --test test/store.test.js`
+Run: `node --teststore.test.js`
 Expected: PASS，9 个测试全绿。
 
 - [ ] **Step 6: 提交**
@@ -852,7 +852,7 @@ test('错误带 code，未知 id 是 not-found', async () => {
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `node --test test/api.test.js`
+Run: `node --testapi.test.js`
 Expected: FAIL，`Cannot find module '../lib/api.js'`
 
 - [ ] **Step 3: 实现 `lib/api.js`**
@@ -884,7 +884,7 @@ function stripKeys(input, keys) {
 
 - [ ] **Step 4: 运行确认通过**
 
-Run: `node --test test/api.test.js`
+Run: `node --testapi.test.js`
 Expected: PASS，3 个测试全绿。
 
 - [ ] **Step 5: 用真实路由替换 `index.js`**
@@ -988,7 +988,7 @@ git commit -m "feat: 待办 HTTP 路由与分发"
 
 ---
 
-## Task 5: agent 工具 `todo_write`
+## Task 5: agent 工具 `personal_todo`
 
 **Files:**
 - Create: `lib/tool.js`
@@ -997,7 +997,7 @@ git commit -m "feat: 待办 HTTP 路由与分发"
 
 **Interfaces:**
 - Consumes: `createApi`（Task 4）
-- Produces: `createTool(api, ready): ToolDefinition`，工具名 `todo_write`，参数 `{ action, ... }`
+- Produces: `createTool(api, ready): ToolDefinition`，工具名 `personal_todo`，参数 `{ action, ... }`
 
 - [ ] **Step 1: 写失败测试**
 
@@ -1057,13 +1057,13 @@ test('render 产出文本块', async () => {
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `node --test test/tool.test.js`
+Run: `node --testtool.test.js`
 Expected: FAIL，`Cannot find module '../lib/tool.js'`
 
 - [ ] **Step 3: 实现 `lib/tool.js`**
 
 ```js
-/** The `todo_write` agent tool: same dispatch table the UI calls. */
+/** The `personal_todo` agent tool: same dispatch table the UI calls. */
 
 import { TodoError } from './model.js'
 import { summarize } from './bucket.js'
@@ -1103,7 +1103,7 @@ export function createTool(api, ready) {
   }
 
   return {
-    name: 'todo_write',
+    name: 'personal_todo',
     description:
       '读写用户本人的日常工作待办清单（与 DSH 会话无关）。' +
       'action=list 查询；add 新建；update 修改；complete 勾选/取消；delete 删除。' +
@@ -1147,7 +1147,7 @@ export function createTool(api, ready) {
 
 - [ ] **Step 4: 运行确认通过**
 
-Run: `node --test test/tool.test.js`
+Run: `node --testtool.test.js`
 Expected: PASS，4 个测试全绿。
 
 - [ ] **Step 5: 在 `index.js` 里注册工具**
@@ -1172,14 +1172,14 @@ Expected: 退出码 0。
 
 - [ ] **Step 7: 确认真实工具已可见**
 
-`cordis_inspect_query`（host / Tool / `listTools`），在返回里找 `todo_write`。
+`cordis_inspect_query`（host / Tool / `listTools`），在返回里找 `personal_todo`。
 Expected: 存在，`parameters.required == ["action"]`，`enum` 含 5 个 action。
 
 - [ ] **Step 8: 提交**
 
 ```bash
 git add lib/tool.js index.js test/tool.test.js
-git commit -m "feat: todo_write 工具，与 UI 共用同一套分发"
+git commit -m "feat: personal_todo 工具，与 UI 共用同一套分发"
 ```
 
 ---
@@ -1704,7 +1704,7 @@ test('空输入', () => {
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `node --test test/quickadd.test.js`
+Run: `node --testquickadd.test.js`
 Expected: FAIL，`Cannot find module '../lib/quickadd.js'`
 
 - [ ] **Step 3: 实现 `lib/quickadd.js`**
@@ -1861,7 +1861,7 @@ export function parseQuickAdd(input, options = {}) {
 
 - [ ] **Step 4: 运行确认通过**
 
-Run: `node --test test/quickadd.test.js`
+Run: `node --testquickadd.test.js`
 Expected: PASS，12 个测试全绿。
 若「每周一开会」用例失败，检查 `weekday` 正则里的 `(?<!每)` 是否被写在最前面。
 
@@ -1919,7 +1919,7 @@ test('parse 只解析不落库', async () => {
 
 - [ ] **Step 3: 运行确认通过**
 
-Run: `node --test test/api.test.js`
+Run: `node --testapi.test.js`
 Expected: PASS，4 个测试。
 
 - [ ] **Step 4: 客户端加 `QuickAdd` 输入框**
@@ -2076,7 +2076,7 @@ test('工具完成的记录带 doneBy=agent', async () => {
 
 - [ ] **Step 2: 运行确认失败**
 
-Run: `node --test test/store.test.js; node --test test/tool.test.js`
+Run: `node --teststore.test.js; node --testtool.test.js`
 Expected: FAIL，`doneBy` 为 `undefined`。
 
 - [ ] **Step 3: 改 `lib/store.js`**
@@ -2147,7 +2147,7 @@ Expected: FAIL，`doneBy` 为 `undefined`。
 
 - [ ] **Step 5: 运行确认通过**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: 全绿（bucket 8 + store 11 + api 4 + tool 5 + quickadd 12）。
 
 - [ ] **Step 6: 客户端显示「待确认」**
@@ -2175,7 +2175,7 @@ Expected: 全绿（bucket 8 + store 11 + api 4 + tool 5 + quickadd 12）。
 
 - [ ] **Step 7: 重装并验收**
 
-`plugin_manager` `install_bundle`，刷新页面。让 agent 调用 `todo_write` 完成一条，面板上该条应出现「待确认」；点详情里的「确认已完成」后标记消失、`verifiedAt` 落盘。
+`plugin_manager` `install_bundle`，刷新页面。让 agent 调用 `personal_todo` 完成一条，面板上该条应出现「待确认」；点详情里的「确认已完成」后标记消失、`verifiedAt` 落盘。
 
 - [ ] **Step 8: 提交**
 
@@ -2228,7 +2228,7 @@ DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和
 
 ## agent 工具
 
-`todo_write`，`action` 可选 `list` / `add` / `update` / `complete` / `confirm` / `delete`。
+`personal_todo`，`action` 可选 `list` / `add` / `update` / `complete` / `confirm` / `delete`。
 
 ## 快速添加
 
@@ -2241,18 +2241,18 @@ DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和
 支持日期（今天/明天/后天/周X/下周X/N天后/M月D日/月底）、时间（15:00、下午3点、中午）、
 优先级（p1/p2/p3、!）、分类（#名称）。识别到的片段会显示成 chips，回车保存。
 
-规则解析失败时不用在面板里找 AI——直接在对话里说一句，agent 会调用 `todo_write`。
+规则解析失败时不用在面板里找 AI——直接在对话里说一句，agent 会调用 `personal_todo`。
 
 ## 开发
 
 ```bash
-node --test test/
+node --test
 ```
 ```
 
 - [ ] **Step 2: 跑全部测试**
 
-Run: `node --test test/`
+Run: `node --test`
 Expected: 40 个测试全绿（bucket 8 + store 11 + api 4 + tool 5 + quickadd 12）。
 
 - [ ] **Step 3: 按 spec §8 逐条验收**
@@ -2261,8 +2261,8 @@ Expected: 40 个测试全绿（bucket 8 + store 11 + api 4 + tool 5 + quickadd 1
 |---|---|---|
 | 1 | 重启后入口与数据都在 | 重启 DSH，看侧栏与列表 |
 | 2 | 折叠态行为与其他导航行一致 | 折叠侧栏：「待办」要与「插件」「定时任务」同进同退，不能单独错位或残留 |
-| 3 | UI 建 → 工具能看到 | 页面新建一条，然后让我调用 `todo_write list` |
-| 4 | 工具建 → 面板 2.5s 内出现 | 让我调用 `todo_write add`，盯页面 |
+| 3 | UI 建 → 工具能看到 | 页面新建一条，然后让我调用 `personal_todo list` |
+| 4 | 工具建 → 面板 2.5s 内出现 | 让我调用 `personal_todo add`，盯页面 |
 | 5 | 完成写 `doneAt` | 勾选后看 JSON 文件 |
 | 6 | 积压判定 | 手工把某条 `createdAt` 改成 10 天前，刷新看是否进「积压」 |
 | 7 | 快速添加解析 | 输入「明天下午3点 交周报 #工作 p1」，四个字段与 chips 都对 |
@@ -2298,3 +2298,25 @@ Task 11 依赖全部
 - Task 6 需要 Task 4 的路由已装好，否则页面一直显示「读取失败」。
 - Task 9 同时依赖 Task 7（`Row` / `mutate` 就位）与 Task 8（解析器）。
 - Task 10 改的是 Task 3/4/5 的既有函数签名，必须等它们稳定后再动。
+
+---
+
+## 实施期修订记录
+
+执行过程中发现的、与本计划原文冲突或计划本身写错的地方。每一项都在对应任务的修复轮里落地，并已回写到上文。
+
+| # | 位置 | 计划原文 | 实际做法 | 原因 |
+|---|---|---|---|---|
+| 1 | Task 2 测试 | dueDate: '2026-10-26' 期望 stale | 期望 unplanned，另加「创建 10 天 + 远未来截止 → stale」 | 原文与 spec §4.3 冲突：积压只看创建时长。实现者为让用例通过加了一行 eturn 'stale'，把错误固化 |
+| 2 | Task 4 测试 | sync function api() + const { api } = await api() | 改名 makeApi | 函数名与解构变量同名，TDZ 崩溃 |
+| 3 | Task 5 工具名 | 	odo_write | **personal_todo** | 官方标准 preset 自带 	odo_write（会话任务清单），scoped 工具遮蔽 global 工具，导致我们的版本对 agent 完全不可见 |
+| 4 | Task 5 工具返回 | render 只给标题 | 每条带 id | 不返回 id，模型无法继续 update / complete / delete |
+| 5 | Task 5 列表默认 | pi.list(input) 返回全量 | iew 缺省 'open' | 与「list 默认只给未完成」的测试契约矛盾 |
+| 6 | 全局 | 
+ode --test test/ | 
+ode --test | 本机 Node 24 下带目录参数会解析失败 |
+| 7 | Task 3 写盘 | queue = queue.then(...) | 队尾用 write.catch(() => {}) 兜住，调用方仍收到本次错误 | 一次瞬时 I/O 失败会让队列永久 rejected，本会话后续写入全部静默丢失 |
+| 8 | Task 3 损坏恢复 | 备份失败被 catch {} 吞掉后仍覆盖原件 | 备份失败则中止并抛 io-error，不覆盖原文件 | 否则唯一的损坏原稿会被空文档销毁 |
+| 9 | Task 8 解析器 | 月份 (\d{1,2}) 先摘后校验 | 月份收进 (0?[1-9]|1[0-2]) | 31/10 这类输入会被摘掉又不落日期，违反「绝不吞字符」 |
+| 10 | Task 8 解析器 | 月底 / 下周 短正则抢先 | 加 下个月底 优先与 (?!末) 守卫 | 下个月底 被啃成「下个」、下周末 被啃成「末」 |
+| 11 | Task 8 解析器 | 中午关键字分支早于数字钟点 | 数字钟点优先，中午/半夜按时段换算 | 中午1点 被解析成 12:00；半夜12点 应为 00:00 |
