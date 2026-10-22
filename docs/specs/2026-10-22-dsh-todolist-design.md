@@ -81,7 +81,7 @@ logoRow(60px) → newSession(38px) → panelList(sidebar.panellist) → regionAr
 │   ├─ ctx.webServer.register({ kind:'prefix',          │
 │   │     path:'/todo/api', handler })                  │
 │   ├─ TodoStore（内存态 + 串行原子写 JSON + 分组标注）   │
-│   ├─ ctx.tools.register(todo_write)                   │
+│   ├─ ctx.tools.register(personal_todo)                   │
 │   └─ Config: { staleDays, ... }                       │
 └───────────────────────────────────────────────────────┘
                     │
@@ -188,7 +188,7 @@ todo.parse(text, today?)       // 自然语言解析，不落库；见 §6.5
 - 原子写：写 `todos.json.tmp` → `fs.rename` 覆盖；Windows 上 rename 覆盖同名文件需先删除或使用 `fs.rename` 的覆盖语义（实测通过则保留，否则退化为 write-then-swap）
 - 不做防抖延迟写：待办写入频率低（人手点击），立即落盘换来「崩了也不丢」
 
-### 5.4 工具 `todo_write`
+### 5.4 工具 `personal_todo`
 
 一个工具 + `action` 参数（遵循“同一操作两个调用者，不写两套逻辑”）：
 
@@ -306,7 +306,7 @@ todo.parse(text, today?)       // 自然语言解析，不落库；见 §6.5
 
 **UI 行为**：输入停顿 200ms 后请求解析；chips 显示在输入框下方（如 `明天 15:00` / `#工作` / `高`），回车把解析结果直接提交为新建；`matched` 为空且文本非空时，输入框下方显示一行灰字提示「没看懂时间？在对话里说一句让 agent 帮你定」，不跳转、不调模型。
 
-**为什么 UI 里不直接调模型**：见 §6.5 上方说明与借鉴笔记 §5——延迟从毫秒变秒级、失败模式多、与边打字边预览冲突；而「让 agent 帮我记」这条路已经通过对话 + `todo_write` 工具通了。
+**为什么 UI 里不直接调模型**：见 §6.5 上方说明与借鉴笔记 §5——延迟从毫秒变秒级、失败模式多、与边打字边预览冲突；而「让 agent 帮我记」这条路已经通过对话 + `personal_todo` 工具通了。
 
 ---
 

@@ -9,3 +9,6 @@ dist/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# SDD 执行工作区（ledger / brief / 报告 / 审查包）
+.superpowers/
