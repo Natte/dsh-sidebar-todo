@@ -213,7 +213,7 @@ git commit -m "feat: 插件骨架，打通侧栏入口行与主面板槽位"
   - `shiftKey(key: string, days: number): string`
   - `bucketOf(todo, now?: Date, staleDays?: number): string`
   - `compareTodos(a, b): number`
-  - `summarize(items): { today, tomorrow, week, stale, unplanned, doneToday }`
+  - `summarize(items, now?): { today, tomorrow, week, stale, unplanned, doneToday }`
 
 - [ ] **Step 1: 写失败测试**
 
@@ -247,10 +247,16 @@ test('截止今天与过期的都进 today', () => {
   assert.equal(bucketOf({ ...base, dueDate: '2026-10-20' }, NOW), 'today')
 })
 
-test('明天、本周、下周分桶', () => {
+test('明天、本周分桶；下周之后不因截止日而进积压', () => {
   assert.equal(bucketOf({ ...base, dueDate: '2026-10-23' }, NOW), 'tomorrow')
   assert.equal(bucketOf({ ...base, dueDate: '2026-10-25' }, NOW), 'week')
-  assert.equal(bucketOf({ ...base, dueDate: '2026-10-26' }, NOW), 'stale')
+  // 截止日在遥远未来、但才创建一天：不是积压（spec §4.3：积压只看创建时长）
+  assert.equal(bucketOf({ ...base, dueDate: '2026-10-26' }, NOW), 'unplanned')
+})
+
+test('截止日在遥远未来、但创建超过阈值，仍算积压', () => {
+  const old = new Date(2026, 9, 10, 9).toISOString()
+  assert.equal(bucketOf({ ...base, createdAt: old, dueDate: '2026-12-01' }, NOW, 7), 'stale')
 })
 
 test('无截止：7 天内未排期，超过进积压', () => {
@@ -279,7 +285,8 @@ test('摘要按 bucket 计数', () => {
     { bucket: 'today' }, { bucket: 'today' }, { bucket: 'stale' },
     { bucket: 'done', doneAt: new Date(2026, 9, 22, 8).toISOString() },
   ]
-  assert.deepEqual(summarize(items), {
+  // now 必须显式传入，否则 doneToday 依赖跑测试当天是不是 2026-10-22
+  assert.deepEqual(summarize(items, NOW), {
     today: 2, tomorrow: 0, week: 0, stale: 1, unplanned: 0, doneToday: 1,
   })
 })
@@ -807,7 +814,7 @@ import { createStore } from '../lib/store.js'
 import { createApi } from '../lib/api.js'
 import { TodoError } from '../lib/model.js'
 
-async function api() {
+async function makeApi() {
   const dir = await mkdtemp(join(tmpdir(), 'todo-api-'))
   const store = createStore({ file: join(dir, 'todos.json') })
   await store.load()
@@ -815,7 +822,7 @@ async function api() {
 }
 
 test('create → list → complete → remove 全链路', async () => {
-  const { api, store } = await api()
+  const { api, store } = await makeApi()
   const created = await api.create({ title: '交周报' })
   const listed = await api.list({})
   assert.equal(listed.items.length, 1)
@@ -827,7 +834,7 @@ test('create → list → complete → remove 全链路', async () => {
 })
 
 test('update 接受 { id, patch } 与扁平两种形状', async () => {
-  const { api, store } = await api()
+  const { api, store } = await makeApi()
   const created = await api.create({ title: 'a' })
   const one = await api.update({ id: created.id, patch: { title: 'b' } })
   assert.equal(one.title, 'b')
@@ -837,7 +844,7 @@ test('update 接受 { id, patch } 与扁平两种形状', async () => {
 })
 
 test('错误带 code，未知 id 是 not-found', async () => {
-  const { api, store } = await api()
+  const { api, store } = await makeApi()
   await assert.rejects(() => api.remove({ id: 'ghost' }), (err) => err instanceof TodoError && err.code === 'not-found')
   await store.close()
 })
@@ -1897,7 +1904,7 @@ import { parseQuickAdd } from './quickadd.js'
 
 ```js
 test('parse 只解析不落库', async () => {
-  const { api, store } = await api()
+  const { api, store } = await makeApi()
   const out = await api.parse({ text: '明天下午3点 交周报 #工作 p1', today: '2026-10-22' })
   assert.equal(out.title, '交周报')
   assert.equal(out.dueDate, '2026-10-23')
