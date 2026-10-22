@@ -11,7 +11,7 @@
     "./icon": "./icon.svg"
   },
   "files": ["index.js", "client.js", "lib/**/*.js", "cordis.patch.yml", "locale/*.json", "icon.svg"],
-  "scripts": { "test": "node --test test/" },
+  "scripts": { "test": "node --test" },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
     "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-sidebar"] }
