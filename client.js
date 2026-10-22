@@ -15,14 +15,17 @@ window.__ModuleLoader__.load({
         retry: '重试', pickOne: '选一条看详情',
         corruptNotice: '数据文件损坏，已备份并以空清单启动',
         writeNotice: '有改动尚未写入磁盘', retryWrite: '重试写入',
-        addPlaceholder: '写点什么，回车保存', agentHint: '没看懂时间？可以在对话里说一句，让 agent 帮你定', save: '保存', cancel: '取消',
-        complete: '完成', reopen: '撤销完成', remove: '删除', confirmRemove: '确认删除',
+        save: '保存', cancel: '取消',
+        complete: '完成', reopen: '撤销完成', remove: '删除', confirmRemove: '确认删除', edit: '编辑',
         needsReview: '待确认', confirmDone: '确认已完成',
         note: '备注', priority: '优先级', dueDate: '截止日期', dueTime: '时间', category: '分类',
+        dialogNew: '新建待办', dialogEdit: '编辑待办',
+        fieldTitle: '标题', fieldNote: '备注', fieldDate: '日期', fieldTime: '时间',
+        fieldPriority: '优先级', fieldCategory: '分类',
+        quickFill: '一句话填写，例如：明天下午3点 交周报 #工作',
+        quickHint: '也可以只填标题，之后在对话里让我改日期。', titleRequired: '标题不能为空',
         emptyHint: '新建第一条',
         yesterday: '昨天', earlier: '更早', created: '创建于',
-        dayAfter: '后天', weekdaySun: '周日', weekdayMon: '周一', weekdayTue: '周二', weekdayWed: '周三',
-        weekdayThu: '周四', weekdayFri: '周五', weekdaySat: '周六',
         noMatch: '没有匹配的待办', staleFor: '挂了 {n} 天',
         priorityHigh: '高', priorityMedium: '中', priorityLow: '低',
         badResponse: '响应格式不正确', requestFailed: '请求失败', dismiss: '关闭',
@@ -35,14 +38,17 @@ window.__ModuleLoader__.load({
         retry: 'Retry', pickOne: 'Select an item',
         corruptNotice: 'Data file was corrupt; it is backed up and the list started empty.',
         writeNotice: 'Some changes are not on disk yet', retryWrite: 'Retry write',
-        addPlaceholder: 'What needs doing? Enter to save', agentHint: 'No date understood? Ask the agent in chat to set one.', save: 'Save', cancel: 'Cancel',
-        complete: 'Complete', reopen: 'Reopen', remove: 'Delete', confirmRemove: 'Confirm delete',
+        save: 'Save', cancel: 'Cancel',
+        complete: 'Complete', reopen: 'Reopen', remove: 'Delete', confirmRemove: 'Confirm delete', edit: 'Edit',
         needsReview: 'Needs review', confirmDone: 'Confirm done',
         note: 'Note', priority: 'Priority', dueDate: 'Due date', dueTime: 'Time', category: 'Category',
+        dialogNew: 'New todo', dialogEdit: 'Edit todo',
+        fieldTitle: 'Title', fieldNote: 'Note', fieldDate: 'Date', fieldTime: 'Time',
+        fieldPriority: 'Priority', fieldCategory: 'Category',
+        quickFill: 'Quick fill, e.g. "tomorrow 3pm report #work"',
+        quickHint: 'You can fill in just the title and ask me in chat to set the date later.', titleRequired: 'Title is required',
         emptyHint: 'Create the first one',
         yesterday: 'Yesterday', earlier: 'Earlier', created: 'Created',
-        dayAfter: 'Day after tomorrow', weekdaySun: 'Sun', weekdayMon: 'Mon', weekdayTue: 'Tue', weekdayWed: 'Wed',
-        weekdayThu: 'Thu', weekdayFri: 'Fri', weekdaySat: 'Sat',
         noMatch: 'No matching todos', staleFor: 'Open {n} days',
         priorityHigh: 'High', priorityMedium: 'Medium', priorityLow: 'Low',
         badResponse: 'Unexpected response', requestFailed: 'Request failed', dismiss: 'Dismiss',
@@ -94,6 +100,22 @@ window.__ModuleLoader__.load({
       error: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent)' },
       warn: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-warn-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent)', display: 'flex', alignItems: 'center', gap: 8 },
       addBtn: { height: 32, padding: '0 12px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'var(--dsw-alias-button-elevated-fill)', color: 'var(--dsw-alias-label-primary)', fontSize: 13, cursor: 'pointer' },
+      overlay: { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--dsw-alias-bg-mask-3)' },
+      dialog: { width: 520, maxWidth: 'calc(100vw - 32px)', maxHeight: '82vh', overflowY: 'auto', boxSizing: 'border-box', padding: '16px 20px', borderRadius: 12, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'var(--dsw-alias-bg-overlay)', color: 'var(--dsw-alias-label-primary)' },
+      dialogHead: { fontSize: 15, fontWeight: 600, marginBottom: 12 },
+      hint: { marginTop: 6, fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
+      field: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, marginBottom: 10 },
+      fieldRow: { display: 'flex', gap: 12 },
+      fieldLabel: { fontSize: 11.5, color: 'var(--dsw-alias-label-secondary)' },
+      input: { width: '100%', height: 32, boxSizing: 'border-box', padding: '0 10px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, fontFamily: 'inherit' },
+      textarea: { width: '100%', height: 64, boxSizing: 'border-box', padding: '7px 10px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, fontFamily: 'inherit', lineHeight: '18px', resize: 'vertical' },
+      seg: { display: 'flex', gap: 6 },
+      segItem: { flex: 1, height: 30, borderRadius: 6, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'transparent', color: 'var(--dsw-alias-label-secondary)', fontSize: 12.5, cursor: 'pointer' },
+      segItemOn: { border: '0.5px solid transparent', background: 'var(--dsw-alias-state-business-primary)', color: '#fff' },
+      dialogError: { marginTop: 4, padding: '6px 10px', borderRadius: 6, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent)' },
+      dialogFoot: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 },
+      btnGhost: { height: 32, padding: '0 14px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'transparent', color: 'var(--dsw-alias-label-secondary)', fontSize: 12.5, cursor: 'pointer' },
+      btnPrimary: { height: 32, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--dsw-alias-state-business-primary)', color: '#fff', fontSize: 12.5, cursor: 'pointer' },
       noticeClose: { flex: 'none', width: 20, height: 20, padding: 0, lineHeight: '18px', textAlign: 'center', border: 'none', borderRadius: 4, background: 'transparent', color: 'inherit', fontSize: 14, cursor: 'pointer' },
       secBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', marginTop: 6, border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' },
       subsec: { display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px 0 16px', marginTop: 2 },
@@ -137,42 +159,6 @@ window.__ModuleLoader__.load({
 
     function dateKeyOf(date) {
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-    }
-
-    const WEEKDAY_KEYS = ['weekdaySun', 'weekdayMon', 'weekdayTue', 'weekdayWed', 'weekdayThu', 'weekdayFri', 'weekdaySat']
-
-    /** `YYYY-MM-DD` → 本地午夜 Date；非法返回 null（不把时区交给 `new Date(string)`）。 */
-    function parseDateKey(key) {
-      if (typeof key !== 'string') return null
-      const [y, m, d] = key.split('-').map(Number)
-      if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d)) return null
-      const at = new Date(y, m - 1, d)
-      if (at.getFullYear() !== y || at.getMonth() !== m - 1 || at.getDate() !== d) return null
-      return at
-    }
-
-    /**
-     * 截止日 chip 文案：今天 / 明天 / 后天 → 本周内周X → `MM-DD`；有 `dueTime`
-     * 就追加 ` HH:mm`。默认中文，传 locale 的 `t` 可本地化。
-     */
-    function formatDueChip(dueDate, dueTime, todayKey, t = defaultT) {
-      if (typeof dueDate !== 'string' || dueDate === '') return ''
-      const suffix = dueTime ? ` ${dueTime}` : ''
-      const due = parseDateKey(dueDate)
-      const today = parseDateKey(todayKey)
-      if (due === null || today === null) return `${dueDate}${suffix}`
-      const days = Math.round((due.getTime() - today.getTime()) / 86400000)
-      if (days === 0) return `${t('today')}${suffix}`
-      if (days === 1) return `${t('tomorrow')}${suffix}`
-      if (days === 2) return `${t('dayAfter')}${suffix}`
-      const monday = new Date(today)
-      monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
-      const sunday = new Date(monday)
-      sunday.setDate(sunday.getDate() + 6)
-      if (due.getTime() >= monday.getTime() && due.getTime() <= sunday.getTime()) {
-        return `${t(WEEKDAY_KEYS[due.getDay()])}${suffix}`
-      }
-      return `${dueDate.slice(5)}${suffix}`
     }
 
     function startOfDay(date) {
@@ -280,113 +266,179 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * 快速添加：输入停顿 200ms 后解析，chips 预览识别结果，回车落库。
-     *
-     * 两个资源坑都兜住：防抖 timer 在 effect cleanup 里清掉；解析响应回来时
-     * 组件可能已经没了（父组件 create 成功后关掉草稿行），所以先用 alive/seq
-     * 判断，已卸载组件和过期响应都不 setState。
-     *
-     * 回车时若防抖结果还没到，会绕过防抖立刻解析一次（手快的人不该丢日期）；
-     * 这次即时请求同样占用 seq，旧的防抖响应不会反过来覆盖它。
+     * 新建 / 编辑弹窗：顶部一句话填写（200ms 防抖复用 parse），下面是全部字段。
+     * 空字符串一律转成 null 再提交，否则宿主会把 '' 当成「有值」。
+     * 保存失败时只在弹窗内报错，不关闭、不清空用户已经填的内容。
      */
-    function QuickAdd({ t, onCreated }) {
-      const [text, setText] = useState('')
-      const [parsed, setParsed] = useState(null)
-      const [busy, setBusy] = useState(false)
+    function TodoDialog({ t, initial, categories, mutate, onClose, onSaved }) {
+      const editing = initial !== null && initial !== undefined
+      const [form, setForm] = useState(() => ({
+        id: editing ? initial.id : null,
+        title: editing ? asText(initial.title) : '',
+        note: editing ? asText(initial.note) : '',
+        dueDate: editing ? asText(initial.dueDate) : dateKeyOf(new Date()),
+        dueTime: editing ? asText(initial.dueTime) : '',
+        priority: editing && ['high', 'medium', 'low'].includes(initial.priority) ? initial.priority : null,
+        category: editing ? asText(initial.category) : '',
+      }))
+      const [quick, setQuick] = useState('')
+      const [error, setError] = useState(null)
+      const [saving, setSaving] = useState(false)
 
       const alive = useRef(true)
       const seq = useRef(0)
+      const closeRef = useRef(onClose)
 
       useEffect(() => {
         alive.current = true
         return () => { alive.current = false }
       }, [])
 
+      useEffect(() => { closeRef.current = onClose }, [onClose])
+
+      // 弹窗打开期间才监听 Esc；卸载时解绑，避免宿主里留下悬空监听。
+      useEffect(() => {
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') return
+          event.stopPropagation?.()
+          closeRef.current()
+        }
+        document.addEventListener('keydown', onKeyDown)
+        return () => document.removeEventListener('keydown', onKeyDown)
+      }, [])
+
+      // 输入停顿 200ms 后解析；seq 保证只有最后一次输入的结果能写表单。
       useEffect(() => {
         const current = ++seq.current
-        // 文本一变，上一次的解析结果立即作废：否则赶在防抖前回车会提交旧标题/旧日期。
-        setParsed(null)
-        if (text.trim() === '') return
+        if (quick.trim() === '') return undefined
         const timer = window.setTimeout(() => {
-          fetchApi('parse', { text }, t)
-            .then((result) => {
+          fetchApi('parse', { text: quick })
+            .then((parsed) => {
               if (!alive.current || current !== seq.current) return
-              setParsed(result)
+              setForm((prev) => ({
+                ...prev,
+                title: parsed.title || prev.title,
+                dueDate: parsed.dueDate || prev.dueDate,
+                dueTime: parsed.dueTime || prev.dueTime,
+                priority: parsed.priority ?? prev.priority,
+                category: parsed.category || prev.category,
+              }))
             })
-            .catch(() => {
-              if (!alive.current || current !== seq.current) return
-              setParsed(null)
-            })
+            .catch(() => {})
         }, 200)
         return () => window.clearTimeout(timer)
-      }, [text, t])
-
-      /** 绕过 200ms 防抖立刻解析；同样走 seq，避免和防抖响应互相覆盖。 */
-      const parseNow = async (value) => {
-        const current = ++seq.current
-        try {
-          const result = await fetchApi('parse', { text: value }, t)
-          if (!alive.current || current !== seq.current) return null
-          setParsed(result)
-          return result
-        } catch {
-          return null
-        }
-      }
+      }, [quick])
 
       const submit = async () => {
-        if (busy || text.trim() === '') return
-        const value = text.trim()
-        setBusy(true)
+        if (saving) return
+        const title = form.title.trim()
+        if (title === '') {
+          setError(t('titleRequired'))
+          return
+        }
+        const category = form.category.trim()
+        const payload = {
+          title,
+          note: form.note,
+          dueDate: form.dueDate || null,
+          dueTime: form.dueTime || null,
+          priority: form.priority || null,
+          category: category === '' ? null : category,
+        }
+        setError(null)
+        setSaving(true)
         try {
-          // 防抖还没跑完就回车：立即补一次解析，失败才退回 { title }。
-          const result = parsed ?? (await parseNow(value))
-          // 只挑后端认识的字段：matched 只是本地预览用的，不进创建契约。
-          const fields = result === null
-            ? { title: value }
-            : {
-              title: result.title ?? value,
-              dueDate: result.dueDate,
-              dueTime: result.dueTime,
-              priority: result.priority,
-              category: result.category,
-            }
-          const ok = await onCreated(fields)
-          // 写失败时保留输入：onCreated 返回 false 就不清空、不收起。
-          if (alive.current && ok === true) { setText(''); setParsed(null) }
+          const ok = form.id === null
+            ? await mutate('create', payload)
+            : await mutate('update', { id: form.id, patch: payload })
+          if (!ok) {
+            setError(t('requestFailed'))
+            return
+          }
+          onSaved()
+        } catch (err) {
+          setError(err instanceof Error && err.message ? err.message : t('requestFailed'))
         } finally {
-          if (alive.current) setBusy(false)
+          if (alive.current) setSaving(false)
         }
       }
 
-      const todayKey = dateKeyOf(new Date())
-      const chips = parsed === null ? [] : [
-        parsed.dueDate ? formatDueChip(parsed.dueDate, parsed.dueTime, todayKey, t) : null,
-        parsed.category ? `#${parsed.category}` : null,
-        parsed.priority ? priorityLabel(parsed.priority, t) : null,
-      ].filter(Boolean)
+      const modeLabel = t(editing ? 'dialogEdit' : 'dialogNew')
 
-      // 纯提示，不跳转、不调模型：只有「有文本但一个片段都没认出来」才出现。
-      const showAgentHint = parsed !== null && Array.isArray(parsed.matched) && parsed.matched.length === 0 && text.trim() !== ''
+      return h('div', {
+        style: S.overlay,
+        onClick: (event) => { if (event.target === event.currentTarget) onClose() },
+      },
+      h('div', { style: S.dialog, role: 'dialog', 'aria-modal': 'true', 'aria-label': modeLabel },
+        h('div', { style: S.dialogHead }, modeLabel),
+        h('div', { style: { marginBottom: 12 } },
+          h('input', {
+            style: { ...S.search, width: '100%', boxSizing: 'border-box' },
+            value: quick, placeholder: t('quickFill'), 'aria-label': t('quickFill'),
+            onChange: (e) => setQuick(e.target.value),
+          }),
+          h('div', { style: S.hint }, t('quickHint'))),
 
-      return h('div', { style: { padding: '6px 8px 10px' } },
-        h('input', {
-          autoFocus: true, value: text, placeholder: t('addPlaceholder'), 'aria-label': t('addPlaceholder'),
-          style: { ...S.search, width: '100%' },
-          onChange: (e) => setText(e.target.value),
-          onKeyDown: (e) => {
-            // 中文输入法选词的回车不是提交：isComposing 期间一律交给 IME。
-            if (e.nativeEvent?.isComposing === true) return
-            if (e.key === 'Enter') void submit()
-            if (e.key === 'Escape') { setText(''); setParsed(null) }
-          },
-        }),
-        chips.length > 0 ? h('div', { style: { display: 'flex', gap: 6, marginTop: 6 } },
-          chips.map((chip, index) => h('span', { key: `${index}:${chip}`, style: S.tag }, chip))) : null,
-        showAgentHint
-          ? h('div', { style: { marginTop: 6, fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' } }, t('agentHint'))
-          : null,
-      )
+        h('label', { style: S.field },
+          h('span', { style: S.fieldLabel }, t('fieldTitle')),
+          h('input', {
+            autoFocus: true, style: S.input, value: form.title,
+            onChange: (e) => setForm((prev) => ({ ...prev, title: e.target.value })),
+            onKeyDown: (e) => {
+              if (e.nativeEvent?.isComposing === true) return
+              if (e.key === 'Enter') void submit()
+            },
+          })),
+
+        h('label', { style: S.field },
+          h('span', { style: S.fieldLabel }, t('fieldNote')),
+          h('textarea', {
+            rows: 3, style: S.textarea, value: form.note,
+            onChange: (e) => setForm((prev) => ({ ...prev, note: e.target.value })),
+          })),
+
+        h('div', { style: S.fieldRow },
+          h('label', { style: S.field },
+            h('span', { style: S.fieldLabel }, t('fieldDate')),
+            h('input', {
+              type: 'date', style: S.input, value: form.dueDate,
+              onChange: (e) => setForm((prev) => ({ ...prev, dueDate: e.target.value })),
+            })),
+          h('label', { style: S.field },
+            h('span', { style: S.fieldLabel }, t('fieldTime')),
+            h('input', {
+              type: 'time', style: S.input, value: form.dueTime,
+              onChange: (e) => setForm((prev) => ({ ...prev, dueTime: e.target.value })),
+            }))),
+
+        h('div', { style: S.field },
+          h('span', { style: S.fieldLabel }, t('fieldPriority')),
+          h('div', { style: S.seg },
+            [['high', 'priorityHigh'], ['medium', 'priorityMedium'], ['low', 'priorityLow']].map(([value, key]) =>
+              h('button', {
+                key: value, type: 'button',
+                'aria-pressed': form.priority === value ? 'true' : 'false',
+                style: { ...S.segItem, ...(form.priority === value ? S.segItemOn : null) },
+                onClick: () => setForm((prev) => ({
+                  ...prev,
+                  priority: prev.priority === value ? null : value,
+                })),
+              }, t(key))))),
+
+        h('label', { style: S.field },
+          h('span', { style: S.fieldLabel }, t('fieldCategory')),
+          h('input', {
+            style: S.input, value: form.category, list: 'todo-categories',
+            onChange: (e) => setForm((prev) => ({ ...prev, category: e.target.value })),
+          }),
+          h('datalist', { id: 'todo-categories' },
+            categories.map((category) => h('option', { key: category, value: category })))),
+
+        error !== null ? h('div', { style: S.dialogError }, error) : null,
+        h('div', { style: S.dialogFoot },
+          h('button', { type: 'button', style: S.btnGhost, onClick: onClose, disabled: saving }, t('cancel')),
+          h('button', { type: 'button', style: S.btnPrimary, onClick: () => void submit(), disabled: saving }, t('save'))),
+      ))
     }
 
     let corruptDismissed = false
@@ -396,7 +448,7 @@ window.__ModuleLoader__.load({
       const [state, setState] = useState({ loading: true, error: null, items: [], summary: {}, notices: [], staleDays: 7 })
       const [query, setQuery] = useState('')
       const [selected, setSelected] = useState(null)
-      const [draft, setDraft] = useState(null) // null | '' | string
+      const [dialog, setDialog] = useState(null)
       const [confirming, setConfirming] = useState(false)
       const [doneOpen, setDoneOpen] = useState(false)
       const [noticeHidden, setNoticeHidden] = useState(corruptDismissed)
@@ -445,7 +497,7 @@ window.__ModuleLoader__.load({
         }
       }, [query])
 
-      /** 写操作：返回是否成功，调用方（如 QuickAdd）据此决定要不要清空用户输入。 */
+      /** 写操作：返回是否成功，调用方（如 TodoDialog）据此决定要不要关闭。 */
       const mutate = useCallback(async (method, payload) => {
         try {
           await fetchApi(method, payload, tRef.current)
@@ -499,6 +551,7 @@ window.__ModuleLoader__.load({
 
       const items = state.items
       const pendingCount = items.filter((item) => item.done && item.doneBy === 'agent' && !item.verifiedAt).length
+      const categories = [...new Set(state.items.map((i) => i.category).filter(Boolean))]
 
       // 首次出现未核实项（0 → N）时把「已完成」展开，否则标记藏在折叠区里没人看得见。
       // 用户手动操作过（doneTouched）就不再自动展开，徽标仍然照常更新。
@@ -537,7 +590,7 @@ window.__ModuleLoader__.load({
           h('div', { style: S.grow }),
           h('button', {
             style: S.addBtn,
-            onClick: () => { setDraft(''); setSelected(null) },
+            onClick: () => setDialog({ initial: null }),
           }, `+ ${t('new')}`),
           h('input', {
             style: S.search, placeholder: t('search'), value: query,
@@ -567,14 +620,6 @@ window.__ModuleLoader__.load({
           : null,
         h('div', { style: S.body },
           h('div', { style: S.list },
-            draft !== null ? h(QuickAdd, {
-              t,
-              onCreated: async (fields) => {
-                const ok = await mutate('create', fields)
-                if (ok) setDraft(null)
-                return ok
-              },
-            }) : null,
             state.loading && items.length === 0
               ? h('div', { style: S.empty }, t('loading'))
               : items.length === 0
@@ -585,7 +630,7 @@ window.__ModuleLoader__.load({
                     h('div', { style: { marginTop: 12 } },
                       h('button', {
                         style: S.addBtn,
-                        onClick: () => { setDraft(''); setSelected(null) },
+                        onClick: () => setDialog({ initial: null }),
                       }, t('emptyHint')))))
                 : h('div', null,
                   openGroups.map((group) => h('div', { key: group.bucket },
@@ -637,6 +682,10 @@ window.__ModuleLoader__.load({
                   selectedItem.createdAt ? detailRow(t('created'), formatDateTime(selectedItem.createdAt)) : null),
                 h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
                   h('button', {
+                    style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' },
+                    onClick: () => setDialog({ initial: selectedItem }),
+                  }, t('edit')),
+                  h('button', {
                     style: { flex: 1, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: '#fff', fontSize: 12.5 },
                     onClick: () => void mutate('complete', { id: selectedItem.id, done: !selectedItem.done }),
                   }, selectedItem.done ? t('reopen') : t('complete')),
@@ -669,6 +718,16 @@ window.__ModuleLoader__.load({
               : h('div', { style: { color: 'var(--dsw-alias-label-tertiary)' } }, t('pickOne')),
           ),
         ),
+        dialog !== null
+          ? h(TodoDialog, {
+              t,
+              initial: dialog.initial,
+              categories,
+              mutate,
+              onClose: () => setDialog(null),
+              onSaved: () => setDialog(null),
+            })
+          : null,
       )
     }
 
