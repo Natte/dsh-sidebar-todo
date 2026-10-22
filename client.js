@@ -376,6 +376,11 @@ window.__ModuleLoader__.load({
       // 请求序号：只有最后一次 list 的结果能落到 state，旧响应直接丢弃。
       const seqRef = useRef(0)
 
+      // 「已完成」折叠控制：未核实项首次出现时自动展开一次；用户手动开/收过之后
+      // 就不再抢控制权。prevPending 只认 0 → N 的跃迁，2.5s 轮询不会反复弹开。
+      const doneTouched = useRef(false)
+      const prevPending = useRef(0)
+
       // 删除二次确认的 3s 自动撤回：timer id 必须存下来，换选/卸载时才能取消，
       // 否则上一条的旧 timer 会在新条的确认窗口里把它提前撤回。
       const confirmTimer = useRef(null)
@@ -435,6 +440,15 @@ window.__ModuleLoader__.load({
       useEffect(() => () => clearConfirmTimer(), [clearConfirmTimer])
 
       const items = state.items
+      const pendingCount = items.filter((item) => item.done && item.doneBy === 'agent' && !item.verifiedAt).length
+
+      // 首次出现未核实项（0 → N）时把「已完成」展开，否则标记藏在折叠区里没人看得见。
+      // 用户手动操作过（doneTouched）就不再自动展开，徽标仍然照常更新。
+      useEffect(() => {
+        if (pendingCount > 0 && prevPending.current === 0 && !doneTouched.current) setDoneOpen(true)
+        prevPending.current = pendingCount
+      }, [pendingCount])
+
       const doneItems = items.filter((item) => item.bucket === 'done')
       const openGroups = ORDER
         .filter((bucket) => bucket !== 'done')
@@ -513,10 +527,16 @@ window.__ModuleLoader__.load({
                     h('button', {
                       style: S.secBtn,
                       'aria-expanded': doneOpen ? 'true' : 'false',
-                      onClick: () => setDoneOpen((open) => !open),
+                      onClick: () => {
+                        doneTouched.current = true
+                        setDoneOpen((open) => !open)
+                      },
                     },
                     h('span', { style: S.secT }, t('done')),
                     h('span', { style: S.secN }, String(doneItems.length)),
+                    pendingCount > 0
+                      ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-warn-primary)' } }, `${pendingCount} ${t('needsReview')}`)
+                      : null,
                     h('span', { style: S.line }),
                     h('span', { style: { ...S.secN, fontSize: 10 } }, doneOpen ? '▾' : '▸'),
                     ),
