@@ -1,0 +1,11 @@
+# DSH 会话导出（不是项目内容）
+dsh-session-*.zip
+
+# 依赖与构建产物
+node_modules/
+dist/
+
+# 编辑器与系统
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,185 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  :root{ --r-md: var(--dsw-radius-md, 8px); --r-sm: var(--dsw-radius-sm, 6px); }
+  *{box-sizing:border-box}
+  body{margin:0;padding:32px 36px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);
+       font:14px/22px "Segoe UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  .cap{display:flex;align-items:baseline;gap:10px;margin:0 0 18px}
+  .cap h1{font-size:17px;font-weight:600;margin:0}
+  .cap span{font-size:12px;color:var(--dsw-alias-label-tertiary)}
+  .page{width:1128px;height:632px;border:.5px solid var(--dsw-alias-border-l2);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;background:var(--dsw-alias-bg-base);box-shadow:0 1px 3px #0000000f}
+
+  /* header */
+  .hd{display:flex;align-items:center;gap:10px;padding:0 20px;height:56px;flex:none;border-bottom:.5px solid var(--dsw-alias-border-l2)}
+  .hd h2{font-size:17px;font-weight:600;margin:0;flex:none;letter-spacing:.01em}
+  .count{font-size:12px;color:var(--dsw-alias-label-tertiary);margin-left:2px;flex:none}
+  .grow{flex:1}
+  .search{display:flex;align-items:center;gap:6px;width:200px;height:32px;padding:0 10px;border-radius:var(--r-md);
+          background:var(--dsw-alias-bg-module-platform,#eef0f4);color:var(--dsw-alias-label-tertiary);font-size:12.5px;flex:none}
+  .seg{display:flex;align-items:center;gap:2px;height:32px;padding:2px;border-radius:var(--r-md);background:var(--dsw-alias-bg-module-platform,#eef0f4);flex:none}
+  .seg i{font-style:normal;font-size:12.5px;line-height:26px;height:26px;padding:0 10px;border-radius:var(--r-sm);color:var(--dsw-alias-label-secondary)}
+  .seg i.on{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);box-shadow:0 1px 2px #00000012;font-weight:500}
+  .btn{display:inline-flex;align-items:center;gap:5px;height:32px;padding:0 12px;border-radius:var(--r-md);
+       border:.5px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-button-elevated-fill);
+       color:var(--dsw-alias-label-primary);font-size:13px;font-weight:500;flex:none}
+
+  /* body */
+  .bd{display:flex;flex:1;min-height:0}
+  .list{flex:1;min-width:0;overflow:hidden;padding:10px 8px 10px 12px;display:flex;flex-direction:column;gap:2px}
+  .sec{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;margin-top:6px;flex:none}
+  .sec .t{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary);letter-spacing:.02em}
+  .sec .n{font-size:11px;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums}
+  .sec .line{flex:1;height:.5px;background:var(--dsw-alias-border-l2)}
+  .flag{font-size:10.5px;line-height:16px;padding:0 6px;border-radius:999px;
+        color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 9%,transparent)}
+
+  .row{display:flex;align-items:center;gap:9px;height:34px;padding:0 8px;border-radius:var(--r-sm);flex:none}
+  .row:hover{background:var(--dsw-alias-interactive-bg-hover)}
+  .row.sel{background:var(--dsw-alias-interactive-bg-hover)}
+  .cb{width:14px;height:14px;border:.5px solid var(--dsw-alias-border-l4);border-radius:4px;flex:none;background:var(--dsw-alias-bg-layer-1)}
+  .cb.done{background:var(--dsw-alias-state-business-primary);border-color:var(--dsw-alias-state-business-primary);display:flex;align-items:center;justify-content:center}
+  .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px}
+  .nm.dim{color:var(--dsw-alias-label-tertiary);text-decoration:line-through}
+  .tag{font-size:10.5px;line-height:17px;padding:0 6px;border-radius:4px;color:var(--dsw-alias-label-secondary);
+       background:var(--dsw-alias-bg-module-platform,#eef0f4);flex:none}
+  .pri{width:5px;height:5px;border-radius:50%;flex:none}
+  .pri.h{background:var(--dsw-alias-state-error-primary)}
+  .pri.m{background:var(--dsw-alias-state-warn-primary)}
+  .pri.l{background:var(--dsw-static-blue-450)}
+  .due{font-size:11px;color:var(--dsw-alias-label-tertiary);flex:none;font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+  .due.late{color:var(--dsw-alias-state-error-primary)}
+  .stale{font-size:11px;color:var(--dsw-alias-state-error-primary);flex:none;min-width:52px;text-align:right}
+  .more{width:22px;height:22px;border-radius:var(--r-sm);display:inline-flex;align-items:center;justify-content:center;color:var(--dsw-alias-label-tertiary);flex:none;opacity:0}
+  .row:hover .more{opacity:1}
+  .collapse{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;margin-top:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;flex:none}
+
+  /* detail */
+  .det{width:300px;flex:none;border-left:.5px solid var(--dsw-alias-border-l2);padding:16px 16px 12px;display:flex;flex-direction:column;gap:12px;background:var(--dsw-alias-bg-base)}
+  .det .title{font-size:15px;font-weight:600;line-height:22px}
+  .meta{display:flex;flex-direction:column;gap:8px}
+  .m{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--dsw-alias-label-secondary)}
+  .m .k{width:52px;flex:none;color:var(--dsw-alias-label-tertiary);font-size:12px}
+  .m .v{flex:1;color:var(--dsw-alias-label-primary)}
+  .chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:var(--r-sm);
+        background:var(--dsw-alias-bg-module-platform,#eef0f4);font-size:12px;color:var(--dsw-alias-label-primary)}
+  .note{background:var(--dsw-alias-bg-module-platform,#eef0f4);border-radius:var(--r-md);padding:10px 11px;font-size:12.5px;
+        line-height:20px;color:var(--dsw-alias-label-secondary);flex:none}
+  .acts{display:flex;gap:8px;margin-top:auto;padding-top:10px;border-top:.5px solid var(--dsw-alias-border-l2)}
+  .act{flex:1;height:32px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px}
+  .act.primary{background:var(--dsw-alias-state-business-primary);color:#fff;font-weight:500}
+  .act.ghost{border:.5px solid var(--dsw-alias-border-l3);color:var(--dsw-alias-label-secondary)}
+  .ft{flex:none;height:34px;display:flex;align-items:center;gap:6px;padding:0 16px;border-top:.5px solid var(--dsw-alias-border-l2);
+      font-size:11.5px;color:var(--dsw-alias-label-tertiary)}
+  .k{font-size:10.5px;padding:1px 5px;border-radius:4px;border:.5px solid var(--dsw-alias-border-l3);color:var(--dsw-alias-label-secondary)}
+</style>
+</head>
+<body>
+<div class="cap"><h1>待办 · 主面板页设计稿</h1><span>选中/悬停态、分区、单位面积信息密度均对齐宿主列表（行高 34–36px · 12/13.5px 字号 · 1px 分隔）</span></div>
+
+<div class="page">
+  <div class="hd">
+    <h2>待办</h2><span class="count">今天 3 件 · 积压 2 件</span>
+    <div class="grow"></div>
+    <div class="search">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7.2" cy="7.2" r="4"/><path d="M10.3 10.3 13.5 13.5" stroke-linecap="round"/></svg>
+      搜索待办
+    </div>
+    <div class="seg"><i class="on">全部</i><i>今天</i><i>本周</i></div>
+    <div class="btn">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 3.2v9.6M3.2 8h9.6" stroke-linecap="round"/></svg>
+      新建
+    </div>
+  </div>
+
+  <div class="bd">
+    <div class="list">
+      <div class="sec"><span class="t">今天</span><span class="n">3</span><span class="line"></span></div>
+      <div class="row sel">
+        <span class="cb"></span><span class="nm">交周报给李总</span>
+        <span class="pri h"></span><span class="tag">工作</span>
+        <span class="due">今天 18:00</span>
+        <span class="more"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3.4" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="12.6" r="1.2"/></svg></span>
+      </div>
+      <div class="row">
+        <span class="cb"></span><span class="nm">回复供应商邮件</span>
+        <span class="pri m"></span><span class="tag">工作</span>
+        <span class="due">今天</span>
+        <span class="more"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3.4" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="12.6" r="1.2"/></svg></span>
+      </div>
+      <div class="row">
+        <span class="cb"></span><span class="nm">预约体检</span>
+        <span class="pri l"></span><span class="tag">生活</span>
+        <span class="due late">昨天</span>
+        <span class="more"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3.4" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="8" cy="12.6" r="1.2"/></svg></span>
+      </div>
+
+      <div class="sec"><span class="t">明天</span><span class="n">1</span><span class="line"></span></div>
+      <div class="row">
+        <span class="cb"></span><span class="nm">整理 Q4 预算表</span>
+        <span class="pri m"></span><span class="tag">工作</span>
+        <span class="due">明天</span>
+      </div>
+
+      <div class="sec"><span class="t">本周</span><span class="n">2</span><span class="line"></span></div>
+      <div class="row">
+        <span class="cb"></span><span class="nm">周会材料：进度 + 风险</span>
+        <span class="pri m"></span><span class="tag">工作</span>
+        <span class="due">周四</span>
+      </div>
+      <div class="row">
+        <span class="cb"></span><span class="nm">给妈妈打电话</span>
+        <span class="pri l"></span><span class="tag">生活</span>
+        <span class="due">周日</span>
+      </div>
+
+      <div class="sec">
+        <span class="t">积压</span><span class="n">2</span>
+        <span class="flag">超过 7 天未完成</span>
+        <span class="line"></span>
+      </div>
+      <div class="row">
+        <span class="cb"></span><span class="nm">续签域名</span>
+        <span class="pri h"></span><span class="tag">工作</span>
+        <span class="stale">挂了 12 天</span>
+      </div>
+      <div class="row">
+        <span class="cb"></span><span class="nm">报销 9 月差旅发票</span>
+        <span class="pri m"></span><span class="tag">工作</span>
+        <span class="stale">挂了 9 天</span>
+      </div>
+
+      <div class="collapse">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 4.5 10 8l-4 3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        已完成 · 今天 4
+      </div>
+    </div>
+
+    <div class="det">
+      <div class="title">交周报给李总</div>
+      <div class="meta">
+        <div class="m"><span class="k">优先级</span><span class="v"><span class="chip"><span class="pri h"></span>高</span></span></div>
+        <div class="m"><span class="k">截止</span><span class="v"><span class="chip">今天 18:00</span></span></div>
+        <div class="m"><span class="k">标签</span><span class="v"><span class="chip">工作</span></span></div>
+        <div class="m"><span class="k">创建</span><span class="v" style="color:var(--dsw-alias-label-secondary);font-size:12px">3 天前 · 由会话记录</span></div>
+      </div>
+      <div class="note">本周进展：侧栏槽位调研完成、待办插件设计稿。<br>风险：Q4 预算表还在等财务口径。<br>下周：插件落地 + 联调。</div>
+      <div class="acts">
+        <div class="act primary">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3.4 8.4 6.2 11l6.4-6.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          完成
+        </div>
+        <div class="act ghost">延期</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ft">
+    <span class="k">Ctrl+Shift+K</span> 快速添加 · 直接输入「明天 15 点 交周报 #工作 !高」即可解析日期 / 标签 / 优先级 · 双击行内编辑标题
+  </div>
+</div>
+</body>
+</html>

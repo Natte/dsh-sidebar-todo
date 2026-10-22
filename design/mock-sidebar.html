@@ -1,0 +1,360 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  :root{
+    --sb-w: 248px;
+    --row-h: 36px;
+    --r-md: var(--dsw-radius-md, 8px);
+    --r-sm: var(--dsw-radius-sm, 6px);
+  }
+  body{
+    margin:0; padding:36px 40px 44px;
+    background: var(--dsw-alias-bg-base);
+    color: var(--dsw-alias-label-primary);
+    font: 14px/22px "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .cap{display:flex;align-items:baseline;gap:10px;margin:0 0 22px;}
+  .cap h1{font-size:18px;font-weight:600;margin:0;letter-spacing:.01em;}
+  .cap span{font-size:12px;color:var(--dsw-alias-label-tertiary);}
+  .board{display:flex;gap:34px;align-items:flex-start;}
+  .art{width:calc(var(--sb-w) + 196px);}
+  .tag{display:flex;align-items:center;gap:8px;margin-bottom:10px;height:22px;}
+  .tag b{font-size:13px;font-weight:600;}
+  .pill{font-size:11px;line-height:16px;padding:1px 7px;border-radius:999px;border:.5px solid var(--dsw-alias-border-l3);color:var(--dsw-alias-label-secondary);}
+  .pill.rec{color:var(--dsw-alias-state-business-primary);border-color:color-mix(in srgb, var(--dsw-alias-state-business-primary) 35%, transparent);background:color-mix(in srgb, var(--dsw-alias-state-business-primary) 8%, transparent);}
+  .note{font-size:11.5px;line-height:17px;color:var(--dsw-alias-label-tertiary);margin:0 0 12px;height:34px;}
+  .app{display:flex;height:596px;border:.5px solid var(--dsw-alias-border-l2);border-radius:10px;overflow:hidden;background:var(--dsw-alias-bg-base);box-shadow:0 1px 2px #0000000a;}
+  .main{flex:1;background:var(--dsw-alias-bg-base);padding:18px 14px;display:flex;flex-direction:column;gap:10px;}
+  .ln{height:8px;border-radius:4px;background:var(--dsw-alias-bg-module-platform, #eef0f4);}
+  .ln.s{width:46%;} .ln.m{width:72%;} .ln.l{width:92%;}
+  .mc{font-size:11px;color:var(--dsw-alias-label-tertiary);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.blk{height:52px;border-radius:var(--r-md);background:var(--dsw-alias-bg-module-platform,#eef0f4);}
+
+  /* ---------- sidebar shell (copy of host metrics) ---------- */
+  .sb{
+    width:var(--sb-w);flex:none;display:flex;flex-direction:column;box-sizing:border-box;
+    height:100%;padding:6px 12px;font-size:14px;position:relative;
+    background:var(--dsw-specific-sidebar-fill);
+    color:var(--dsw-alias-label-primary);
+    border-right:.5px solid var(--dsw-alias-border-l2);
+  }
+  .logoRow{display:flex;align-items:center;gap:8px;height:60px;margin-bottom:4px;padding:8px 0 8px 4px;flex:none;}
+  .brand{display:inline-flex;align-items:center;gap:8px;height:24px;flex:1;min-width:0;overflow:hidden;}
+  .brandName{font-size:18px;font-weight:600;line-height:24px;letter-spacing:.04em;white-space:nowrap;}
+  .newSession{
+    height:38px;flex:none;display:flex;align-items:center;justify-content:center;gap:6px;
+    margin:0 2px 12px;padding:8px 12px;box-sizing:border-box;position:relative;
+    border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--r-md);
+    background:var(--dsw-alias-button-elevated-fill);color:var(--dsw-alias-label-primary);
+    font-size:14px;font-weight:500;line-height:22px;cursor:pointer;
+  }
+  .newSession:hover{background:var(--dsw-alias-button-floating-hover);}
+  .kbd{font-size:11px;color:var(--dsw-alias-label-tertiary);font-weight:400;}
+  .panelList{display:flex;flex-direction:column;gap:4px;margin-bottom:8px;flex:none;}
+  .panelRow{
+    display:flex;align-items:center;gap:8px;min-height:36px;box-sizing:border-box;
+    margin:0 2px;padding:7px 8px;border-radius:var(--r-md);line-height:22px;
+    color:var(--dsw-alias-label-primary);cursor:pointer;background:transparent;border:none;
+    font:inherit;text-align:left;
+  }
+  .panelRow:hover{background:var(--dsw-alias-interactive-bg-hover);}
+  .panelRow.active{background:var(--dsw-alias-interactive-bg-hover);}
+  .panelRow .glyph{flex:none;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;}
+  .panelRow .title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .badge{
+    flex:none;min-width:18px;height:18px;padding:0 5px;border-radius:999px;box-sizing:border-box;
+    background:color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, transparent);
+    color:var(--dsw-alias-state-business-primary);
+    font-size:11px;line-height:18px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums;
+  }
+  .region{display:flex;flex-direction:column;flex:1;min-height:0;padding-left:4px;margin:0 -12px 0 -4px;overflow:hidden;}
+  .wsHeader{display:flex;align-items:center;gap:6px;padding:6px 8px 6px 12px;flex:none;color:var(--dsw-alias-label-secondary);}
+  .wsHeader .t{flex:1;font-size:12px;font-weight:500;letter-spacing:.02em;}
+  .ic{width:24px;height:24px;border-radius:var(--r-sm);display:inline-flex;align-items:center;justify-content:center;color:var(--dsw-alias-label-secondary);}
+  .ic:hover{background:var(--dsw-alias-interactive-bg-hover);}
+  .wsGroup{padding:2px 8px 2px 12px;flex:none;}
+  .wsName{display:flex;align-items:center;gap:6px;height:28px;font-size:13px;color:var(--dsw-alias-label-secondary);}
+  .sess{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;margin:0 4px 0 0;border-radius:var(--r-sm);color:var(--dsw-alias-label-primary);font-size:13px;}
+  .sess .dot{width:6px;height:6px;border-radius:50%;background:var(--dsw-alias-state-idle-primary);flex:none;}
+  .sess .txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sess.active{background:var(--dsw-alias-interactive-bg-hover);}
+  .foot{margin-top:auto;flex:none;display:flex;flex-direction:column;}
+  .setRow{display:flex;align-items:center;gap:8px;min-height:36px;margin:0 2px;padding:7px 8px;border-radius:var(--r-md);color:var(--dsw-alias-label-primary);}
+
+  /* ---------- B overlay card ---------- */
+  .overlayCard{
+    position:absolute;left:8px;right:8px;top:150px;z-index:5;
+    background:var(--dsw-alias-bg-overlay);border:.5px solid var(--dsw-alias-border-l3);
+    border-radius:12px;box-shadow:0 8px 24px #0000001f, 0 1px 3px #00000014;
+    padding:10px 10px 8px;
+  }
+  .overlayCard .hd{display:flex;align-items:center;gap:6px;height:24px;margin:0 2px 6px;}
+  .overlayCard .hd b{font-size:12px;font-weight:600;color:var(--dsw-alias-label-secondary);flex:1;letter-spacing:.02em;}
+  .ghost{opacity:.35;filter:blur(.3px);pointer-events:none;}
+  .covered{margin-top:-8px;padding-top:8px;border-top:.5px dashed var(--dsw-alias-border-l3);}
+  .warn{display:flex;gap:6px;align-items:flex-start;font-size:11.5px;line-height:17px;color:var(--dsw-alias-state-warn-primary);margin-top:10px;}
+
+  /* ---------- task rows ---------- */
+  .task{display:flex;align-items:center;gap:8px;height:32px;padding:0 6px;border-radius:var(--r-sm);font-size:13px;}
+  .task:hover{background:var(--dsw-alias-interactive-bg-hover);}
+  .cb{width:14px;height:14px;border:.5px solid var(--dsw-alias-border-l4);border-radius:4px;flex:none;background:#fff;}
+  .task .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pri{width:5px;height:5px;border-radius:50%;flex:none;}
+  .pri.h{background:var(--dsw-alias-state-error-primary);}
+  .pri.m{background:var(--dsw-alias-state-warn-primary);}
+  .pri.l{background:var(--dsw-static-blue-450);}
+  .due{font-size:11px;color:var(--dsw-alias-label-tertiary);flex:none;font-variant-numeric:tabular-nums;}
+  .due.late{color:var(--dsw-alias-state-error-primary);}
+</style>
+</head>
+<body>
+
+<div class="cap">
+  <h1>待办插件 · 侧栏落点对比</h1>
+  <span>尺寸与配色取自宿主 ui-sidebar 真实实现（新会话 38px / 导航行 36px·gap 4px / 侧栏内边距 6px 12px）</span>
+</div>
+
+<div class="board">
+
+  <!-- ============ A ============ -->
+  <div class="art">
+    <div class="tag"><b>A · 入口行 + 主面板</b><span class="pill">零侵入</span></div>
+    <p class="note">「待办」作为一行导航，点开在主区出完整页面。会话不丢，切回「对话」即恢复。</p>
+    <div class="app">
+      <div class="sb">
+        <div class="logoRow">
+          <span class="brand">
+            <svg width="24" height="24" viewBox="0 0 24 24"><defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7aaaff"/><stop offset="1" stop-color="#4176e6"/></linearGradient></defs><path d="M4.5 12c0-3.3 3.4-6 7.5-6 4.2 0 6.4 2.6 7.5 4.4.3.5.3 1.5 0 2C18.4 14.9 16.2 18 12 18c-4.1 0-7.5-2.7-7.5-6Z" fill="url(#g1)"/><path d="M4.5 12c.6 1 2.2 2 4.3 2.3" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".55" fill="none"/><circle cx="15" cy="11" r="1.15" fill="#fff"/></svg>
+            <span class="brandName">DeepSeek Harness</span>
+          </span>
+        </div>
+
+        <button class="newSession">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+          新会话
+        </button>
+
+        <nav class="panelList">
+          <div class="panelRow">
+            <span class="glyph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.2"/></svg></span>
+            <span class="title">插件</span>
+          </div>
+          <div class="panelRow">
+            <span class="glyph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3.4 5.6h9.2l-.9 7.2a1.4 1.4 0 0 1-1.4 1.2H5.7a1.4 1.4 0 0 1-1.4-1.2l-.9-7.2Z"/><path d="M6 6V4.6a2 2 0 1 1 4 0V6"/></svg></span>
+            <span class="title">插件市场</span>
+          </div>
+          <div class="panelRow">
+            <span class="glyph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.4" y="3.4" width="11.2" height="10.2" rx="1.6"/><path d="M2.4 6.6h11.2M5.6 2.2v2.2M10.4 2.2v2.2" stroke-linecap="round"/></svg></span>
+            <span class="title">定时任务</span>
+          </div>
+          <div class="panelRow active">
+            <span class="glyph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2.4"/><path d="M5.4 8.2l1.9 1.9 3.4-3.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="title">待办</span>
+          </div>
+        </nav>
+
+        <div class="region">
+          <div class="wsHeader">
+            <span class="t">工作区</span>
+            <span class="ic"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7.2" cy="7.2" r="4"/><path d="M10.3 10.3 13.5 13.5" stroke-linecap="round"/></svg></span>
+            <span class="ic"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3.2v9.6M3.2 8h9.6" stroke-linecap="round"/></svg></span>
+          </div>
+          <div class="wsGroup">
+            <div class="wsName">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.2 5.2c0-.9.7-1.6 1.6-1.6h2.4l1.3 1.6h5.1c.9 0 1.6.7 1.6 1.6v5.4c0 .9-.7 1.6-1.6 1.6H3.8c-.9 0-1.6-.7-1.6-1.6V5.2Z"/></svg>
+              dsh-todolist
+            </div>
+            <div class="sess"><span class="dot"></span><span class="txt">设计待办插件</span></div>
+            <div class="sess"><span class="dot"></span><span class="txt">侧栏槽位调研</span></div>
+          </div>
+          <div class="wsGroup">
+            <div class="wsName">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.2 5.2c0-.9.7-1.6 1.6-1.6h2.4l1.3 1.6h5.1c.9 0 1.6.7 1.6 1.6v5.4c0 .9-.7 1.6-1.6 1.6H3.8c-.9 0-1.6-.7-1.6-1.6V5.2Z"/></svg>
+              Trace
+            </div>
+            <div class="sess"><span class="dot"></span><span class="txt">竞品分析</span></div>
+          </div>
+        </div>
+
+        <div class="foot">
+          <div class="setRow">
+            <span class="glyph" style="width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1" stroke-linecap="round"/></svg>
+            </span>
+            <span class="title" style="flex:1">设置</span>
+          </div>
+        </div>
+      </div>
+      <div class="main"><div class="mc">主区：切到「待办」页</div>
+        <div class="ln s" style="height:10px;width:38%"></div>
+        <div class="blk"></div>
+        <div class="ln l"></div><div class="ln m"></div><div class="ln l"></div><div class="ln s"></div>
+        <div class="blk" style="height:88px"></div>
+        <div class="ln l"></div><div class="ln m"></div>
+        
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ B ============ -->
+  <div class="art">
+    <div class="tag"><b>B · 浮层迷你卡</b><span class="pill">视觉最接近</span></div>
+    <p class="note">卡片浮在侧栏上，位置正是「新会话下方」。但浮层不占布局，下面的导航与工作区列表被盖住。</p>
+    <div class="app">
+      <div class="sb">
+        <div class="logoRow">
+          <span class="brand">
+            <svg width="24" height="24" viewBox="0 0 24 24"><defs><linearGradient id="g2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7aaaff"/><stop offset="1" stop-color="#4176e6"/></linearGradient></defs><path d="M4.5 12c0-3.3 3.4-6 7.5-6 4.2 0 6.4 2.6 7.5 4.4.3.5.3 1.5 0 2C18.4 14.9 16.2 18 12 18c-4.1 0-7.5-2.7-7.5-6Z" fill="url(#g2)"/><circle cx="15" cy="11" r="1.15" fill="#fff"/></svg>
+            <span class="brandName">DeepSeek Harness</span>
+          </span>
+        </div>
+
+        <button class="newSession">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+          新会话
+        </button>
+
+        <div class="ghost">
+          <nav class="panelList">
+            <div class="panelRow"><span class="glyph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.2"/></svg></span><span class="title">插件</span></div>
+            <div class="panelRow"><span class="glyph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3.4 5.6h9.2l-.9 7.2a1.4 1.4 0 0 1-1.4 1.2H5.7a1.4 1.4 0 0 1-1.4-1.2l-.9-7.2Z"/><path d="M6 6V4.6a2 2 0 1 1 4 0V6"/></svg></span><span class="title">插件市场</span></div>
+            <div class="panelRow"><span class="glyph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.4" y="3.4" width="11.2" height="10.2" rx="1.6"/><path d="M2.4 6.6h11.2M5.6 2.2v2.2M10.4 2.2v2.2" stroke-linecap="round"/></svg></span><span class="title">定时任务</span></div>
+          </nav>
+          <div class="region">
+            <div class="wsHeader"><span class="t">工作区</span></div>
+            <div class="wsGroup">
+              <div class="wsName">dsh-todolist</div>
+              <div class="sess"><span class="dot"></span><span class="txt">设计待办插件</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="overlayCard">
+          <div class="hd">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2.4"/><path d="M5.4 8.2l1.9 1.9 3.4-3.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <b>待办 · 今天</b>
+            <span class="badge">3</span>
+            <span class="ic" style="width:20px;height:20px"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 10.5 8 6.5l4 4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </div>
+          <div class="task"><span class="cb"></span><span class="name">交周报给李总</span><span class="pri h"></span><span class="due">18:00</span></div>
+          <div class="task"><span class="cb"></span><span class="name">回复供应商邮件</span><span class="pri m"></span><span class="due">今天</span></div>
+          <div class="task"><span class="cb"></span><span class="name">预约体检</span><span class="pri l"></span><span class="due late">昨天</span></div>
+          <div class="task" style="color:var(--dsw-alias-label-tertiary)"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3.2v9.6M3.2 8h9.6" stroke-linecap="round"/></svg><span class="name" style="font-size:12px">添加待办…</span></div>
+        </div>
+
+        <div class="covered" style="margin-top:auto"></div>
+        <div class="warn">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="flex:none;margin-top:2px"><path d="M8 5.6v3.6M8 11.4v.6" stroke-linecap="round"/><circle cx="8" cy="8" r="6.2"/></svg>
+          <span>工作区标题与首条会话被压在卡片下，且不会随侧栏折叠自动收成图标</span>
+        </div>
+      </div>
+      <div class="main"><div class="mc">主区：仍是对话，不切页</div>
+        <div class="ln s" style="height:10px;width:38%"></div>
+        <div class="blk"></div>
+        <div class="ln l"></div><div class="ln m"></div><div class="ln l"></div>
+        <div class="blk" style="height:88px"></div>
+        <div class="ln l"></div><div class="ln m"></div><div class="ln s"></div>
+        
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ C ============ -->
+  <div class="art">
+    <div class="tag"><b>C · 入口行 + 角标 + 快速添加</b><span class="pill rec">推荐</span></div>
+    <p class="note">A 的骨架，把「今天还剩几件」直接顶到入口行右侧；Ctrl+Shift+K 随处唤起快速添加。</p>
+    <div class="app">
+      <div class="sb">
+        <div class="logoRow">
+          <span class="brand">
+            <svg width="24" height="24" viewBox="0 0 24 24"><defs><linearGradient id="g3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7aaaff"/><stop offset="1" stop-color="#4176e6"/></linearGradient></defs><path d="M4.5 12c0-3.3 3.4-6 7.5-6 4.2 0 6.4 2.6 7.5 4.4.3.5.3 1.5 0 2C18.4 14.9 16.2 18 12 18c-4.1 0-7.5-2.7-7.5-6Z" fill="url(#g3)"/><circle cx="15" cy="11" r="1.15" fill="#fff"/></svg>
+            <span class="brandName">DeepSeek Harness</span>
+          </span>
+        </div>
+
+        <button class="newSession">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+          新会话
+        </button>
+
+        <nav class="panelList">
+          <div class="panelRow">
+            <span class="glyph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.2"/></svg></span>
+            <span class="title">插件</span>
+          </div>
+          <div class="panelRow">
+            <span class="glyph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3.4 5.6h9.2l-.9 7.2a1.4 1.4 0 0 1-1.4 1.2H5.7a1.4 1.4 0 0 1-1.4-1.2l-.9-7.2Z"/><path d="M6 6V4.6a2 2 0 1 1 4 0V6"/></svg></span>
+            <span class="title">插件市场</span>
+          </div>
+          <div class="panelRow">
+            <span class="glyph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.4" y="3.4" width="11.2" height="10.2" rx="1.6"/><path d="M2.4 6.6h11.2M5.6 2.2v2.2M10.4 2.2v2.2" stroke-linecap="round"/></svg></span>
+            <span class="title">定时任务</span>
+          </div>
+          <div class="panelRow">
+            <span class="glyph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2.4"/><path d="M5.4 8.2l1.9 1.9 3.4-3.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            <span class="title">待办</span>
+            <span class="badge">3</span>
+          </div>
+        </nav>
+
+        <div class="region">
+          <div class="wsHeader">
+            <span class="t">工作区</span>
+            <span class="ic"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7.2" cy="7.2" r="4"/><path d="M10.3 10.3 13.5 13.5" stroke-linecap="round"/></svg></span>
+            <span class="ic"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3.2v9.6M3.2 8h9.6" stroke-linecap="round"/></svg></span>
+          </div>
+          <div class="wsGroup">
+            <div class="wsName">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.2 5.2c0-.9.7-1.6 1.6-1.6h2.4l1.3 1.6h5.1c.9 0 1.6.7 1.6 1.6v5.4c0 .9-.7 1.6-1.6 1.6H3.8c-.9 0-1.6-.7-1.6-1.6V5.2Z"/></svg>
+              dsh-todolist
+            </div>
+            <div class="sess active"><span class="dot"></span><span class="txt">设计待办插件</span></div>
+            <div class="sess"><span class="dot"></span><span class="txt">侧栏槽位调研</span></div>
+          </div>
+          <div class="wsGroup">
+            <div class="wsName">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2.2 5.2c0-.9.7-1.6 1.6-1.6h2.4l1.3 1.6h5.1c.9 0 1.6.7 1.6 1.6v5.4c0 .9-.7 1.6-1.6 1.6H3.8c-.9 0-1.6-.7-1.6-1.6V5.2Z"/></svg>
+              Trace
+            </div>
+            <div class="sess"><span class="dot"></span><span class="txt">竞品分析</span></div>
+          </div>
+        </div>
+
+        <div class="foot">
+          <div class="setRow">
+            <span class="glyph" style="width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M12.4 3.6l-1.1 1.1M4.7 11.3l-1.1 1.1" stroke-linecap="round"/></svg>
+            </span>
+            <span class="title" style="flex:1">设置</span>
+          </div>
+        </div>
+      </div>
+      <div class="main" style="position:relative"><div class="mc">主区：仍是对话，浮层只截一下</div>
+        <div class="ln s" style="height:10px;width:38%"></div>
+        <div class="blk"></div>
+        <div class="ln l"></div><div class="ln m"></div><div class="ln l"></div>
+        <div class="blk" style="height:88px"></div>
+        
+
+        <div style="position:absolute;left:8px;right:8px;bottom:10px;background:var(--dsw-alias-bg-overlay);border:.5px solid var(--dsw-alias-border-l3);border-radius:12px;box-shadow:0 10px 28px #0000001c;padding:9px 10px;">
+          <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--dsw-alias-label-secondary);margin-bottom:6px;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3.2v9.6M3.2 8h9.6" stroke-linecap="round"/></svg>
+            快速添加 <span style="font-size:10.5px;color:var(--dsw-alias-label-tertiary)">Ctrl+Shift+K</span>
+          </div>
+          <div style="font-size:13px;color:var(--dsw-alias-label-primary)">明天15点 交周报 <span style="color:var(--dsw-alias-label-tertiary)">#工作</span><span style="display:inline-block;width:1px;height:14px;background:var(--dsw-alias-label-primary);vertical-align:-2px;margin-left:1px"></span></div>
+          <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">
+            <span class="pill" style="color:var(--dsw-alias-state-business-primary);border-color:color-mix(in srgb, var(--dsw-alias-state-business-primary) 30%, transparent)">明天 15:00</span>
+            <span class="pill">#工作</span>
+            <span class="pill">中优先级</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
