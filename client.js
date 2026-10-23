@@ -19,6 +19,8 @@ window.__ModuleLoader__.load({
         complete: '完成', reopen: '撤销完成', remove: '删除', confirmRemove: '确认删除', edit: '编辑',
         needsReview: '待确认', confirmDone: '确认已完成',
         note: '备注', priority: '优先级', dueDate: '截止日期', dueTime: '时间',
+        pickDate: '选择日期', pickTime: '选择时间', clearValue: '清除',
+        tomorrowQuick: '明天', nextMonday: '下周一',
         category: '分类', noCategory: '无分类', categoryManage: '管理分类', categoryEmpty: '暂无分类',
         categoryCount: (count) => `${count} 条`,
         rename: '重命名', deleteOne: '删除', confirmDelete: '确认删除',
@@ -46,6 +48,8 @@ window.__ModuleLoader__.load({
         complete: 'Complete', reopen: 'Reopen', remove: 'Delete', confirmRemove: 'Confirm delete', edit: 'Edit',
         needsReview: 'Needs review', confirmDone: 'Confirm done',
         note: 'Note', priority: 'Priority', dueDate: 'Due date', dueTime: 'Time',
+        pickDate: 'Pick a date', pickTime: 'Pick a time', clearValue: 'Clear',
+        tomorrowQuick: 'Tomorrow', nextMonday: 'Next Monday',
         category: 'Category', noCategory: 'No category', categoryManage: 'Manage categories', categoryEmpty: 'No categories',
         categoryCount: (count) => `${count} ${count === 1 ? 'item' : 'items'}`,
         rename: 'Rename', deleteOne: 'Delete', confirmDelete: 'Confirm delete',
@@ -129,7 +133,8 @@ window.__ModuleLoader__.load({
       subsec: { display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px 0 16px', marginTop: 2 },
       // 分类组合框：外框仍是普通 input，下拉是绝对定位的兄弟节点，位置与宽度跟随输入框。
       // 分类字段在弹窗底部，向下展开会被 .td-dialog 的滚动容器裁掉，所以向上弹出。
-      pop: { position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 10, boxSizing: 'border-box', padding: 4, borderRadius: 8, background: 'var(--dsw-alias-bg-layer-1)', border: '0.5px solid var(--dsw-alias-border-l2)', boxShadow: 'var(--dsw-elevation-panel)' },
+      // 外观交给 .td-pop，这里只负责定位。
+      pop: { position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 10, boxSizing: 'border-box' },
       popEmpty: { padding: '8px', fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' },
       popList: { maxHeight: 208, overflowY: 'auto' },
       popItem: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, cursor: 'pointer', textAlign: 'left' },
@@ -144,6 +149,32 @@ window.__ModuleLoader__.load({
       catAction: { flex: 'none', height: 26, padding: '0 9px', borderRadius: 6, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5, cursor: 'pointer' },
       catSave: { flex: 'none', height: 26, padding: '0 9px', borderRadius: 6, border: 'none', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 11.5, cursor: 'pointer' },
       catEmpty: { padding: '18px 8px', textAlign: 'center', fontSize: 12.5, color: 'var(--dsw-alias-label-tertiary)' },
+      // 日期 / 时间选择器：触发区是按钮，弹层外观交给 .td-pop，这里只写定位与内部网格。
+      pickerTrigger: { width: '100%', height: 32, boxSizing: 'border-box', padding: '0 10px', borderRadius: 8, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, textAlign: 'left', cursor: 'pointer' },
+      pickerPlaceholder: { color: 'var(--dsw-alias-label-tertiary)' },
+      pickerIcon: { flex: 'none', fontSize: 10, lineHeight: 1, color: 'var(--dsw-alias-label-tertiary)' },
+      pickerPop: { position: 'absolute', left: 0, right: 0, zIndex: 20, boxSizing: 'border-box' },
+      pickerPopDown: { top: 'calc(100% + 4px)' },
+      pickerPopUp: { bottom: 'calc(100% + 4px)' },
+      pickerHead: { display: 'flex', alignItems: 'center', gap: 2, marginBottom: 6 },
+      pickerTitle: { flex: 1, minWidth: 0, textAlign: 'center', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--dsw-alias-label-primary)' },
+      pickerIconBtn: { flex: 'none', width: 24, height: 24, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-secondary)', fontSize: 15, lineHeight: '24px', textAlign: 'center', cursor: 'pointer' },
+      pickerHeadBtn: { flex: 'none', height: 24, padding: '0 8px', border: 'none', borderRadius: 6, color: 'var(--dsw-alias-state-business-primary)', fontSize: 11.5, cursor: 'pointer' },
+      pickerQuick: { display: 'flex', gap: 4, marginBottom: 6 },
+      pickerQuickBtn: { flex: 1, minWidth: 0, height: 24, padding: 0, border: '0.5px solid var(--dsw-alias-border-l2)', borderRadius: 6, color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5, cursor: 'pointer' },
+      pickerWeekdays: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 2 },
+      pickerWeekday: { textAlign: 'center', fontSize: 10.5, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)' },
+      pickerGrid: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 },
+      pickerDay: { height: 24, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-primary)', fontSize: 11.5, cursor: 'pointer' },
+      pickerDayToday: { boxShadow: 'inset 0 0 0 1px var(--dsw-alias-state-business-primary)' },
+      pickerDayOn: { background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)' },
+      pickerDayOff: { opacity: 0.45 },
+      pickerFoot: { marginTop: 4 },
+      pickerClear: { width: '100%', height: 26, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-tertiary)', fontSize: 11.5, cursor: 'pointer' },
+      timeCols: { display: 'flex', gap: 4 },
+      timeList: { flex: 1, minWidth: 0, maxHeight: 180, overflowY: 'auto' },
+      timeItem: { width: '100%', height: 28, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, cursor: 'pointer' },
+      timeItemOn: { background: 'var(--dsw-alias-interactive-bg-hover)' },
     }
 
     // 标题是真正的 <button>（键盘可达），但外观仍是普通文本。
@@ -182,8 +213,21 @@ window.__ModuleLoader__.load({
 .td-row { transition: background-color .12s ease; }
 .td-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
 
+/* 自绘弹层：分类下拉、日期与时间选择器共用同一层外观与入场动画。 */
+.td-pop {
+  background: var(--dsw-specific-input-major);
+  border-radius: var(--dsw-radius-md);
+  box-shadow: var(--dsw-elevation-panel);
+  padding: 6px;
+  transform-origin: top center;
+  animation: td-pop-in .13s cubic-bezier(.2,.8,.2,1);
+}
+.td-pop-up { transform-origin: bottom center; animation-name: td-pop-up-in; }
+@keyframes td-pop-in { from { opacity: 0; transform: translateY(-4px) scale(.98) } to { opacity: 1; transform: none } }
+@keyframes td-pop-up-in { from { opacity: 0; transform: translateY(4px) scale(.98) } to { opacity: 1; transform: none } }
+
 @media (prefers-reduced-motion: reduce) {
-  .td-overlay, .td-dialog, .td-btn, .td-primary, .td-input, .td-row { animation: none; transition: none; }
+  .td-overlay, .td-dialog, .td-btn, .td-primary, .td-input, .td-row, .td-pop { animation: none; transition: none; }
   .td-btn:active:not(:disabled), .td-primary:active:not(:disabled) { transform: none; }
 }
 `
@@ -224,6 +268,48 @@ window.__ModuleLoader__.load({
 
     function startOfDay(date) {
       return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+    }
+
+    /** `YYYY-MM-DD` 解析成本地日期；格式或日历值非法时返回 null。 */
+    function parseDateKey(key) {
+      const text = asText(key)
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text)
+      if (match === null) return null
+      const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+      return dateKeyOf(date) === text ? date : null
+    }
+
+    /** 6 周 × 7 天，周一起始；返回 42 个 `YYYY-MM-DD`，前后补邻月日期。 */
+    function monthGrid(year, month) {
+      const first = new Date(year, month, 1)
+      const offset = (first.getDay() + 6) % 7
+      const start = new Date(year, month, 1 - offset)
+      const cells = []
+      for (let index = 0; index < 42; index += 1) {
+        cells.push(dateKeyOf(new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)))
+      }
+      return cells
+    }
+
+    /** `HH:mm` 拆成小时与分钟字符串；非法时间返回 null。 */
+    function splitTimeKey(value) {
+      const text = asText(value)
+      const match = /^(\d{2}):(\d{2})$/.exec(text)
+      if (match === null) return null
+      if (Number(match[1]) > 23 || Number(match[2]) > 59) return null
+      return { hour: match[1], minute: match[2] }
+    }
+
+    // 周标题不占词典键：按界面语言（今天 / Today）在两种窄标签里选一组。
+    const WEEKDAY_LABELS = {
+      zh: ['一', '二', '三', '四', '五', '六', '日'],
+      en: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'],
+    }
+    const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'))
+    const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, '0'))
+
+    function weekdayLabels(t) {
+      return t('today') === dict.zh.today ? WEEKDAY_LABELS.zh : WEEKDAY_LABELS.en
     }
 
     /** `createdAt` 按本地时区格式化成 `YYYY-MM-DD HH:mm`。 */
@@ -351,7 +437,7 @@ window.__ModuleLoader__.load({
           }, '×')
         : null,
       open
-        ? h('div', { className: 'td-pop', style: S.pop },
+        ? h('div', { className: 'td-pop td-pop-up', style: S.pop },
             visible.length === 0
               ? h('div', { style: S.popEmpty }, t('categoryEmpty'))
               : h('div', { style: S.popList }, visible.map((row) => h('button', {
@@ -370,6 +456,274 @@ window.__ModuleLoader__.load({
               style: S.popManage,
               onClick: () => { setOpen(false); onManage?.() },
             }, t('categoryManage')))
+        : null)
+    }
+
+    /**
+     * 日期 / 时间选择器共用的弹层行为：打开时按触发区在视口上下半区决定方向，
+     * 打开期间点外部关闭；Esc 交给各字段外框的 onKeyDown，避免连带关掉弹窗。
+     */
+    function usePickerPopover() {
+      const [open, setOpen] = useState(false)
+      const [up, setUp] = useState(false)
+      const wrapRef = useRef(null)
+
+      const openPopover = useCallback(() => {
+        const wrap = wrapRef.current
+        const rect = wrap !== null && typeof wrap.getBoundingClientRect === 'function'
+          ? wrap.getBoundingClientRect()
+          : null
+        const viewport = typeof window.innerHeight === 'number' ? window.innerHeight : 0
+        setUp(rect !== null && viewport > 0 && rect.top + rect.height / 2 > viewport / 2)
+        setOpen(true)
+      }, [])
+
+      const closePopover = useCallback(() => setOpen(false), [])
+
+      useEffect(() => {
+        if (!open) return undefined
+        const onPointerDown = (event) => {
+          const wrap = wrapRef.current
+          if (wrap !== null && typeof wrap.contains === 'function' && wrap.contains(event.target)) return
+          setOpen(false)
+        }
+        document.addEventListener('pointerdown', onPointerDown)
+        return () => document.removeEventListener('pointerdown', onPointerDown)
+      }, [open])
+
+      return { open, up, wrapRef, openPopover, closePopover }
+    }
+
+    /** 自绘日期选择器：触发区 + 快捷行 + 6×7 月历；点日期、快捷按钮或清除都会关闭。 */
+    function DateField({ t, value, onChange }) {
+      const picker = usePickerPopover()
+      const [cursor, setCursor] = useState(() => {
+        const at = parseDateKey(value) ?? new Date()
+        return { year: at.getFullYear(), month: at.getMonth() }
+      })
+
+      const text = asText(value)
+      const todayKey = dateKeyOf(new Date())
+      const monthKey = `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}`
+      const cells = monthGrid(cursor.year, cursor.month)
+      const weekdays = weekdayLabels(t)
+
+      const monthTitle = (year, month) => `${year} 年 ${month + 1} 月`
+
+      const closeWith = (next) => {
+        onChange(next)
+        picker.closePopover()
+      }
+
+      const open = () => {
+        if (picker.open) { picker.closePopover(); return }
+        const at = parseDateKey(text) ?? new Date()
+        setCursor({ year: at.getFullYear(), month: at.getMonth() })
+        picker.openPopover()
+      }
+
+      const moveMonth = (delta) => {
+        const at = new Date(cursor.year, cursor.month + delta, 1)
+        setCursor({ year: at.getFullYear(), month: at.getMonth() })
+      }
+
+      const monthAt = (delta) => {
+        const at = new Date(cursor.year, cursor.month + delta, 1)
+        return monthTitle(at.getFullYear(), at.getMonth())
+      }
+
+      const pickDay = (delta) => {
+        const at = new Date()
+        closeWith(dateKeyOf(new Date(at.getFullYear(), at.getMonth(), at.getDate() + delta)))
+      }
+
+      const pickNextMonday = () => {
+        const at = new Date()
+        const delta = ((1 - at.getDay() + 7) % 7) || 7
+        closeWith(dateKeyOf(new Date(at.getFullYear(), at.getMonth(), at.getDate() + delta)))
+      }
+
+      return h('div', {
+        ref: picker.wrapRef,
+        style: { position: 'relative' },
+        onKeyDown: (event) => {
+          if (!picker.open || event.key !== 'Escape') return
+          event.stopPropagation?.()
+          picker.closePopover()
+        },
+      },
+      h('button', {
+        type: 'button',
+        className: 'td-btn td-input',
+        style: text === '' ? { ...S.pickerTrigger, ...S.pickerPlaceholder } : S.pickerTrigger,
+        'aria-haspopup': 'dialog',
+        'aria-expanded': picker.open ? 'true' : 'false',
+        'aria-label': t('pickDate'),
+        onClick: open,
+      },
+      h('span', { style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text === '' ? t('pickDate') : text),
+      h('span', { style: S.pickerIcon, 'aria-hidden': 'true' }, '▾')),
+
+      picker.open
+        ? h('div', {
+            className: picker.up ? 'td-pop td-pop-up' : 'td-pop',
+            style: { ...S.pickerPop, ...(picker.up ? S.pickerPopUp : S.pickerPopDown) },
+            role: 'dialog',
+            'aria-label': t('pickDate'),
+          },
+          h('div', { style: S.pickerHead },
+            h('button', {
+              type: 'button', className: 'td-btn', style: S.pickerIconBtn,
+              'aria-label': monthAt(-1), onClick: () => moveMonth(-1),
+            }, '‹'),
+            h('span', { style: S.pickerTitle }, monthTitle(cursor.year, cursor.month)),
+            h('button', {
+              type: 'button', className: 'td-btn', style: S.pickerIconBtn,
+              'aria-label': monthAt(1), onClick: () => moveMonth(1),
+            }, '›'),
+            h('button', {
+              type: 'button', className: 'td-btn', style: S.pickerHeadBtn,
+              onClick: () => {
+                const at = new Date()
+                setCursor({ year: at.getFullYear(), month: at.getMonth() })
+              },
+            }, t('today'))),
+          h('div', { style: S.pickerQuick },
+            h('button', {
+              type: 'button', className: 'td-btn', style: S.pickerQuickBtn,
+              onClick: () => pickDay(0),
+            }, t('today')),
+            h('button', {
+              type: 'button', className: 'td-btn', style: S.pickerQuickBtn,
+              onClick: () => pickDay(1),
+            }, t('tomorrowQuick')),
+            h('button', {
+              type: 'button', className: 'td-btn', style: S.pickerQuickBtn,
+              onClick: pickNextMonday,
+            }, t('nextMonday'))),
+          h('div', { style: S.pickerWeekdays, 'aria-hidden': 'true' },
+            weekdays.map((label, index) => h('div', { key: `${index}`, style: S.pickerWeekday }, label))),
+          h('div', { style: S.pickerGrid },
+            cells.map((key) => {
+              const inMonth = key.slice(0, 7) === monthKey
+              const selected = key === text
+              return h('button', {
+                key,
+                type: 'button',
+                className: 'td-btn',
+                style: {
+                  ...S.pickerDay,
+                  ...(key === todayKey ? S.pickerDayToday : null),
+                  ...(selected ? S.pickerDayOn : null),
+                  ...(inMonth ? null : S.pickerDayOff),
+                },
+                'aria-label': key,
+                'aria-pressed': selected ? 'true' : 'false',
+                onClick: () => closeWith(key),
+              }, String(Number(key.slice(8, 10))))
+            })),
+          h('div', { style: S.pickerFoot },
+            h('button', {
+              type: 'button', className: 'td-btn', style: S.pickerClear,
+              onClick: () => closeWith(''),
+            }, t('clearValue'))))
+        : null)
+    }
+
+    /** 自绘时间选择器：左右两列可滚动列表，点小时即时高亮但不提交，点分钟才设值并关闭。 */
+    function TimeField({ t, value, onChange }) {
+      const picker = usePickerPopover()
+      const [draftHour, setDraftHour] = useState(null)
+      const hourItemRef = useRef(null)
+      const minuteItemRef = useRef(null)
+      const alive = useRef(true)
+
+      const text = asText(value)
+      const parsed = splitTimeKey(text)
+
+      useEffect(() => {
+        alive.current = true
+        return () => { alive.current = false }
+      }, [])
+
+      // 打开后把已选项滚到列表中间；effect 同步执行，卸载后 alive 为 false 不再碰 DOM。
+      useEffect(() => {
+        if (!picker.open || !alive.current) return
+        const hourNode = hourItemRef.current
+        if (hourNode !== null && typeof hourNode.scrollIntoView === 'function') hourNode.scrollIntoView({ block: 'center' })
+        const minuteNode = minuteItemRef.current
+        if (minuteNode !== null && typeof minuteNode.scrollIntoView === 'function') minuteNode.scrollIntoView({ block: 'center' })
+      }, [picker.open])
+
+      const open = () => {
+        if (picker.open) { picker.closePopover(); return }
+        const parts = splitTimeKey(text)
+        setDraftHour(parts === null ? null : parts.hour)
+        picker.openPopover()
+      }
+
+      const closeWith = (next) => {
+        onChange(next)
+        picker.closePopover()
+      }
+
+      const pickMinute = (minute) => {
+        const hour = draftHour ?? String(new Date().getHours()).padStart(2, '0')
+        closeWith(`${hour}:${minute}`)
+      }
+
+      return h('div', {
+        ref: picker.wrapRef,
+        style: { position: 'relative' },
+        onKeyDown: (event) => {
+          if (!picker.open || event.key !== 'Escape') return
+          event.stopPropagation?.()
+          picker.closePopover()
+        },
+      },
+      h('button', {
+        type: 'button',
+        className: 'td-btn td-input',
+        style: text === '' ? { ...S.pickerTrigger, ...S.pickerPlaceholder } : S.pickerTrigger,
+        'aria-haspopup': 'dialog',
+        'aria-expanded': picker.open ? 'true' : 'false',
+        'aria-label': t('pickTime'),
+        onClick: open,
+      },
+      h('span', { style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text === '' ? t('pickTime') : text),
+      h('span', { style: S.pickerIcon, 'aria-hidden': 'true' }, '▾')),
+
+      picker.open
+        ? h('div', {
+            className: picker.up ? 'td-pop td-pop-up' : 'td-pop',
+            style: { ...S.pickerPop, ...(picker.up ? S.pickerPopUp : S.pickerPopDown) },
+            role: 'dialog',
+            'aria-label': t('pickTime'),
+          },
+          h('div', { style: S.timeCols },
+            h('div', { style: S.timeList }, HOUR_OPTIONS.map((hour) => h('button', {
+              key: `h-${hour}`,
+              type: 'button',
+              className: 'td-btn',
+              ref: hour === draftHour ? hourItemRef : null,
+              style: hour === draftHour ? { ...S.timeItem, ...S.timeItemOn } : S.timeItem,
+              'aria-pressed': hour === draftHour ? 'true' : 'false',
+              onClick: () => setDraftHour(hour),
+            }, hour))),
+            h('div', { style: S.timeList }, MINUTE_OPTIONS.map((minute) => h('button', {
+              key: `m-${minute}`,
+              type: 'button',
+              className: 'td-btn',
+              ref: parsed !== null && minute === parsed.minute ? minuteItemRef : null,
+              style: parsed !== null && minute === parsed.minute ? { ...S.timeItem, ...S.timeItemOn } : S.timeItem,
+              'aria-pressed': parsed !== null && minute === parsed.minute ? 'true' : 'false',
+              onClick: () => pickMinute(minute),
+            }, minute)))),
+          h('div', { style: S.popSep, 'aria-hidden': 'true' }),
+          h('button', {
+            type: 'button', className: 'td-btn', style: S.pickerClear,
+            onClick: () => closeWith(''),
+          }, t('clearValue')))
         : null)
     }
 
@@ -581,19 +935,19 @@ window.__ModuleLoader__.load({
           })),
 
         h('div', { style: S.fieldRow },
-          h('label', { style: S.field },
+          h('div', { style: S.field },
             h('span', { style: S.fieldLabel }, t('fieldDate')),
-            h('input', {
-              className: 'td-input',
-              type: 'date', style: S.input, value: form.dueDate,
-              onChange: (e) => setForm((prev) => ({ ...prev, dueDate: e.target.value })),
+            h(DateField, {
+              t,
+              value: form.dueDate,
+              onChange: (next) => setForm((prev) => ({ ...prev, dueDate: next })),
             })),
-          h('label', { style: S.field },
+          h('div', { style: S.field },
             h('span', { style: S.fieldLabel }, t('fieldTime')),
-            h('input', {
-              className: 'td-input',
-              type: 'time', style: S.input, value: form.dueTime,
-              onChange: (e) => setForm((prev) => ({ ...prev, dueTime: e.target.value })),
+            h(TimeField, {
+              t,
+              value: form.dueTime,
+              onChange: (next) => setForm((prev) => ({ ...prev, dueTime: next })),
             }))),
 
         h('div', { style: S.field },
