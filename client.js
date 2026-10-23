@@ -80,7 +80,7 @@ window.__ModuleLoader__.load({
       h1: { fontSize: 17, fontWeight: 600, margin: 0 },
       count: { fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' },
       grow: { flex: 1 },
-      search: { width: 200, height: 32, padding: '0 10px', borderRadius: 8, border: 'none', fontSize: 12.5, background: 'var(--dsw-alias-bg-module-platform)', color: 'var(--dsw-alias-label-primary)' },
+      search: { width: 200, height: 32, padding: '0 10px', borderRadius: 8, fontSize: 12.5, background: 'var(--dsw-alias-bg-module-platform)', color: 'var(--dsw-alias-label-primary)' },
       body: { display: 'flex', flex: 1, minHeight: 0, width: '100%', maxWidth: 1240, margin: '0 auto' },
       list: { flex: 1, minWidth: 0, overflowY: 'auto', padding: '10px 8px 10px 12px' },
       sec: { display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 8px', marginTop: 6 },
@@ -99,36 +99,79 @@ window.__ModuleLoader__.load({
       empty: { padding: 40, textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 },
       error: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent)' },
       warn: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-warn-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent)', display: 'flex', alignItems: 'center', gap: 8 },
-      addBtn: { height: 32, padding: '0 12px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'var(--dsw-alias-button-elevated-fill)', color: 'var(--dsw-alias-label-primary)', fontSize: 13, cursor: 'pointer' },
-      overlay: { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--dsw-alias-bg-mask-3)' },
-      dialog: { width: 520, maxWidth: 'calc(100vw - 32px)', maxHeight: '82vh', overflowY: 'auto', boxSizing: 'border-box', padding: '16px 20px', borderRadius: 12, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'var(--dsw-alias-bg-overlay)', color: 'var(--dsw-alias-label-primary)' },
+      addBtn: { height: 32, padding: '0 12px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-primary)', fontSize: 13, cursor: 'pointer' },
+      overlay: { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--dsw-alias-bg-mask-1)' },
+      dialog: { width: 520, maxWidth: 'calc(100vw - 32px)', maxHeight: '82vh', overflowY: 'auto', boxSizing: 'border-box', padding: '20px 20px 16px', background: 'var(--dsw-specific-input-major)', borderRadius: 'var(--dsw-radius-xl)', boxShadow: 'var(--dsw-elevation-panel)', color: 'var(--dsw-alias-label-primary)' },
       dialogHead: { fontSize: 15, fontWeight: 600, marginBottom: 12 },
       hint: { marginTop: 6, fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
       field: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, marginBottom: 10 },
       fieldRow: { display: 'flex', gap: 12 },
       fieldLabel: { fontSize: 11.5, color: 'var(--dsw-alias-label-secondary)' },
-      input: { width: '100%', height: 32, boxSizing: 'border-box', padding: '0 10px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, fontFamily: 'inherit' },
-      textarea: { width: '100%', height: 64, boxSizing: 'border-box', padding: '7px 10px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, fontFamily: 'inherit', lineHeight: '18px', resize: 'vertical' },
+      input: { width: '100%', height: 32, boxSizing: 'border-box', padding: '0 10px', borderRadius: 8, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, fontFamily: 'inherit' },
+      textarea: { width: '100%', height: 64, boxSizing: 'border-box', padding: '7px 10px', borderRadius: 8, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, fontFamily: 'inherit', lineHeight: '18px', resize: 'vertical' },
       seg: { display: 'flex', gap: 6 },
-      segItem: { flex: 1, height: 30, borderRadius: 6, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'transparent', color: 'var(--dsw-alias-label-secondary)', fontSize: 12.5, cursor: 'pointer' },
+      segItem: { flex: 1, height: 30, borderRadius: 6, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)', fontSize: 12.5, cursor: 'pointer' },
       segItemOn: { border: '0.5px solid transparent', background: 'var(--dsw-alias-state-business-primary)', color: '#fff' },
       dialogError: { marginTop: 4, padding: '6px 10px', borderRadius: 6, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent)' },
       dialogFoot: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 },
-      btnGhost: { height: 32, padding: '0 14px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'transparent', color: 'var(--dsw-alias-label-secondary)', fontSize: 12.5, cursor: 'pointer' },
+      btnGhost: { height: 32, padding: '0 14px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)', fontSize: 12.5, cursor: 'pointer' },
       btnPrimary: { height: 32, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--dsw-alias-state-business-primary)', color: '#fff', fontSize: 12.5, cursor: 'pointer' },
-      noticeClose: { flex: 'none', width: 20, height: 20, padding: 0, lineHeight: '18px', textAlign: 'center', border: 'none', borderRadius: 4, background: 'transparent', color: 'inherit', fontSize: 14, cursor: 'pointer' },
-      secBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', marginTop: 6, border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' },
+      noticeClose: { flex: 'none', width: 20, height: 20, padding: 0, lineHeight: '18px', textAlign: 'center', border: 'none', borderRadius: 4, color: 'inherit', fontSize: 14, cursor: 'pointer' },
+      secBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', marginTop: 6, border: 'none', cursor: 'pointer', textAlign: 'left' },
       subsec: { display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px 0 16px', marginTop: 2 },
     }
 
     // 标题是真正的 <button>（键盘可达），但外观仍是普通文本。
-    const TITLE_BTN = { padding: 0, border: 'none', background: 'transparent', color: 'inherit', fontFamily: 'inherit', textAlign: 'left', cursor: 'pointer', borderRadius: 4 }
+    const TITLE_BTN = { padding: 0, border: 'none', color: 'inherit', fontFamily: 'inherit', textAlign: 'left', cursor: 'pointer', borderRadius: 4 }
 
-    const FOCUS_RING = 'inset 0 0 0 1.5px var(--dsw-alias-state-business-primary)'
+    // 内联 style 表达不了 :hover / :active / :focus-visible，所以全局插一份样式表。
+    // .td-btn 的透明底放在这里而不是内联：内联 background 的优先级高于类选择器，
+    // 幽灵按钮若保留内联 transparent，.td-btn:hover 的底色就永远不生效。
+    // 同理 .td-input 的基础描边也放这里，:hover / :focus 的 border-color 才能覆盖。
+    const PLUGIN_CSS = `
+.td-overlay { animation: td-fade .14s ease-out; }
+.td-dialog { animation: td-rise .16s cubic-bezier(.2,.8,.2,1); }
+@keyframes td-fade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes td-rise { from { opacity: 0; transform: translateY(6px) scale(.992) } to { opacity: 1; transform: none } }
 
-    /** 只在键盘（:focus-visible）时画焦点框；鼠标点选不留常驻蓝框。 */
-    function focusVisible(event) {
-      return event?.target?.matches?.(':focus-visible') === true
+.td-btn { background: transparent; transition: background-color .12s ease, border-color .12s ease, color .12s ease, transform .08s ease; }
+.td-btn:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.td-btn:active:not(:disabled) { transform: scale(.985); }
+.td-btn:focus { outline: none; }
+.td-btn:focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px var(--dsw-alias-state-business-primary); }
+.td-btn:disabled { opacity: .5; cursor: default; }
+
+.td-elevated { background: var(--dsw-alias-button-elevated-fill); }
+
+.td-primary { transition: filter .12s ease, transform .08s ease, opacity .12s ease; }
+.td-primary:hover:not(:disabled) { filter: brightness(1.06); }
+.td-primary:active:not(:disabled) { transform: scale(.985); filter: brightness(.96); }
+.td-primary:focus { outline: none; }
+.td-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--dsw-alias-bg-base), 0 0 0 3.5px var(--dsw-alias-state-business-primary); }
+
+.td-input { border: 0.5px solid var(--dsw-alias-border-l3); transition: border-color .12s ease, background-color .12s ease; }
+.td-input:hover { border-color: var(--dsw-alias-border-l4); }
+.td-input:focus { outline: none; border-color: var(--dsw-alias-state-business-primary); }
+.td-input:focus-visible { outline: none; }
+
+.td-row { transition: background-color .12s ease; }
+.td-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+
+@media (prefers-reduced-motion: reduce) {
+  .td-overlay, .td-dialog, .td-btn, .td-primary, .td-input, .td-row { animation: none; transition: none; }
+  .td-btn:active:not(:disabled), .td-primary:active:not(:disabled) { transform: none; }
+}
+`
+
+    /** 样式表全页只插一份；返回的清理函数交给 ctx.effect，插件卸载时移除。 */
+    function ensureStyles() {
+      const existing = document.querySelector('style[data-plugin-css="dsh-todolist"]')
+      if (existing !== null) return () => {}
+      const el = document.createElement('style')
+      el.dataset.pluginCss = 'dsh-todolist'
+      el.textContent = PLUGIN_CSS
+      document.head.appendChild(el)
+      return () => { el.remove() }
     }
 
     /** 详情列的「标签 + 值」竖排行，标签列固定 56px。 */
@@ -136,13 +179,6 @@ window.__ModuleLoader__.load({
       return h('div', { style: { display: 'flex', gap: 8, lineHeight: '20px' } },
         h('span', { style: { width: 56, flex: 'none', color: 'var(--dsw-alias-label-tertiary)' } }, label),
         h('span', null, value))
-    }
-
-    function priorityDot(priority) {
-      const bg = priority === 'high' ? 'var(--dsw-alias-state-error-primary)'
-        : priority === 'medium' ? 'var(--dsw-alias-state-warn-primary)'
-          : priority === 'low' ? 'var(--dsw-alias-state-business-primary)' : 'transparent'
-      return h('span', { style: { width: 5, height: 5, borderRadius: '50%', background: bg, flex: 'none' } })
     }
 
     /** 手改 JSON 可能让字符串字段变成任意类型；渲染按空串兜底，别让整页被错误边界摘掉。 */
@@ -172,10 +208,24 @@ window.__ModuleLoader__.load({
       return `${dateKeyOf(at)} ${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`
     }
 
+    const PRIORITY_COLOR = {
+      high: 'var(--dsw-alias-state-error-primary)',
+      medium: 'var(--dsw-alias-state-warn-primary)',
+      low: 'var(--dsw-alias-state-business-primary)',
+    }
+    const PRIORITY_LABEL_KEY = {
+      high: 'priorityHigh',
+      medium: 'priorityMedium',
+      low: 'priorityLow',
+    }
+
+    function priorityColor(priority) {
+      return PRIORITY_COLOR[priority] ?? 'var(--dsw-alias-label-tertiary)'
+    }
+
     function priorityLabel(priority, t) {
-      if (priority === 'high') return t('priorityHigh')
-      if (priority === 'medium') return t('priorityMedium')
-      if (priority === 'low') return t('priorityLow')
+      const key = PRIORITY_LABEL_KEY[priority]
+      if (key !== undefined) return t(key)
       return typeof priority === 'string' ? priority : ''
     }
 
@@ -205,9 +255,6 @@ window.__ModuleLoader__.load({
     }
 
     function Row({ item, selected, onSelect, onToggle, t }) {
-      const [hover, setHover] = useState(false)
-      const [titleFocus, setTitleFocus] = useState(false)
-      const [checkboxFocus, setCheckboxFocus] = useState(false)
       const today = new Date()
       const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
       const title = asText(item.title)
@@ -216,25 +263,26 @@ window.__ModuleLoader__.load({
       const late = !item.done && dueDate !== '' && dueDate < todayKey
       // 行本身保持普通 div：按钮的子元素在 ARIA 里是 presentational，行若 role="button"，
       // 里面的 role="checkbox" 读屏就看不到了。鼠标仍点整行选中；键盘走标题与复选框两个独立控件。
+      // 未选中时不写内联 background，悬停底色交给 .td-row:hover。
       return h('div', {
-        style: { ...S.row, background: selected || hover ? 'var(--dsw-alias-interactive-bg-hover)' : 'transparent' },
+        className: 'td-row',
+        style: selected ? { ...S.row, background: 'var(--dsw-alias-interactive-bg-hover)' } : S.row,
         onClick: () => onSelect(item.id),
-        onMouseEnter: () => setHover(true),
-        onMouseLeave: () => setHover(false),
       },
+      item.priority
+        ? h('span', {
+            style: { width: 3, height: 18, borderRadius: 2, flex: 'none', background: priorityColor(item.priority) },
+            'aria-hidden': 'true',
+          })
+        : null,
       h('span', {
         role: 'checkbox',
         'aria-checked': item.done ? 'true' : 'false',
         'aria-label': title,
         tabIndex: 0,
-        style: {
-          ...(item.done ? S.cbDone : S.cb),
-          outline: 'none',
-          boxShadow: checkboxFocus ? FOCUS_RING : 'none',
-        },
+        className: 'td-btn',
+        style: item.done ? S.cbDone : S.cb,
         onClick: (e) => { e.stopPropagation(); onToggle(item) },
-        onFocus: (e) => setCheckboxFocus(focusVisible(e)),
-        onBlur: () => setCheckboxFocus(false),
         onKeyDown: (e) => {
           if (e.nativeEvent?.isComposing === true) return
           if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onToggle(item) }
@@ -245,18 +293,14 @@ window.__ModuleLoader__.load({
         : null),
       h('button', {
         type: 'button',
+        className: 'td-btn',
         'aria-current': selected ? 'true' : 'false',
         style: {
           ...TITLE_BTN,
           ...(item.done ? S.nmDone : S.nm),
-          outline: 'none',
-          boxShadow: titleFocus ? FOCUS_RING : 'none',
         },
         onClick: (e) => { e.stopPropagation(); onSelect(item.id) },
-        onFocus: (e) => setTitleFocus(focusVisible(e)),
-        onBlur: () => setTitleFocus(false),
       }, title),
-      item.priority ? priorityDot(item.priority) : null,
       category !== '' ? h('span', { style: S.tag }, category) : null,
       item.done && item.doneBy === 'agent' && !item.verifiedAt
         ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-warn-primary)' } }, t('needsReview'))
@@ -366,13 +410,15 @@ window.__ModuleLoader__.load({
       const modeLabel = t(editing ? 'dialogEdit' : 'dialogNew')
 
       return h('div', {
+        className: 'td-overlay',
         style: S.overlay,
         onClick: (event) => { if (event.target === event.currentTarget) onClose() },
       },
-      h('div', { style: S.dialog, role: 'dialog', 'aria-modal': 'true', 'aria-label': modeLabel },
+      h('div', { className: 'td-dialog', style: S.dialog, role: 'dialog', 'aria-modal': 'true', 'aria-label': modeLabel },
         h('div', { style: S.dialogHead }, modeLabel),
         h('div', { style: { marginBottom: 12 } },
           h('input', {
+            className: 'td-input',
             style: { ...S.search, width: '100%', boxSizing: 'border-box' },
             value: quick, placeholder: t('quickFill'), 'aria-label': t('quickFill'),
             onChange: (e) => setQuick(e.target.value),
@@ -382,6 +428,7 @@ window.__ModuleLoader__.load({
         h('label', { style: S.field },
           h('span', { style: S.fieldLabel }, t('fieldTitle')),
           h('input', {
+            className: 'td-input',
             autoFocus: true, style: S.input, value: form.title,
             onChange: (e) => setForm((prev) => ({ ...prev, title: e.target.value })),
             onKeyDown: (e) => {
@@ -393,6 +440,7 @@ window.__ModuleLoader__.load({
         h('label', { style: S.field },
           h('span', { style: S.fieldLabel }, t('fieldNote')),
           h('textarea', {
+            className: 'td-input',
             rows: 3, style: S.textarea, value: form.note,
             onChange: (e) => setForm((prev) => ({ ...prev, note: e.target.value })),
           })),
@@ -401,12 +449,14 @@ window.__ModuleLoader__.load({
           h('label', { style: S.field },
             h('span', { style: S.fieldLabel }, t('fieldDate')),
             h('input', {
+              className: 'td-input',
               type: 'date', style: S.input, value: form.dueDate,
               onChange: (e) => setForm((prev) => ({ ...prev, dueDate: e.target.value })),
             })),
           h('label', { style: S.field },
             h('span', { style: S.fieldLabel }, t('fieldTime')),
             h('input', {
+              className: 'td-input',
               type: 'time', style: S.input, value: form.dueTime,
               onChange: (e) => setForm((prev) => ({ ...prev, dueTime: e.target.value })),
             }))),
@@ -417,6 +467,7 @@ window.__ModuleLoader__.load({
             [['high', 'priorityHigh'], ['medium', 'priorityMedium'], ['low', 'priorityLow']].map(([value, key]) =>
               h('button', {
                 key: value, type: 'button',
+                className: 'td-btn',
                 'aria-pressed': form.priority === value ? 'true' : 'false',
                 style: { ...S.segItem, ...(form.priority === value ? S.segItemOn : null) },
                 onClick: () => setForm((prev) => ({
@@ -428,6 +479,7 @@ window.__ModuleLoader__.load({
         h('label', { style: S.field },
           h('span', { style: S.fieldLabel }, t('fieldCategory')),
           h('input', {
+            className: 'td-input',
             style: S.input, value: form.category, list: 'todo-categories',
             onChange: (e) => setForm((prev) => ({ ...prev, category: e.target.value })),
           }),
@@ -436,8 +488,8 @@ window.__ModuleLoader__.load({
 
         error !== null ? h('div', { style: S.dialogError }, error) : null,
         h('div', { style: S.dialogFoot },
-          h('button', { type: 'button', style: S.btnGhost, onClick: onClose, disabled: saving }, t('cancel')),
-          h('button', { type: 'button', style: S.btnPrimary, onClick: () => void submit(), disabled: saving }, t('save'))),
+          h('button', { type: 'button', className: 'td-btn', style: S.btnGhost, onClick: onClose, disabled: saving }, t('cancel')),
+          h('button', { type: 'button', className: 'td-primary', style: S.btnPrimary, onClick: () => void submit(), disabled: saving }, t('save'))),
       ))
     }
 
@@ -589,10 +641,12 @@ window.__ModuleLoader__.load({
           h('span', { style: S.count }, `${t('today')} ${state.summary.today ?? 0} · ${t('stale')} ${state.summary.stale ?? 0}`),
           h('div', { style: S.grow }),
           h('button', {
+            className: 'td-btn td-elevated',
             style: S.addBtn,
             onClick: () => setDialog({ initial: null }),
           }, `+ ${t('new')}`),
           h('input', {
+            className: 'td-input',
             style: S.search, placeholder: t('search'), value: query,
             onChange: (e) => setQuery(e.target.value),
           }),
@@ -601,6 +655,7 @@ window.__ModuleLoader__.load({
           ? h('div', { style: S.warn },
             h('span', { style: { flex: 1 } }, t('corruptNotice')),
             h('button', {
+              className: 'td-btn',
               style: S.noticeClose, 'aria-label': t('dismiss'),
               onClick: () => { corruptDismissed = true; setNoticeHidden(true) },
             }, '×'))
@@ -610,13 +665,19 @@ window.__ModuleLoader__.load({
             h('span', { style: { flex: 1 } }, t('writeNotice')),
             h('button', {
               type: 'button',
+              className: 'td-btn td-elevated',
               disabled: retrying,
               style: { ...S.addBtn, height: 26, padding: '0 8px', flex: 'none', cursor: retrying ? 'default' : 'pointer' },
               onClick: () => void retryWrite(),
             }, t('retryWrite')))
           : null,
         state.error
-          ? h('div', { style: S.error }, `${t('failed')}　`, h('button', { onClick: () => void reload() }, t('retry')))
+          ? h('div', { style: S.error }, `${t('failed')}　`, h('button', {
+            type: 'button',
+            className: 'td-btn',
+            style: { padding: '1px 8px', border: 'none', borderRadius: 4, color: 'inherit', fontSize: 12, cursor: 'pointer' },
+            onClick: () => void reload(),
+          }, t('retry')))
           : null,
         h('div', { style: S.body },
           h('div', { style: S.list },
@@ -629,6 +690,7 @@ window.__ModuleLoader__.load({
                     h('div', null, t('empty')),
                     h('div', { style: { marginTop: 12 } },
                       h('button', {
+                        className: 'td-btn td-elevated',
                         style: S.addBtn,
                         onClick: () => setDialog({ initial: null }),
                       }, t('emptyHint')))))
@@ -644,6 +706,7 @@ window.__ModuleLoader__.load({
                   )),
                   doneItems.length === 0 ? null : h('div', { key: 'done' },
                     h('button', {
+                      className: 'td-btn',
                       style: S.secBtn,
                       'aria-expanded': doneOpen ? 'true' : 'false',
                       onClick: () => {
@@ -676,21 +739,32 @@ window.__ModuleLoader__.load({
                 h('div', { style: { fontSize: 15, fontWeight: 600, color: 'var(--dsw-alias-label-primary)', marginBottom: 12 } }, selectedTitle),
                 selectedNote !== '' ? h('div', { style: { marginBottom: 10, lineHeight: '20px', whiteSpace: 'pre-wrap' } }, selectedNote) : null,
                 h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 } },
-                  selectedItem.priority ? detailRow(t('priority'), priorityLabel(selectedItem.priority, t)) : null,
+                  selectedItem.priority
+                    ? detailRow(t('priority'), h('span', {
+                        style: {
+                          padding: '1px 8px', borderRadius: 999,
+                          color: priorityColor(selectedItem.priority),
+                          background: `color-mix(in srgb, ${priorityColor(selectedItem.priority)} 12%, transparent)`,
+                        },
+                      }, priorityLabel(selectedItem.priority, t)))
+                    : null,
                   selectedDueDate !== '' ? detailRow(t('dueDate'), `${selectedDueDate}${selectedDueTime !== '' ? ' ' + selectedDueTime : ''}`) : null,
                   selectedCategory !== '' ? detailRow(t('category'), selectedCategory) : null,
                   selectedItem.createdAt ? detailRow(t('created'), formatDateTime(selectedItem.createdAt)) : null),
                 h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
                   h('button', {
-                    style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'transparent', color: 'var(--dsw-alias-label-secondary)' },
+                    className: 'td-btn',
+                    style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)' },
                     onClick: () => setDialog({ initial: selectedItem }),
                   }, t('edit')),
                   h('button', {
+                    className: 'td-primary',
                     style: { flex: 1, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: '#fff', fontSize: 12.5 },
                     onClick: () => void mutate('complete', { id: selectedItem.id, done: !selectedItem.done }),
                   }, selectedItem.done ? t('reopen') : t('complete')),
                   h('button', {
-                    style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', background: 'transparent', color: confirming ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
+                    className: 'td-btn',
+                    style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', color: confirming ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
                     onClick: async () => {
                       // 进入或结束确认态之前都先清掉旧 timer，保证只剩当前这一轮。
                       clearConfirmTimer()
@@ -710,6 +784,7 @@ window.__ModuleLoader__.load({
                 ),
                 selectedItem.done && selectedItem.doneBy === 'agent' && !selectedItem.verifiedAt
                   ? h('button', {
+                      className: 'td-primary',
                       style: { width: '100%', height: 32, marginTop: 8, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5 },
                       onClick: () => void mutate('confirm', { id: selectedItem.id }),
                     }, t('confirmDone'))
@@ -743,6 +818,8 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       apply(ctx) {
+        ctx.effect(() => ensureStyles(), 'dsh-todolist: styles')
+
         const locale = ctx.get('locale')
         let t = (key) => dict.zh[key] ?? key
         if (locale) {
