@@ -20,9 +20,11 @@ window.__ModuleLoader__.load({
         needsReview: '待确认', confirmDone: '确认已完成',
         note: '备注', priority: '优先级', dueDate: '截止日期', dueTime: '时间',
         pickDate: '选择日期', pickTime: '选择时间', clearValue: '清除',
+        hourShort: '时', minuteShort: '分',
         tomorrowQuick: '明天', nextMonday: '下周一',
         category: '分类', noCategory: '无分类', categoryManage: '管理分类', categoryEmpty: '暂无分类',
         categoryCount: (count) => `${count} 条`,
+        categoryHint: '分类不是预先设定的：它来自待办里填写的分类名，某条待办写了新名字，这里就会多一个。删掉一个分类，会让它的待办回到「无分类」。',
         rename: '重命名', deleteOne: '删除', confirmDelete: '确认删除',
         saveRename: '保存', cancelRename: '取消',
         dialogNew: '新建待办', dialogEdit: '编辑待办',
@@ -49,9 +51,11 @@ window.__ModuleLoader__.load({
         needsReview: 'Needs review', confirmDone: 'Confirm done',
         note: 'Note', priority: 'Priority', dueDate: 'Due date', dueTime: 'Time',
         pickDate: 'Pick a date', pickTime: 'Pick a time', clearValue: 'Clear',
+        hourShort: 'Hr', minuteShort: 'Min',
         tomorrowQuick: 'Tomorrow', nextMonday: 'Next Monday',
         category: 'Category', noCategory: 'No category', categoryManage: 'Manage categories', categoryEmpty: 'No categories',
         categoryCount: (count) => `${count} ${count === 1 ? 'item' : 'items'}`,
+        categoryHint: 'Categories are not predefined: they come from the category names entered on todos, so a new name adds one here. Deleting a category moves its todos back to "No category".',
         rename: 'Rename', deleteOne: 'Delete', confirmDelete: 'Confirm delete',
         saveRename: 'Save', cancelRename: 'Cancel',
         dialogNew: 'New todo', dialogEdit: 'Edit todo',
@@ -123,11 +127,11 @@ window.__ModuleLoader__.load({
       textarea: { width: '100%', height: 64, boxSizing: 'border-box', padding: '7px 10px', borderRadius: 8, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, fontFamily: 'inherit', lineHeight: '18px', resize: 'vertical' },
       seg: { display: 'flex', gap: 6 },
       segItem: { flex: 1, height: 30, borderRadius: 6, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)', fontSize: 12.5, cursor: 'pointer' },
-      segItemOn: { border: '0.5px solid transparent', background: 'var(--dsw-alias-state-business-primary)', color: '#fff' },
+      segItemOn: { border: '0.5px solid transparent', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)' },
       dialogError: { marginTop: 4, padding: '6px 10px', borderRadius: 6, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent)' },
       dialogFoot: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 },
       btnGhost: { height: 32, padding: '0 14px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)', fontSize: 12.5, cursor: 'pointer' },
-      btnPrimary: { height: 32, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--dsw-alias-state-business-primary)', color: '#fff', fontSize: 12.5, cursor: 'pointer' },
+      btnPrimary: { height: 32, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5, cursor: 'pointer' },
       noticeClose: { flex: 'none', width: 20, height: 20, padding: 0, lineHeight: '18px', textAlign: 'center', border: 'none', borderRadius: 4, color: 'inherit', fontSize: 14, cursor: 'pointer' },
       secBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', marginTop: 6, border: 'none', cursor: 'pointer', textAlign: 'left' },
       subsec: { display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px 0 16px', marginTop: 2 },
@@ -149,36 +153,35 @@ window.__ModuleLoader__.load({
       catAction: { flex: 'none', height: 26, padding: '0 9px', borderRadius: 6, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5, cursor: 'pointer' },
       catSave: { flex: 'none', height: 26, padding: '0 9px', borderRadius: 6, border: 'none', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 11.5, cursor: 'pointer' },
       catEmpty: { padding: '18px 8px', textAlign: 'center', fontSize: 12.5, color: 'var(--dsw-alias-label-tertiary)' },
-      // 日期 / 时间选择器：触发区是按钮，弹层外观交给 .td-pop，这里只写定位与内部网格。
-      pickerTrigger: { width: '100%', height: 32, boxSizing: 'border-box', padding: '0 10px', borderRadius: 8, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, textAlign: 'left', cursor: 'pointer' },
+      catHint: { marginTop: 0, marginBottom: 10, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' },
+      // 日期 / 时间选择器：触发区是按钮；弹层外观在 .td-pop，固定宽度与纵向间距在 .td-picker，
+      // 这里只写触发区、弹层内部的网格与列表。
+      pickerTrigger: { width: '100%', height: 32, boxSizing: 'border-box', padding: '0 10px', borderRadius: 8, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', fontSize: 13, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, textAlign: 'left', cursor: 'pointer' },
       pickerPlaceholder: { color: 'var(--dsw-alias-label-tertiary)' },
       pickerIcon: { flex: 'none', fontSize: 10, lineHeight: 1, color: 'var(--dsw-alias-label-tertiary)' },
-      pickerPop: { position: 'absolute', left: 0, right: 0, zIndex: 20, boxSizing: 'border-box' },
+      pickerPop: { position: 'absolute', left: 0, zIndex: 20, boxSizing: 'border-box' },
       pickerPopDown: { top: 'calc(100% + 4px)' },
       pickerPopUp: { bottom: 'calc(100% + 4px)' },
-      pickerHead: { display: 'flex', alignItems: 'center', gap: 2, marginBottom: 6 },
-      pickerTitle: { flex: 1, minWidth: 0, textAlign: 'center', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--dsw-alias-label-primary)' },
-      pickerIconBtn: { flex: 'none', width: 24, height: 24, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-secondary)', fontSize: 15, lineHeight: '24px', textAlign: 'center', cursor: 'pointer' },
-      pickerHeadBtn: { flex: 'none', height: 24, padding: '0 8px', border: 'none', borderRadius: 6, color: 'var(--dsw-alias-state-business-primary)', fontSize: 11.5, cursor: 'pointer' },
-      pickerQuick: { display: 'flex', gap: 4, marginBottom: 6 },
-      pickerQuickBtn: { flex: 1, minWidth: 0, height: 24, padding: 0, border: '0.5px solid var(--dsw-alias-border-l2)', borderRadius: 6, color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5, cursor: 'pointer' },
-      pickerWeekdays: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 2 },
-      pickerWeekday: { textAlign: 'center', fontSize: 10.5, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)' },
+      pickerHead: { display: 'flex', alignItems: 'center', gap: 2, height: 28 },
+      pickerTitle: { flex: 1, minWidth: 0, textAlign: 'center', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--dsw-alias-label-primary)' },
+      pickerIconBtn: { flex: 'none', width: 26, height: 26, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-secondary)', fontSize: 15, lineHeight: '26px', textAlign: 'center', cursor: 'pointer' },
+      pickerQuick: { display: 'flex', gap: 6 },
+      pickerQuickBtn: { flex: 1, minWidth: 0, height: 26, padding: 0, border: '0.5px solid var(--dsw-alias-border-l2)', borderRadius: 6, color: 'var(--dsw-alias-label-secondary)', fontSize: 12, textAlign: 'center', cursor: 'pointer' },
+      pickerWeekdays: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 },
+      pickerWeekday: { textAlign: 'center', fontSize: 12, lineHeight: '16px', color: 'var(--dsw-alias-label-tertiary)' },
       pickerGrid: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 },
-      pickerDay: { height: 24, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-primary)', fontSize: 11.5, cursor: 'pointer' },
+      pickerDay: { height: 30, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-primary)', fontSize: 13, textAlign: 'center', cursor: 'pointer' },
       pickerDayToday: { boxShadow: 'inset 0 0 0 1px var(--dsw-alias-state-business-primary)' },
       pickerDayOn: { background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)' },
-      pickerDayOff: { opacity: 0.45 },
-      pickerFoot: { marginTop: 4 },
-      pickerClear: { width: '100%', height: 26, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-tertiary)', fontSize: 11.5, cursor: 'pointer' },
-      timeCols: { display: 'flex', gap: 4 },
-      timeList: { flex: 1, minWidth: 0, maxHeight: 180, overflowY: 'auto' },
-      timeItem: { width: '100%', height: 28, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, cursor: 'pointer' },
-      timeItemOn: { background: 'var(--dsw-alias-interactive-bg-hover)' },
+      pickerDayOff: { opacity: 0.4 },
+      pickerClear: { width: '100%', height: 28, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-tertiary)', fontSize: 12, cursor: 'pointer' },
+      timeCols: { display: 'flex', gap: 8 },
+      timeCol: { width: 80, flex: '1 1 80px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 },
+      timeHead: { textAlign: 'center', fontSize: 11, lineHeight: '14px', color: 'var(--dsw-alias-label-tertiary)' },
+      timeList: { minWidth: 0, maxHeight: 150, overflowY: 'auto' },
+      timeItem: { width: '100%', height: 28, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-primary)', fontSize: 13, textAlign: 'center', cursor: 'pointer' },
+      timeItemOn: { background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)' },
     }
-
-    // 标题是真正的 <button>（键盘可达），但外观仍是普通文本。
-    const TITLE_BTN = { padding: 0, border: 'none', color: 'inherit', fontFamily: 'inherit', textAlign: 'left', cursor: 'pointer', borderRadius: 4 }
 
     // 内联 style 表达不了 :hover / :active / :focus-visible，所以全局插一份样式表。
     // .td-btn 的透明底放在这里而不是内联：内联 background 的优先级高于类选择器，
@@ -213,6 +216,20 @@ window.__ModuleLoader__.load({
 .td-row { transition: background-color .12s ease; }
 .td-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
 
+/* 行标题与复选框不再带 .td-btn：行内只留 .td-row:hover 一层底色。 */
+.td-title {
+  background: transparent; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.td-title:hover { background: transparent; }
+.td-title:focus { outline: none; }
+.td-title:focus-visible { outline: none; box-shadow: inset 0 -1.5px 0 var(--dsw-alias-state-business-primary); }
+
+.td-check { cursor: pointer; }
+.td-check:focus { outline: none; }
+.td-check:focus-visible { outline: none; box-shadow: 0 0 0 1.5px var(--dsw-alias-state-business-primary); }
+
 /* 自绘弹层：分类下拉、日期与时间选择器共用同一层外观与入场动画。 */
 .td-pop {
   background: var(--dsw-specific-input-major);
@@ -225,6 +242,11 @@ window.__ModuleLoader__.load({
 .td-pop-up { transform-origin: bottom center; animation-name: td-pop-up-in; }
 @keyframes td-pop-in { from { opacity: 0; transform: translateY(-4px) scale(.98) } to { opacity: 1; transform: none } }
 @keyframes td-pop-up-in { from { opacity: 0; transform: translateY(4px) scale(.98) } to { opacity: 1; transform: none } }
+
+/* 日期 / 时间弹层：固定宽度，纵向间距统一交给 gap。 */
+.td-picker { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.td-picker-date { width: 272px; }
+.td-picker-time { width: 176px; }
 
 @media (prefers-reduced-motion: reduce) {
   .td-overlay, .td-dialog, .td-btn, .td-primary, .td-input, .td-row, .td-pop { animation: none; transition: none; }
@@ -380,10 +402,13 @@ window.__ModuleLoader__.load({
 
     /**
      * 分类组合框：可自由输入新分类，聚焦即展开已有分类（名称 + 条数）。
+     * 过滤词用独立状态：打开下拉时清空，避免编辑已有分类时被输入框的当前值收窄成一项；
+     * 只有下拉打开后继续输入才用新输入过滤，选中或清空后再次复位。
      * 下拉的定位容器就是 ref 所在的外框，document 上的 pointerdown 据此判断点内还是点外。
      */
     function CategoryCombo({ t, value, categories, onChange, onManage }) {
       const [open, setOpen] = useState(false)
+      const [query, setQuery] = useState('')
       const wrapRef = useRef(null)
 
       useEffect(() => {
@@ -397,8 +422,13 @@ window.__ModuleLoader__.load({
         return () => document.removeEventListener('pointerdown', onPointerDown)
       }, [open])
 
+      const openAll = () => {
+        setQuery('')
+        setOpen(true)
+      }
+
       const text = asText(value)
-      const needle = text.trim().toLowerCase()
+      const needle = query.trim().toLowerCase()
       const visible = needle === ''
         ? categories
         : categories.filter((row) => row.name.toLowerCase().includes(needle))
@@ -423,8 +453,13 @@ window.__ModuleLoader__.load({
         'aria-expanded': open ? 'true' : 'false',
         'aria-autocomplete': 'list',
         'aria-label': t('fieldCategory'),
-        onFocus: () => setOpen(true),
-        onChange: (event) => { onChange(event.target.value); setOpen(true) },
+        onFocus: openAll,
+        onClick: () => { if (!open) openAll() },
+        onChange: (event) => {
+          onChange(event.target.value)
+          setQuery(event.target.value)
+          setOpen(true)
+        },
       }),
       text !== ''
         ? h('button', {
@@ -433,7 +468,7 @@ window.__ModuleLoader__.load({
             style: S.comboClear,
             'aria-label': t('noCategory'),
             title: t('noCategory'),
-            onClick: () => { onChange(''); setOpen(true) },
+            onClick: () => { onChange(''); openAll() },
           }, '×')
         : null,
       open
@@ -445,7 +480,7 @@ window.__ModuleLoader__.load({
                   type: 'button',
                   className: 'td-btn',
                   style: S.popItem,
-                  onClick: () => { onChange(row.name); setOpen(false) },
+                  onClick: () => { onChange(row.name); setQuery(''); setOpen(false) },
                 },
                 h('span', { style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.name),
                 h('span', { style: S.popCount }, typeof countLabel === 'function' ? countLabel(row.count) : `${row.count} ${countLabel}`)))),
@@ -561,12 +596,12 @@ window.__ModuleLoader__.load({
         'aria-label': t('pickDate'),
         onClick: open,
       },
-      h('span', { style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text === '' ? t('pickDate') : text),
+      h('span', { style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text === '' ? t('pickDate') : text),
       h('span', { style: S.pickerIcon, 'aria-hidden': 'true' }, '▾')),
 
       picker.open
         ? h('div', {
-            className: picker.up ? 'td-pop td-pop-up' : 'td-pop',
+            className: picker.up ? 'td-pop td-picker td-picker-date td-pop-up' : 'td-pop td-picker td-picker-date',
             style: { ...S.pickerPop, ...(picker.up ? S.pickerPopUp : S.pickerPopDown) },
             role: 'dialog',
             'aria-label': t('pickDate'),
@@ -580,14 +615,7 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button', className: 'td-btn', style: S.pickerIconBtn,
               'aria-label': monthAt(1), onClick: () => moveMonth(1),
-            }, '›'),
-            h('button', {
-              type: 'button', className: 'td-btn', style: S.pickerHeadBtn,
-              onClick: () => {
-                const at = new Date()
-                setCursor({ year: at.getFullYear(), month: at.getMonth() })
-              },
-            }, t('today'))),
+            }, '›')),
           h('div', { style: S.pickerQuick },
             h('button', {
               type: 'button', className: 'td-btn', style: S.pickerQuickBtn,
@@ -622,11 +650,10 @@ window.__ModuleLoader__.load({
                 onClick: () => closeWith(key),
               }, String(Number(key.slice(8, 10))))
             })),
-          h('div', { style: S.pickerFoot },
-            h('button', {
-              type: 'button', className: 'td-btn', style: S.pickerClear,
-              onClick: () => closeWith(''),
-            }, t('clearValue'))))
+          h('button', {
+            type: 'button', className: 'td-btn', style: S.pickerClear,
+            onClick: () => closeWith(''),
+          }, t('clearValue')))
         : null)
     }
 
@@ -690,36 +717,39 @@ window.__ModuleLoader__.load({
         'aria-label': t('pickTime'),
         onClick: open,
       },
-      h('span', { style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text === '' ? t('pickTime') : text),
+      h('span', { style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, text === '' ? t('pickTime') : text),
       h('span', { style: S.pickerIcon, 'aria-hidden': 'true' }, '▾')),
 
       picker.open
         ? h('div', {
-            className: picker.up ? 'td-pop td-pop-up' : 'td-pop',
+            className: picker.up ? 'td-pop td-picker td-picker-time td-pop-up' : 'td-pop td-picker td-picker-time',
             style: { ...S.pickerPop, ...(picker.up ? S.pickerPopUp : S.pickerPopDown) },
             role: 'dialog',
             'aria-label': t('pickTime'),
           },
           h('div', { style: S.timeCols },
-            h('div', { style: S.timeList }, HOUR_OPTIONS.map((hour) => h('button', {
-              key: `h-${hour}`,
-              type: 'button',
-              className: 'td-btn',
-              ref: hour === draftHour ? hourItemRef : null,
-              style: hour === draftHour ? { ...S.timeItem, ...S.timeItemOn } : S.timeItem,
-              'aria-pressed': hour === draftHour ? 'true' : 'false',
-              onClick: () => setDraftHour(hour),
-            }, hour))),
-            h('div', { style: S.timeList }, MINUTE_OPTIONS.map((minute) => h('button', {
-              key: `m-${minute}`,
-              type: 'button',
-              className: 'td-btn',
-              ref: parsed !== null && minute === parsed.minute ? minuteItemRef : null,
-              style: parsed !== null && minute === parsed.minute ? { ...S.timeItem, ...S.timeItemOn } : S.timeItem,
-              'aria-pressed': parsed !== null && minute === parsed.minute ? 'true' : 'false',
-              onClick: () => pickMinute(minute),
-            }, minute)))),
-          h('div', { style: S.popSep, 'aria-hidden': 'true' }),
+            h('div', { style: S.timeCol },
+              h('div', { style: S.timeHead, 'aria-hidden': 'true' }, t('hourShort')),
+              h('div', { style: S.timeList }, HOUR_OPTIONS.map((hour) => h('button', {
+                key: `h-${hour}`,
+                type: 'button',
+                className: 'td-btn',
+                ref: hour === draftHour ? hourItemRef : null,
+                style: hour === draftHour ? { ...S.timeItem, ...S.timeItemOn } : S.timeItem,
+                'aria-pressed': hour === draftHour ? 'true' : 'false',
+                onClick: () => setDraftHour(hour),
+              }, hour)))),
+            h('div', { style: S.timeCol },
+              h('div', { style: S.timeHead, 'aria-hidden': 'true' }, t('minuteShort')),
+              h('div', { style: S.timeList }, MINUTE_OPTIONS.map((minute) => h('button', {
+                key: `m-${minute}`,
+                type: 'button',
+                className: 'td-btn',
+                ref: parsed !== null && minute === parsed.minute ? minuteItemRef : null,
+                style: parsed !== null && minute === parsed.minute ? { ...S.timeItem, ...S.timeItemOn } : S.timeItem,
+                'aria-pressed': parsed !== null && minute === parsed.minute ? 'true' : 'false',
+                onClick: () => pickMinute(minute),
+              }, minute))))),
           h('button', {
             type: 'button', className: 'td-btn', style: S.pickerClear,
             onClick: () => closeWith(''),
@@ -754,7 +784,7 @@ window.__ModuleLoader__.load({
         'aria-checked': item.done ? 'true' : 'false',
         'aria-label': title,
         tabIndex: 0,
-        className: 'td-btn',
+        className: 'td-check',
         style: item.done ? S.cbDone : S.cb,
         onClick: (e) => { e.stopPropagation(); onToggle(item) },
         onKeyDown: (e) => {
@@ -762,17 +792,14 @@ window.__ModuleLoader__.load({
           if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onToggle(item) }
         },
       }, item.done
-        ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: '#fff', strokeWidth: 2.4 },
+        ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--dsw-alias-label-primary-inverted)', strokeWidth: 2.4 },
             h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))
         : null),
       h('button', {
         type: 'button',
-        className: 'td-btn',
+        className: 'td-title',
         'aria-current': selected ? 'true' : 'false',
-        style: {
-          ...TITLE_BTN,
-          ...(item.done ? S.nmDone : S.nm),
-        },
+        style: item.done ? S.nmDone : S.nm,
         onClick: (e) => { e.stopPropagation(); onSelect(item.id) },
       }, title),
       category !== '' ? h('span', { style: S.tag }, category) : null,
@@ -1116,6 +1143,7 @@ window.__ModuleLoader__.load({
       },
       h('div', { className: 'td-dialog', style: S.dialog, role: 'dialog', 'aria-modal': 'true', 'aria-label': t('category') },
         h('div', { style: S.dialogHead }, t('category')),
+        h('div', { style: S.catHint }, t('categoryHint')),
         loadFailed ? h('div', { style: S.dialogError }, t('failed')) : null,
         h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 320, overflowY: 'auto', marginTop: 4 } },
           rows === null
@@ -1461,7 +1489,7 @@ window.__ModuleLoader__.load({
                   }, t('edit')),
                   h('button', {
                     className: 'td-primary',
-                    style: { flex: 1, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: '#fff', fontSize: 12.5 },
+                    style: { flex: 1, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5 },
                     onClick: () => void mutate('complete', { id: selectedItem.id, done: !selectedItem.done }),
                   }, selectedItem.done ? t('reopen') : t('complete')),
                   h('button', {
