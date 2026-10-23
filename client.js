@@ -13,6 +13,8 @@ window.__ModuleLoader__.load({
         unplanned: '未排期', done: '已完成', empty: '还没有待办',
         staleHint: '超过 {n} 天未完成', loading: '加载中…', failed: '读取失败',
         retry: '重试', pickOne: '选一条看详情',
+        listView: '列表', calendarView: '日历', prevMonth: '上个月', nextMonth: '下个月',
+        nothingThatDay: '这一天没有安排', plansOnDay: (date) => `${date} 的安排`, newOnThatDay: '在这一天新建',
         corruptNotice: '数据文件损坏，已备份并以空清单启动',
         writeNotice: '有改动尚未写入磁盘', retryWrite: '重试写入',
         save: '保存', cancel: '取消',
@@ -49,6 +51,8 @@ window.__ModuleLoader__.load({
         unplanned: 'Unscheduled', done: 'Completed', empty: 'No todos yet',
         staleHint: 'Open for more than {n} days', loading: 'Loading…', failed: 'Failed to load',
         retry: 'Retry', pickOne: 'Select an item',
+        listView: 'List', calendarView: 'Calendar', prevMonth: 'Previous month', nextMonth: 'Next month',
+        nothingThatDay: 'Nothing planned for this day', plansOnDay: (date) => `Plans on ${date}`, newOnThatDay: 'New on this day',
         corruptNotice: 'Data file was corrupt; it is backed up and the list started empty.',
         writeNotice: 'Some changes are not on disk yet', retryWrite: 'Retry write',
         save: 'Save', cancel: 'Cancel',
@@ -187,6 +191,23 @@ window.__ModuleLoader__.load({
       timeList: { minWidth: 0, maxHeight: 150, overflowY: 'auto' },
       timeItem: { width: '100%', height: 28, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-primary)', fontSize: 13, textAlign: 'center', cursor: 'pointer' },
       timeItemOn: { background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)' },
+      // 月视图日历：头部翻月 + 42 格；格子内最多两条，超出折叠成 +N。
+      viewSeg: { display: 'flex', gap: 6, flex: 'none', width: 128 },
+      calendar: { flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 8, padding: '14px 16px 16px' },
+      calendarHead: { display: 'flex', alignItems: 'center', gap: 6, height: 32, flex: 'none' },
+      calendarTitle: { flex: 1, minWidth: 0, textAlign: 'center', fontSize: 14, fontWeight: 600, color: 'var(--dsw-alias-label-primary)' },
+      iconBtn: { flex: 'none', width: 28, height: 28, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-secondary)', fontSize: 16, lineHeight: '28px', textAlign: 'center', cursor: 'pointer' },
+      calendarWeekdays: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, flex: 'none' },
+      calendarWeekday: { textAlign: 'center', fontSize: 11, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' },
+      calendarGrid: { flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridTemplateRows: 'repeat(6, minmax(0, 1fr))', gap: 4 },
+      calendarCell: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 2, minWidth: 0, minHeight: 0, padding: 4, borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l2)', overflow: 'hidden', boxSizing: 'border-box', textAlign: 'left', color: 'var(--dsw-alias-label-primary)', cursor: 'pointer' },
+      calendarDay: { flex: 'none', fontSize: 11, lineHeight: '14px', color: 'var(--dsw-alias-label-secondary)' },
+      calendarItem: { display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, fontSize: 10.5, lineHeight: '14px', color: 'var(--dsw-alias-label-secondary)' },
+      calendarMore: { flex: 'none', paddingLeft: 9, fontSize: 10, lineHeight: '12px', color: 'var(--dsw-alias-label-tertiary)' },
+      dot: { flex: 'none', width: 5, height: 5, borderRadius: 999, background: 'var(--dsw-alias-label-tertiary)' },
+      // 点某天后，详情列改成当天清单；行只展示，不承担列表的选中态。
+      dayRow: { display: 'flex', alignItems: 'center', gap: 8, minHeight: 30, padding: '0 4px', borderRadius: 6 },
+      detailTitle: { fontSize: 15, fontWeight: 600, color: 'var(--dsw-alias-label-primary)', marginBottom: 12 },
     }
 
     // 内联 style 表达不了 :hover / :active / :focus-visible，所以全局插一份样式表。
@@ -317,6 +338,11 @@ window.__ModuleLoader__.load({
         cells.push(dateKeyOf(new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)))
       }
       return cells
+    }
+
+    /** 月标题：日历与日期选择器共用，避免两处格式漂移。 */
+    function monthTitle(year, month) {
+      return `${year} 年 ${month + 1} 月`
     }
 
     /** `HH:mm` 拆成小时与分钟字符串；非法时间返回 null。 */
@@ -616,8 +642,6 @@ window.__ModuleLoader__.load({
       const cells = monthGrid(cursor.year, cursor.month)
       const weekdays = weekdayLabels(t)
 
-      const monthTitle = (year, month) => `${year} 年 ${month + 1} 月`
-
       const closeWith = (next) => {
         onChange(next)
         picker.closePopover()
@@ -891,12 +915,13 @@ window.__ModuleLoader__.load({
      * 保存失败时只在弹窗内报错，不关闭、不清空用户已经填的内容。
      */
     function TodoDialog({ t, initial, mutate, onClose, onSaved, onManageCategories, escSuspended }) {
-      const editing = initial !== null && initial !== undefined
+      // `initial` 有两种语义：带 id 是编辑；只带 dueDate 是从某一天「新建」时的预填。
+      const editing = initial !== null && initial !== undefined && initial.id !== null && initial.id !== undefined
       const [form, setForm] = useState(() => ({
         id: editing ? initial.id : null,
         title: editing ? asText(initial.title) : '',
         note: editing ? asText(initial.note) : '',
-        dueDate: editing ? asText(initial.dueDate) : dateKeyOf(new Date()),
+        dueDate: editing ? asText(initial.dueDate) : (asText(initial?.dueDate) || dateKeyOf(new Date())),
         dueTime: editing ? asText(initial.dueTime) : '',
         priority: editing && ['high', 'medium', 'low'].includes(initial.priority) ? initial.priority : null,
         category: editing ? asText(initial.category) : '',
@@ -1358,6 +1383,106 @@ window.__ModuleLoader__.load({
       ))
     }
 
+    /**
+     * 月视图日历：6×7 月网格直接复用 DateField 的 monthGrid / weekdayLabels，
+     * 数据按整格区间（首格到末格）拉 occurrences，切月时 from/to 变化重新拉。
+     */
+    function CalendarView({ t, onPickDay }) {
+      const [cursor, setCursor] = useState(() => {
+        const at = new Date()
+        return { year: at.getFullYear(), month: at.getMonth() }
+      })
+      const [byDate, setByDate] = useState({})
+
+      const cells = monthGrid(cursor.year, cursor.month)
+      const from = cells[0]
+      const to = cells[cells.length - 1]
+      const monthKey = `${cursor.year}-${String(cursor.month + 1).padStart(2, '0')}`
+      const todayKey = dateKeyOf(new Date())
+      const weekdays = weekdayLabels(t)
+
+      useEffect(() => {
+        let alive = true
+        fetchApi('occurrences', { from, to })
+          .then((result) => {
+            if (!alive) return
+            const map = {}
+            for (const item of Array.isArray(result.items) ? result.items : []) {
+              ;(map[item.date] ??= []).push(item)
+            }
+            setByDate(map)
+          })
+          .catch((err) => {
+            if (!alive) return
+            console.error('[dsh-todolist] occurrences failed', err)
+            setByDate({})
+          })
+        return () => { alive = false }
+      }, [from, to])
+
+      const move = (delta) => {
+        const at = new Date(cursor.year, cursor.month + delta, 1)
+        setCursor({ year: at.getFullYear(), month: at.getMonth() })
+      }
+
+      const goToday = () => {
+        const at = new Date()
+        setCursor({ year: at.getFullYear(), month: at.getMonth() })
+      }
+
+      return h('div', { style: S.calendar },
+        h('div', { style: S.calendarHead },
+          h('button', {
+            type: 'button', className: 'td-btn', style: S.iconBtn,
+            'aria-label': t('prevMonth'), onClick: () => move(-1),
+          }, '‹'),
+          h('div', { style: S.calendarTitle }, monthTitle(cursor.year, cursor.month)),
+          h('button', {
+            type: 'button', className: 'td-btn', style: S.iconBtn,
+            'aria-label': t('nextMonth'), onClick: () => move(1),
+          }, '›'),
+          h('button', {
+            type: 'button', className: 'td-btn',
+            style: { ...S.btnGhost, height: 28, padding: '0 10px' },
+            onClick: goToday,
+          }, t('today'))),
+        h('div', { style: S.calendarWeekdays, 'aria-hidden': 'true' },
+          weekdays.map((label, index) => h('div', { key: String(index), style: S.calendarWeekday }, label))),
+        h('div', { style: S.calendarGrid },
+          cells.map((key) => {
+            const items = byDate[key] ?? []
+            const inMonth = key.slice(0, 7) === monthKey
+            return h('div', {
+              key,
+              role: 'button',
+              tabIndex: 0,
+              className: 'td-btn',
+              'aria-label': key,
+              'data-date': key,
+              style: {
+                ...S.calendarCell,
+                ...(key === todayKey ? S.pickerDayToday : null),
+                ...(inMonth ? null : S.pickerDayOff),
+              },
+              onClick: () => onPickDay(key, items),
+              onKeyDown: (event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault?.()
+                onPickDay(key, items)
+              },
+            },
+            h('div', { style: S.calendarDay }, String(Number(key.slice(8, 10)))),
+            items.slice(0, 2).map((item) => h('div', {
+              key: `${item.todoId}-${item.date}`,
+              style: S.calendarItem,
+            },
+            h('span', { style: { ...S.dot, background: priorityColor(item.priority) }, 'aria-hidden': 'true' }),
+            h('span', { style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, asText(item.title)))),
+            items.length > 2 ? h('div', { style: S.calendarMore }, `+${items.length - 2}`) : null)
+          })),
+      )
+    }
+
     let corruptDismissed = false
 
     function TodoPage(props) {
@@ -1372,6 +1497,9 @@ window.__ModuleLoader__.load({
       const [noticeHidden, setNoticeHidden] = useState(corruptDismissed)
       const [compactDetail, setCompactDetail] = useState(() => window.innerWidth < 1000)
       const [retrying, setRetrying] = useState(false)
+      const [view, setView] = useState('list')
+      // null 或 { key: 'YYYY-MM-DD', items: occurrences[] }；日历点某天后详情列优先显示它。
+      const [day, setDay] = useState(null)
 
       // t 走 ref：语言切换时调用方可能换掉 props.t，但不该让 reload 重新排队。
       const tRef = useRef(t)
@@ -1430,6 +1558,28 @@ window.__ModuleLoader__.load({
         }
       }, [reload])
 
+      /** 重拉某一天：勾选后让当天清单拿到新的完成状态；期间切了日期就丢弃响应。 */
+      const refreshDay = useCallback(async (key) => {
+        try {
+          const result = await fetchApi('occurrences', { from: key, to: key }, tRef.current)
+          setDay((prev) => (prev !== null && prev.key === key
+            ? { key, items: Array.isArray(result.items) ? result.items : [] }
+            : prev))
+        } catch (err) {
+          console.error('[dsh-todolist] occurrences failed', err)
+        }
+      }, [])
+
+      /** 当天清单里勾选：complete 带 date，写完重拉这一天。 */
+      const toggleDayItem = useCallback((item) => {
+        if (day === null) return Promise.resolve()
+        const key = day.key
+        return (async () => {
+          await mutate('complete', { id: item.todoId, done: !item.done, date: item.date })
+          await refreshDay(key)
+        })()
+      }, [day, mutate, refreshDay])
+
       /** 把内存里的改动重试落盘；成功后 reload，宿主清掉 writeError，提示条随之消失。 */
       const retryWrite = useCallback(async () => {
         if (retrying) return
@@ -1468,6 +1618,7 @@ window.__ModuleLoader__.load({
       }, [])
 
       const items = state.items
+      const todayKey = dateKeyOf(new Date())
       const pendingCount = items.filter((item) => item.done && item.doneBy === 'agent' && !item.verifiedAt).length
 
       // 首次出现未核实项（0 → N）时把「已完成」展开，否则标记藏在折叠区里没人看得见。
@@ -1515,6 +1666,21 @@ window.__ModuleLoader__.load({
             style: S.addBtn,
             onClick: () => setCategoryOpen(true),
           }, t('category')),
+          h('div', { style: S.viewSeg }, [
+            ['list', 'listView'],
+            ['calendar', 'calendarView'],
+          ].map(([value, key]) => h('button', {
+            key: value,
+            type: 'button',
+            className: 'td-btn',
+            'aria-pressed': view === value ? 'true' : 'false',
+            style: { ...S.segItem, ...(view === value ? S.segItemOn : null) },
+            onClick: () => {
+              setView(value)
+              // 切回列表时清掉按天选择，详情列恢复成选中项详情。
+              if (value === 'list') setDay(null)
+            },
+          }, t(key)))),
           h('input', {
             className: 'td-input',
             style: S.search, placeholder: t('search'), value: query,
@@ -1550,117 +1716,155 @@ window.__ModuleLoader__.load({
           }, t('retry')))
           : null,
         h('div', { style: S.body },
-          h('div', { style: S.list },
-            state.loading && items.length === 0
-              ? h('div', { style: S.empty }, t('loading'))
-              : items.length === 0
-                ? (query !== ''
-                  ? h('div', { style: S.empty }, t('noMatch'))
-                  : h('div', { style: S.empty },
-                    h('div', null, t('empty')),
-                    h('div', { style: { marginTop: 12 } },
-                      h('button', {
-                        className: 'td-btn td-elevated',
-                        style: S.addBtn,
-                        onClick: () => setDialog({ initial: null }),
-                      }, t('emptyHint')))))
-                : h('div', null,
-                  openGroups.map((group) => h('div', { key: group.bucket },
-                    h('div', { style: S.sec },
-                      h('span', { style: S.secT }, t(group.bucket)),
-                      h('span', { style: S.secN }, String(group.items.length)),
-                      group.bucket === 'stale' ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-error-primary)' } }, t('staleHint').replace('{n}', String(state.staleDays))) : null,
-                      h('span', { style: S.line }),
-                    ),
-                    group.items.map((item) => renderRow(item)),
-                  )),
-                  doneItems.length === 0 ? null : h('div', { key: 'done' },
-                    h('button', {
-                      className: 'td-btn',
-                      style: S.secBtn,
-                      'aria-expanded': doneOpen ? 'true' : 'false',
-                      onClick: () => {
-                        doneTouched.current = true
-                        setDoneOpen((open) => !open)
-                      },
-                    },
-                    h('span', { style: S.secT }, t('done')),
-                    h('span', { style: S.secN }, String(doneItems.length)),
-                    pendingCount > 0
-                      ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-warn-primary)' } }, `${pendingCount} ${t('needsReview')}`)
-                      : null,
-                    h('span', { style: S.line }),
-                    h('span', { style: { ...S.secN, fontSize: 10 } }, doneOpen ? '▾' : '▸'),
-                    ),
-                    doneOpen ? doneSections.map((section) => h('div', { key: section.bucket },
-                      h('div', { style: S.subsec },
-                        h('span', { style: S.secT }, t(section.bucket)),
-                        h('span', { style: S.secN }, String(section.items.length)),
+          view === 'calendar'
+            ? h(CalendarView, { t, onPickDay: (key, items) => setDay({ key, items }) })
+            : h('div', { style: S.list },
+              state.loading && items.length === 0
+                ? h('div', { style: S.empty }, t('loading'))
+                : items.length === 0
+                  ? (query !== ''
+                    ? h('div', { style: S.empty }, t('noMatch'))
+                    : h('div', { style: S.empty },
+                      h('div', null, t('empty')),
+                      h('div', { style: { marginTop: 12 } },
+                        h('button', {
+                          className: 'td-btn td-elevated',
+                          style: S.addBtn,
+                          onClick: () => setDialog({ initial: null }),
+                        }, t('emptyHint')))))
+                  : h('div', null,
+                    openGroups.map((group) => h('div', { key: group.bucket },
+                      h('div', { style: S.sec },
+                        h('span', { style: S.secT }, t(group.bucket)),
+                        h('span', { style: S.secN }, String(group.items.length)),
+                        group.bucket === 'stale' ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-error-primary)' } }, t('staleHint').replace('{n}', String(state.staleDays))) : null,
                         h('span', { style: S.line }),
                       ),
-                      section.items.map((item) => renderRow(item)),
-                    )) : null,
-                  ),
-                ),
-          ),
-          h('div', { style: compactDetail ? { ...S.detail, width: 320 } : S.detail },
-            selectedItem
-              ? h('div', null,
-                h('div', { style: { fontSize: 15, fontWeight: 600, color: 'var(--dsw-alias-label-primary)', marginBottom: 12 } }, selectedTitle),
-                selectedNote !== '' ? h('div', { style: { marginBottom: 10, lineHeight: '20px', whiteSpace: 'pre-wrap' } }, selectedNote) : null,
-                h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 } },
-                  selectedItem.priority
-                    ? detailRow(t('priority'), h('span', {
-                        style: {
-                          padding: '1px 8px', borderRadius: 999,
-                          color: priorityColor(selectedItem.priority),
-                          background: `color-mix(in srgb, ${priorityColor(selectedItem.priority)} 12%, transparent)`,
+                      group.items.map((item) => renderRow(item)),
+                    )),
+                    doneItems.length === 0 ? null : h('div', { key: 'done' },
+                      h('button', {
+                        className: 'td-btn',
+                        style: S.secBtn,
+                        'aria-expanded': doneOpen ? 'true' : 'false',
+                        onClick: () => {
+                          doneTouched.current = true
+                          setDoneOpen((open) => !open)
                         },
-                      }, priorityLabel(selectedItem.priority, t)))
-                    : null,
-                  selectedDueDate !== '' ? detailRow(t('dueDate'), `${selectedDueDate}${selectedDueTime !== '' ? ' ' + selectedDueTime : ''}`) : null,
-                  selectedCategory !== '' ? detailRow(t('category'), selectedCategory) : null,
-                  selectedItem.createdAt ? detailRow(t('created'), formatDateTime(selectedItem.createdAt)) : null),
-                h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
-                  h('button', {
-                    className: 'td-btn',
-                    style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)' },
-                    onClick: () => setDialog({ initial: selectedItem }),
-                  }, t('edit')),
-                  h('button', {
-                    className: 'td-primary',
-                    style: { flex: 1, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5 },
-                    onClick: () => void mutate('complete', { id: selectedItem.id, done: !selectedItem.done }),
-                  }, selectedItem.done ? t('reopen') : t('complete')),
-                  h('button', {
-                    className: 'td-btn',
-                    style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', color: confirming ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
-                    onClick: async () => {
-                      // 进入或结束确认态之前都先清掉旧 timer，保证只剩当前这一轮。
-                      clearConfirmTimer()
-                      if (!confirming) {
-                        setConfirming(true)
-                        confirmTimer.current = window.setTimeout(() => {
-                          confirmTimer.current = null
-                          setConfirming(false)
-                        }, 3000)
-                        return
-                      }
-                      setConfirming(false)
-                      setSelected(null)
-                      await mutate('remove', { id: selectedItem.id })
+                      },
+                      h('span', { style: S.secT }, t('done')),
+                      h('span', { style: S.secN }, String(doneItems.length)),
+                      pendingCount > 0
+                        ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-warn-primary)' } }, `${pendingCount} ${t('needsReview')}`)
+                        : null,
+                      h('span', { style: S.line }),
+                      h('span', { style: { ...S.secN, fontSize: 10 } }, doneOpen ? '▾' : '▸'),
+                      ),
+                      doneOpen ? doneSections.map((section) => h('div', { key: section.bucket },
+                        h('div', { style: S.subsec },
+                          h('span', { style: S.secT }, t(section.bucket)),
+                          h('span', { style: S.secN }, String(section.items.length)),
+                          h('span', { style: S.line }),
+                        ),
+                        section.items.map((item) => renderRow(item)),
+                      )) : null,
+                    ),
+                  ),
+            ),
+          h('div', { style: compactDetail ? { ...S.detail, width: 320 } : S.detail },
+            day !== null
+              ? h('div', null,
+                h('div', { style: S.detailTitle }, t('plansOnDay')(day.key === todayKey ? t('today') : day.key.slice(5))),
+                day.items.length === 0
+                  ? h('div', { style: S.empty }, t('nothingThatDay'))
+                  : day.items.map((item) => h('div', {
+                      key: `${item.todoId}-${item.date}`,
+                      style: S.dayRow,
                     },
-                  }, confirming ? t('confirmRemove') : t('remove')),
-                ),
-                selectedItem.done && selectedItem.doneBy === 'agent' && !selectedItem.verifiedAt
-                  ? h('button', {
+                    h('span', {
+                      role: 'checkbox',
+                      'aria-checked': item.done ? 'true' : 'false',
+                      'aria-label': asText(item.title),
+                      tabIndex: 0,
+                      className: 'td-check',
+                      style: item.done ? S.cbDone : S.cb,
+                      onClick: (event) => { event.stopPropagation(); void toggleDayItem(item) },
+                      onKeyDown: (event) => {
+                        if (event.nativeEvent?.isComposing === true) return
+                        if (event.key !== ' ' && event.key !== 'Enter') return
+                        event.preventDefault()
+                        event.stopPropagation()
+                        void toggleDayItem(item)
+                      },
+                    }, item.done
+                      ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--dsw-alias-label-primary-inverted)', strokeWidth: 2.4 },
+                          h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))
+                      : null),
+                    h('span', { style: item.done ? S.nmDone : S.nm }, asText(item.title)),
+                    h('span', { style: { ...S.dot, background: priorityColor(item.priority), marginLeft: 4 }, 'aria-hidden': 'true' }))),
+                h('button', {
+                  type: 'button',
+                  className: 'td-btn',
+                  style: { ...S.btnGhost, width: '100%', marginTop: 10 },
+                  onClick: () => setDialog({ initial: { dueDate: day.key } }),
+                }, t('newOnThatDay')))
+              : selectedItem
+                ? h('div', null,
+                  h('div', { style: S.detailTitle }, selectedTitle),
+                  selectedNote !== '' ? h('div', { style: { marginBottom: 10, lineHeight: '20px', whiteSpace: 'pre-wrap' } }, selectedNote) : null,
+                  h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 } },
+                    selectedItem.priority
+                      ? detailRow(t('priority'), h('span', {
+                          style: {
+                            padding: '1px 8px', borderRadius: 999,
+                            color: priorityColor(selectedItem.priority),
+                            background: `color-mix(in srgb, ${priorityColor(selectedItem.priority)} 12%, transparent)`,
+                          },
+                        }, priorityLabel(selectedItem.priority, t)))
+                      : null,
+                    selectedDueDate !== '' ? detailRow(t('dueDate'), `${selectedDueDate}${selectedDueTime !== '' ? ' ' + selectedDueTime : ''}`) : null,
+                    selectedCategory !== '' ? detailRow(t('category'), selectedCategory) : null,
+                    selectedItem.createdAt ? detailRow(t('created'), formatDateTime(selectedItem.createdAt)) : null),
+                  h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
+                    h('button', {
+                      className: 'td-btn',
+                      style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)' },
+                      onClick: () => setDialog({ initial: selectedItem }),
+                    }, t('edit')),
+                    h('button', {
                       className: 'td-primary',
-                      style: { width: '100%', height: 32, marginTop: 8, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5 },
-                      onClick: () => void mutate('confirm', { id: selectedItem.id }),
-                    }, t('confirmDone'))
-                  : null,
-              )
-              : h('div', { style: { color: 'var(--dsw-alias-label-tertiary)' } }, t('pickOne')),
+                      style: { flex: 1, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5 },
+                      onClick: () => void mutate('complete', { id: selectedItem.id, done: !selectedItem.done }),
+                    }, selectedItem.done ? t('reopen') : t('complete')),
+                    h('button', {
+                      className: 'td-btn',
+                      style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', color: confirming ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
+                      onClick: async () => {
+                        // 进入或结束确认态之前都先清掉旧 timer，保证只剩当前这一轮。
+                        clearConfirmTimer()
+                        if (!confirming) {
+                          setConfirming(true)
+                          confirmTimer.current = window.setTimeout(() => {
+                            confirmTimer.current = null
+                            setConfirming(false)
+                          }, 3000)
+                          return
+                        }
+                        setConfirming(false)
+                        setSelected(null)
+                        await mutate('remove', { id: selectedItem.id })
+                      },
+                    }, confirming ? t('confirmRemove') : t('remove')),
+                  ),
+                  selectedItem.done && selectedItem.doneBy === 'agent' && !selectedItem.verifiedAt
+                    ? h('button', {
+                        className: 'td-primary',
+                        style: { width: '100%', height: 32, marginTop: 8, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5 },
+                        onClick: () => void mutate('confirm', { id: selectedItem.id }),
+                      }, t('confirmDone'))
+                    : null,
+                )
+                : h('div', { style: { color: 'var(--dsw-alias-label-tertiary)' } }, t('pickOne')),
           ),
         ),
         dialog !== null
