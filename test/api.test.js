@@ -117,3 +117,14 @@ test('retry 走 api 分发，list 带回 staleDays', async () => {
   assert.equal(listed.staleDays, 7)
   await store.close()
 })
+
+test('分类三个方法可分发', async () => {
+  const { api, store } = await makeApi()
+  await api.create({ title: 'a', category: '工作' })
+  assert.deepEqual(api.categories().items, [{ name: '工作', count: 1 }])
+  await api.renameCategory({ from: '工作', to: '事业' })
+  assert.deepEqual(api.categories().items, [{ name: '事业', count: 1 }])
+  await api.clearCategory({ name: '事业' })
+  assert.deepEqual(api.categories().items, [])
+  await store.close()
+})

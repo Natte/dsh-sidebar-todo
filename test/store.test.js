@@ -291,3 +291,54 @@ test('confirm 只允许确认 agent 完成的记录', async () => {
   )
   await store.close()
 })
+
+test('categories 按使用量排序', async () => {
+  const { store } = await tempStore()
+  await store.create({ title: 'a', category: '工作' })
+  await store.create({ title: 'b', category: '工作' })
+  await store.create({ title: 'c', category: '生活' })
+  const { items } = store.categories()
+  assert.deepEqual(items, [{ name: '工作', count: 2 }, { name: '生活', count: 1 }])
+  await store.close()
+})
+
+test('renameCategory 改名并合并到已有分类', async () => {
+  const { store } = await tempStore()
+  await store.create({ title: 'a', category: '生活' })
+  const b = await store.create({ title: 'b', category: '日常' })
+  const out = await store.renameCategory('生活', '日常')
+  assert.equal(out.moved, 1)
+  const { items } = await store.list()
+  assert.equal(items.find((t) => t.id === b.id).category, '日常')
+  assert.equal(items.filter((t) => t.category === '日常').length, 2)
+  await store.close()
+})
+
+test('renameCategory 空名与非法输入被拒', async () => {
+  const { store } = await tempStore()
+  await assert.rejects(() => store.renameCategory('生活', '  '), (e) => e.code === 'invalid-input')
+  await assert.rejects(() => store.renameCategory('', 'x'), (e) => e.code === 'invalid-input')
+  await store.close()
+})
+
+test('clearCategory 把待办退回无分类', async () => {
+  const { store } = await tempStore()
+  const a = await store.create({ title: 'a', category: '生活' })
+  const out = await store.clearCategory('生活')
+  assert.equal(out.cleared, 1)
+  const { items } = await store.list()
+  assert.equal(items.find((t) => t.id === a.id).category, null)
+  await store.close()
+})
+
+test('改名后落盘，重建 store 仍生效', async () => {
+  const { store, file } = await tempStore()
+  await store.create({ title: 'a', category: '生活' })
+  await store.renameCategory('生活', '日常')
+  await store.close()
+  const again = createStore({ file })
+  await again.load()
+  const { items } = await again.list()
+  assert.equal(items[0].category, '日常')
+  await again.close()
+})
