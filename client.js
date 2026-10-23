@@ -18,7 +18,11 @@ window.__ModuleLoader__.load({
         save: '保存', cancel: '取消',
         complete: '完成', reopen: '撤销完成', remove: '删除', confirmRemove: '确认删除', edit: '编辑',
         needsReview: '待确认', confirmDone: '确认已完成',
-        note: '备注', priority: '优先级', dueDate: '截止日期', dueTime: '时间', category: '分类',
+        note: '备注', priority: '优先级', dueDate: '截止日期', dueTime: '时间',
+        category: '分类', noCategory: '无分类', categoryManage: '管理分类', categoryEmpty: '暂无分类',
+        categoryCount: (count) => `${count} 条`,
+        rename: '重命名', deleteOne: '删除', confirmDelete: '确认删除',
+        saveRename: '保存', cancelRename: '取消',
         dialogNew: '新建待办', dialogEdit: '编辑待办',
         fieldTitle: '标题', fieldNote: '备注', fieldDate: '日期', fieldTime: '时间',
         fieldPriority: '优先级', fieldCategory: '分类',
@@ -41,7 +45,11 @@ window.__ModuleLoader__.load({
         save: 'Save', cancel: 'Cancel',
         complete: 'Complete', reopen: 'Reopen', remove: 'Delete', confirmRemove: 'Confirm delete', edit: 'Edit',
         needsReview: 'Needs review', confirmDone: 'Confirm done',
-        note: 'Note', priority: 'Priority', dueDate: 'Due date', dueTime: 'Time', category: 'Category',
+        note: 'Note', priority: 'Priority', dueDate: 'Due date', dueTime: 'Time',
+        category: 'Category', noCategory: 'No category', categoryManage: 'Manage categories', categoryEmpty: 'No categories',
+        categoryCount: (count) => `${count} ${count === 1 ? 'item' : 'items'}`,
+        rename: 'Rename', deleteOne: 'Delete', confirmDelete: 'Confirm delete',
+        saveRename: 'Save', cancelRename: 'Cancel',
         dialogNew: 'New todo', dialogEdit: 'Edit todo',
         fieldTitle: 'Title', fieldNote: 'Note', fieldDate: 'Date', fieldTime: 'Time',
         fieldPriority: 'Priority', fieldCategory: 'Category',
@@ -119,6 +127,23 @@ window.__ModuleLoader__.load({
       noticeClose: { flex: 'none', width: 20, height: 20, padding: 0, lineHeight: '18px', textAlign: 'center', border: 'none', borderRadius: 4, color: 'inherit', fontSize: 14, cursor: 'pointer' },
       secBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', marginTop: 6, border: 'none', cursor: 'pointer', textAlign: 'left' },
       subsec: { display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px 0 16px', marginTop: 2 },
+      // 分类组合框：外框仍是普通 input，下拉是绝对定位的兄弟节点，位置与宽度跟随输入框。
+      // 分类字段在弹窗底部，向下展开会被 .td-dialog 的滚动容器裁掉，所以向上弹出。
+      pop: { position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 10, boxSizing: 'border-box', padding: 4, borderRadius: 8, background: 'var(--dsw-alias-bg-layer-1)', border: '0.5px solid var(--dsw-alias-border-l2)', boxShadow: 'var(--dsw-elevation-panel)' },
+      popEmpty: { padding: '8px', fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' },
+      popList: { maxHeight: 208, overflowY: 'auto' },
+      popItem: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, cursor: 'pointer', textAlign: 'left' },
+      popCount: { marginLeft: 'auto', flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
+      popSep: { height: '0.5px', margin: 4, background: 'var(--dsw-alias-border-l2)' },
+      popManage: { display: 'flex', alignItems: 'center', width: '100%', height: 30, padding: '0 8px', border: 'none', borderRadius: 6, color: 'var(--dsw-alias-state-business-primary)', fontSize: 12.5, cursor: 'pointer', textAlign: 'left' },
+      comboClear: { position: 'absolute', top: 0, right: 0, width: 30, height: 32, padding: 0, border: 'none', borderRadius: 8, color: 'var(--dsw-alias-label-tertiary)', fontSize: 14, lineHeight: '32px', textAlign: 'center', cursor: 'pointer' },
+      // 分类管理弹窗的行：名称吃满剩余宽度，计数与操作靠右。
+      catRow: { display: 'flex', alignItems: 'center', gap: 8, minHeight: 34, padding: '0 8px', borderRadius: 6 },
+      catName: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 },
+      catCount: { flex: 'none', minWidth: 46, textAlign: 'right', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
+      catAction: { flex: 'none', height: 26, padding: '0 9px', borderRadius: 6, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5, cursor: 'pointer' },
+      catSave: { flex: 'none', height: 26, padding: '0 9px', borderRadius: 6, border: 'none', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 11.5, cursor: 'pointer' },
+      catEmpty: { padding: '18px 8px', textAlign: 'center', fontSize: 12.5, color: 'var(--dsw-alias-label-tertiary)' },
     }
 
     // 标题是真正的 <button>（键盘可达），但外观仍是普通文本。
@@ -254,6 +279,100 @@ window.__ModuleLoader__.load({
       return 'earlier'
     }
 
+    /** 服务端 categories 返回 `{ items: [{ name, count }] }`；脏数据按空名跳过。 */
+    function normalizeCategories(result) {
+      const items = result !== null && typeof result === 'object' && Array.isArray(result.items) ? result.items : []
+      const rows = []
+      for (const item of items) {
+        if (item === null || typeof item !== 'object') continue
+        const name = asText(item.name)
+        if (name === '') continue
+        rows.push({ name, count: Number.isInteger(item.count) ? item.count : 0 })
+      }
+      return rows
+    }
+
+    /**
+     * 分类组合框：可自由输入新分类，聚焦即展开已有分类（名称 + 条数）。
+     * 下拉的定位容器就是 ref 所在的外框，document 上的 pointerdown 据此判断点内还是点外。
+     */
+    function CategoryCombo({ t, value, categories, onChange, onManage }) {
+      const [open, setOpen] = useState(false)
+      const wrapRef = useRef(null)
+
+      useEffect(() => {
+        if (!open) return undefined
+        const onPointerDown = (event) => {
+          const wrap = wrapRef.current
+          if (wrap !== null && typeof wrap.contains === 'function' && wrap.contains(event.target)) return
+          setOpen(false)
+        }
+        document.addEventListener('pointerdown', onPointerDown)
+        return () => document.removeEventListener('pointerdown', onPointerDown)
+      }, [open])
+
+      const text = asText(value)
+      const needle = text.trim().toLowerCase()
+      const visible = needle === ''
+        ? categories
+        : categories.filter((row) => row.name.toLowerCase().includes(needle))
+      const countLabel = t('categoryCount')
+
+      return h('div', {
+        ref: wrapRef,
+        style: { position: 'relative' },
+        // 焦点在输入框或下拉按钮里时，Esc 先收起下拉，再让弹窗的 document 监听看不到这次按键。
+        onKeyDown: (event) => {
+          if (!open || event.key !== 'Escape') return
+          event.stopPropagation?.()
+          setOpen(false)
+        },
+      },
+      h('input', {
+        className: 'td-input',
+        style: text === '' ? S.input : { ...S.input, paddingRight: 32 },
+        value: text,
+        placeholder: t('noCategory'),
+        role: 'combobox',
+        'aria-expanded': open ? 'true' : 'false',
+        'aria-autocomplete': 'list',
+        'aria-label': t('fieldCategory'),
+        onFocus: () => setOpen(true),
+        onChange: (event) => { onChange(event.target.value); setOpen(true) },
+      }),
+      text !== ''
+        ? h('button', {
+            type: 'button',
+            className: 'td-btn',
+            style: S.comboClear,
+            'aria-label': t('noCategory'),
+            title: t('noCategory'),
+            onClick: () => { onChange(''); setOpen(true) },
+          }, '×')
+        : null,
+      open
+        ? h('div', { className: 'td-pop', style: S.pop },
+            visible.length === 0
+              ? h('div', { style: S.popEmpty }, t('categoryEmpty'))
+              : h('div', { style: S.popList }, visible.map((row) => h('button', {
+                  key: row.name,
+                  type: 'button',
+                  className: 'td-btn',
+                  style: S.popItem,
+                  onClick: () => { onChange(row.name); setOpen(false) },
+                },
+                h('span', { style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.name),
+                h('span', { style: S.popCount }, typeof countLabel === 'function' ? countLabel(row.count) : `${row.count} ${countLabel}`)))),
+            h('div', { style: S.popSep, 'aria-hidden': 'true' }),
+            h('button', {
+              type: 'button',
+              className: 'td-btn',
+              style: S.popManage,
+              onClick: () => { setOpen(false); onManage?.() },
+            }, t('categoryManage')))
+        : null)
+    }
+
     function Row({ item, selected, onSelect, onToggle, t }) {
       const today = new Date()
       const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
@@ -269,12 +388,13 @@ window.__ModuleLoader__.load({
         style: selected ? { ...S.row, background: 'var(--dsw-alias-interactive-bg-hover)' } : S.row,
         onClick: () => onSelect(item.id),
       },
-      item.priority
-        ? h('span', {
-            style: { width: 3, height: 18, borderRadius: 2, flex: 'none', background: priorityColor(item.priority) },
-            'aria-hidden': 'true',
-          })
-        : null,
+      h('span', {
+        'aria-hidden': 'true',
+        style: {
+          width: 3, height: 18, borderRadius: 2, flex: 'none',
+          background: item.priority ? priorityColor(item.priority) : 'transparent',
+        },
+      }),
       h('span', {
         role: 'checkbox',
         'aria-checked': item.done ? 'true' : 'false',
@@ -314,7 +434,7 @@ window.__ModuleLoader__.load({
      * 空字符串一律转成 null 再提交，否则宿主会把 '' 当成「有值」。
      * 保存失败时只在弹窗内报错，不关闭、不清空用户已经填的内容。
      */
-    function TodoDialog({ t, initial, categories, mutate, onClose, onSaved }) {
+    function TodoDialog({ t, initial, mutate, onClose, onSaved, onManageCategories, escSuspended }) {
       const editing = initial !== null && initial !== undefined
       const [form, setForm] = useState(() => ({
         id: editing ? initial.id : null,
@@ -328,6 +448,8 @@ window.__ModuleLoader__.load({
       const [quick, setQuick] = useState('')
       const [error, setError] = useState(null)
       const [saving, setSaving] = useState(false)
+      // 分类候选只在弹窗打开时拉一次；保存后页面自己会刷新，下一次开窗再拉。
+      const [categoryRows, setCategoryRows] = useState([])
 
       const alive = useRef(true)
       const seq = useRef(0)
@@ -340,8 +462,21 @@ window.__ModuleLoader__.load({
 
       useEffect(() => { closeRef.current = onClose }, [onClose])
 
-      // 弹窗打开期间才监听 Esc；卸载时解绑，避免宿主里留下悬空监听。
+      // 分类条数与名称由服务端统计；失败不阻塞表单，下拉退化成「暂无分类」。
       useEffect(() => {
+        let cancelled = false
+        fetchApi('categories', {}, t)
+          .then((result) => {
+            if (cancelled || !alive.current) return
+            setCategoryRows(normalizeCategories(result))
+          })
+          .catch((err) => console.error('[dsh-todolist] categories failed', err))
+        return () => { cancelled = true }
+      }, [])
+
+      // 弹窗打开期间才监听 Esc；分类管理弹窗叠在上面时由它自己接管，避免 Esc 一次关两层。
+      useEffect(() => {
+        if (escSuspended) return undefined
         const onKeyDown = (event) => {
           if (event.key !== 'Escape') return
           event.stopPropagation?.()
@@ -349,7 +484,7 @@ window.__ModuleLoader__.load({
         }
         document.addEventListener('keydown', onKeyDown)
         return () => document.removeEventListener('keydown', onKeyDown)
-      }, [])
+      }, [escSuspended])
 
       // 输入停顿 200ms 后解析；seq 保证只有最后一次输入的结果能写表单。
       useEffect(() => {
@@ -476,20 +611,228 @@ window.__ModuleLoader__.load({
                 })),
               }, t(key))))),
 
-        h('label', { style: S.field },
+        h('div', { style: S.field },
           h('span', { style: S.fieldLabel }, t('fieldCategory')),
-          h('input', {
-            className: 'td-input',
-            style: S.input, value: form.category, list: 'todo-categories',
-            onChange: (e) => setForm((prev) => ({ ...prev, category: e.target.value })),
-          }),
-          h('datalist', { id: 'todo-categories' },
-            categories.map((category) => h('option', { key: category, value: category })))),
+          h(CategoryCombo, {
+            t,
+            value: form.category,
+            categories: categoryRows,
+            onChange: (next) => setForm((prev) => ({ ...prev, category: next })),
+            onManage: onManageCategories,
+          })),
 
         error !== null ? h('div', { style: S.dialogError }, error) : null,
         h('div', { style: S.dialogFoot },
           h('button', { type: 'button', className: 'td-btn', style: S.btnGhost, onClick: onClose, disabled: saving }, t('cancel')),
           h('button', { type: 'button', className: 'td-primary', style: S.btnPrimary, onClick: () => void submit(), disabled: saving }, t('save'))),
+      ))
+    }
+
+    /**
+     * 分类管理弹窗：行内改名、两段式删除；写成功后先刷新页面列表，再重拉分类计数。
+     * 入口有两处：页头「分类」按钮，以及新建 / 编辑弹窗分类下拉底部的「管理分类」。
+     */
+    function CategoryDialog({ t, onClose, onChanged }) {
+      const [rows, setRows] = useState(null)
+      const [loadFailed, setLoadFailed] = useState(false)
+      const [editing, setEditing] = useState(null)
+      const [confirming, setConfirming] = useState(null)
+      const [saving, setSaving] = useState(false)
+      const [error, setError] = useState(null)
+
+      const alive = useRef(true)
+      const closeRef = useRef(onClose)
+      const tRef = useRef(t)
+      const confirmTimer = useRef(null)
+
+      useEffect(() => { tRef.current = t }, [t])
+
+      const clearConfirmTimer = useCallback(() => {
+        if (confirmTimer.current !== null) {
+          window.clearTimeout(confirmTimer.current)
+          confirmTimer.current = null
+        }
+      }, [])
+
+      useEffect(() => {
+        alive.current = true
+        return () => {
+          alive.current = false
+          clearConfirmTimer()
+        }
+      }, [clearConfirmTimer])
+
+      useEffect(() => { closeRef.current = onClose }, [onClose])
+
+      const load = useCallback(async () => {
+        try {
+          const result = await fetchApi('categories', {}, tRef.current)
+          if (!alive.current) return
+          setRows(normalizeCategories(result))
+          setLoadFailed(false)
+        } catch (err) {
+          if (!alive.current) return
+          console.error('[dsh-todolist] categories failed', err)
+          setRows([])
+          setLoadFailed(true)
+        }
+      }, [])
+
+      useEffect(() => { void load() }, [load])
+
+      // 弹窗打开期间才监听 Esc；卸载时解绑，避免宿主里留下悬空监听。
+      useEffect(() => {
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') return
+          event.stopPropagation?.()
+          closeRef.current()
+        }
+        document.addEventListener('keydown', onKeyDown)
+        return () => document.removeEventListener('keydown', onKeyDown)
+      }, [])
+
+      /** 先刷新页面（行上的分类标签），再重拉弹窗自己的名称与计数。 */
+      const refreshAfterWrite = useCallback(async () => {
+        await onChanged?.()
+        await load()
+      }, [load, onChanged])
+
+      const startRename = (name) => {
+        clearConfirmTimer()
+        setConfirming(null)
+        setError(null)
+        setEditing({ from: name, value: name })
+      }
+
+      const submitRename = async () => {
+        if (editing === null || saving) return
+        const to = editing.value.trim()
+        if (to === '') return
+        if (to === editing.from) { setEditing(null); return }
+        setSaving(true)
+        setError(null)
+        try {
+          await fetchApi('renameCategory', { from: editing.from, to }, tRef.current)
+          if (!alive.current) return
+          setEditing(null)
+          await refreshAfterWrite()
+        } catch (err) {
+          if (!alive.current) return
+          setError(err instanceof Error && err.message ? err.message : tRef.current('requestFailed'))
+        } finally {
+          if (alive.current) setSaving(false)
+        }
+      }
+
+      const requestDelete = async (name) => {
+        if (saving) return
+        setError(null)
+        if (confirming !== name) {
+          clearConfirmTimer()
+          setEditing(null)
+          setConfirming(name)
+          confirmTimer.current = window.setTimeout(() => {
+            confirmTimer.current = null
+            setConfirming(null)
+          }, 3000)
+          return
+        }
+        clearConfirmTimer()
+        setConfirming(null)
+        setSaving(true)
+        try {
+          await fetchApi('clearCategory', { name }, tRef.current)
+          if (!alive.current) return
+          setEditing(null)
+          await refreshAfterWrite()
+        } catch (err) {
+          if (!alive.current) return
+          setError(err instanceof Error && err.message ? err.message : tRef.current('requestFailed'))
+        } finally {
+          if (alive.current) setSaving(false)
+        }
+      }
+
+      const countLabel = t('categoryCount')
+
+      return h('div', {
+        className: 'td-overlay',
+        style: S.overlay,
+        onClick: (event) => { if (event.target === event.currentTarget) onClose() },
+      },
+      h('div', { className: 'td-dialog', style: S.dialog, role: 'dialog', 'aria-modal': 'true', 'aria-label': t('category') },
+        h('div', { style: S.dialogHead }, t('category')),
+        loadFailed ? h('div', { style: S.dialogError }, t('failed')) : null,
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 320, overflowY: 'auto', marginTop: 4 } },
+          rows === null
+            ? h('div', { style: S.catEmpty }, t('loading'))
+            : rows.length === 0
+              ? h('div', { style: S.catEmpty }, t('categoryEmpty'))
+              : rows.map((row) => {
+                  const renaming = editing !== null && editing.from === row.name
+                  const confirmingThis = confirming === row.name
+                  return h('div', { key: row.name, className: 'td-row', style: S.catRow },
+                    renaming
+                      ? h('input', {
+                          className: 'td-input',
+                          autoFocus: true,
+                          style: { ...S.input, height: 28, flex: 1, minWidth: 0 },
+                          value: editing.value,
+                          'aria-label': t('rename'),
+                          onChange: (event) => setEditing((prev) => (prev === null ? prev : { ...prev, value: event.target.value })),
+                          onKeyDown: (event) => {
+                            if (event.nativeEvent?.isComposing === true) return
+                            if (event.key === 'Enter') { event.preventDefault?.(); void submitRename() }
+                            if (event.key === 'Escape') { event.preventDefault?.(); event.stopPropagation?.(); setEditing(null) }
+                          },
+                        })
+                      : h('span', { style: S.catName }, row.name),
+                    h('span', { style: S.catCount }, typeof countLabel === 'function' ? countLabel(row.count) : `${row.count} ${countLabel}`),
+                    renaming
+                      ? [
+                          h('button', {
+                            key: 'save',
+                            type: 'button',
+                            className: 'td-btn td-primary',
+                            style: S.catSave,
+                            disabled: saving || editing.value.trim() === '',
+                            onClick: () => void submitRename(),
+                          }, t('saveRename')),
+                          h('button', {
+                            key: 'cancel',
+                            type: 'button',
+                            className: 'td-btn',
+                            style: S.catAction,
+                            disabled: saving,
+                            onClick: () => setEditing(null),
+                          }, t('cancelRename')),
+                        ]
+                      : [
+                          h('button', {
+                            key: 'rename',
+                            type: 'button',
+                            className: 'td-btn',
+                            style: S.catAction,
+                            disabled: saving,
+                            onClick: () => startRename(row.name),
+                          }, t('rename')),
+                          h('button', {
+                            key: 'delete',
+                            type: 'button',
+                            className: 'td-btn',
+                            style: confirmingThis
+                              ? { ...S.catAction, color: 'var(--dsw-alias-state-error-primary)', borderColor: 'var(--dsw-alias-state-error-primary)' }
+                              : S.catAction,
+                            disabled: saving,
+                            onClick: () => void requestDelete(row.name),
+                          }, confirmingThis ? t('confirmDelete') : t('deleteOne')),
+                        ],
+                  )
+                }),
+        ),
+        error !== null ? h('div', { style: S.dialogError }, error) : null,
+        h('div', { style: S.dialogFoot },
+          h('button', { type: 'button', className: 'td-btn', style: S.btnGhost, onClick: onClose }, t('dismiss'))),
       ))
     }
 
@@ -501,6 +844,7 @@ window.__ModuleLoader__.load({
       const [query, setQuery] = useState('')
       const [selected, setSelected] = useState(null)
       const [dialog, setDialog] = useState(null)
+      const [categoryOpen, setCategoryOpen] = useState(false)
       const [confirming, setConfirming] = useState(false)
       const [doneOpen, setDoneOpen] = useState(false)
       const [noticeHidden, setNoticeHidden] = useState(corruptDismissed)
@@ -603,7 +947,6 @@ window.__ModuleLoader__.load({
 
       const items = state.items
       const pendingCount = items.filter((item) => item.done && item.doneBy === 'agent' && !item.verifiedAt).length
-      const categories = [...new Set(state.items.map((i) => i.category).filter(Boolean))]
 
       // 首次出现未核实项（0 → N）时把「已完成」展开，否则标记藏在折叠区里没人看得见。
       // 用户手动操作过（doneTouched）就不再自动展开，徽标仍然照常更新。
@@ -645,6 +988,11 @@ window.__ModuleLoader__.load({
             style: S.addBtn,
             onClick: () => setDialog({ initial: null }),
           }, `+ ${t('new')}`),
+          h('button', {
+            className: 'td-btn',
+            style: S.addBtn,
+            onClick: () => setCategoryOpen(true),
+          }, t('category')),
           h('input', {
             className: 'td-input',
             style: S.search, placeholder: t('search'), value: query,
@@ -797,10 +1145,18 @@ window.__ModuleLoader__.load({
           ? h(TodoDialog, {
               t,
               initial: dialog.initial,
-              categories,
               mutate,
               onClose: () => setDialog(null),
               onSaved: () => setDialog(null),
+              onManageCategories: () => setCategoryOpen(true),
+              escSuspended: categoryOpen,
+            })
+          : null,
+        categoryOpen
+          ? h(CategoryDialog, {
+              t,
+              onClose: () => setCategoryOpen(false),
+              onChanged: reload,
             })
           : null,
       )
