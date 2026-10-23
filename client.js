@@ -30,6 +30,11 @@ window.__ModuleLoader__.load({
         dialogNew: '新建待办', dialogEdit: '编辑待办',
         fieldTitle: '标题', fieldNote: '备注', fieldDate: '日期', fieldTime: '时间',
         fieldPriority: '优先级', fieldCategory: '分类',
+        fieldRepeat: '重复', repeatNone: '不循环', repeatDaily: '每天', repeatWeekly: '每周', repeatMonthly: '每月',
+        fieldWeekdays: '星期', fieldMonthDay: '每月几号', fieldUntil: '结束日期',
+        weekdaysRequired: '每周至少选一天',
+        mon: '一', tue: '二', wed: '三', thu: '四', fri: '五', sat: '六', sun: '日',
+        repeatBadge: '循环',
         quickFill: '一句话填写，例如：明天下午3点 交周报 #工作',
         quickHint: '也可以只填标题，之后在对话里让我改日期。', titleRequired: '标题不能为空',
         emptyHint: '新建第一条',
@@ -61,6 +66,11 @@ window.__ModuleLoader__.load({
         dialogNew: 'New todo', dialogEdit: 'Edit todo',
         fieldTitle: 'Title', fieldNote: 'Note', fieldDate: 'Date', fieldTime: 'Time',
         fieldPriority: 'Priority', fieldCategory: 'Category',
+        fieldRepeat: 'Repeat', repeatNone: 'Never', repeatDaily: 'Daily', repeatWeekly: 'Weekly', repeatMonthly: 'Monthly',
+        fieldWeekdays: 'Weekdays', fieldMonthDay: 'Day of month', fieldUntil: 'Until',
+        weekdaysRequired: 'Pick at least one weekday',
+        mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
+        repeatBadge: 'Repeats',
         quickFill: 'Quick fill, e.g. "tomorrow 3pm report #work"',
         quickHint: 'You can fill in just the title and ask me in chat to set the date later.', titleRequired: 'Title is required',
         emptyHint: 'Create the first one',
@@ -109,6 +119,7 @@ window.__ModuleLoader__.load({
       nm: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13.5 },
       nmDone: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13.5, color: 'var(--dsw-alias-label-tertiary)', textDecoration: 'line-through' },
       tag: { fontSize: 10.5, padding: '0 6px', borderRadius: 4, color: 'var(--dsw-alias-label-secondary)', background: 'var(--dsw-alias-bg-module-platform)', flex: 'none' },
+      repeatBadge: { fontSize: 12, lineHeight: '18px', padding: '0 6px', borderRadius: 4, color: 'var(--dsw-alias-label-secondary)', background: 'var(--dsw-alias-bg-module-platform)', flex: 'none' },
       due: { fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none', minWidth: 52, textAlign: 'right' },
       dueLate: { fontSize: 11, color: 'var(--dsw-alias-state-error-primary)', flex: 'none', minWidth: 52, textAlign: 'right' },
       detail: { width: 380, flex: 'none', borderLeft: '0.5px solid var(--dsw-alias-border-l2)', padding: 16, fontSize: 12.5, color: 'var(--dsw-alias-label-secondary)' },
@@ -324,6 +335,9 @@ window.__ModuleLoader__.load({
     }
     const HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'))
     const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, '0'))
+    const MONTH_DAYS = Array.from({ length: 31 }, (_, index) => index + 1)
+    // ISO 1–7：周一…周日；文本走词典，别用数组，t() 只返回字符串。
+    const WEEKDAY_OPTIONS = [['mon', 1], ['tue', 2], ['wed', 3], ['thu', 4], ['fri', 5], ['sat', 6], ['sun', 7]]
 
     function weekdayLabels(t) {
       return t('today') === dict.zh.today ? WEEKDAY_LABELS.zh : WEEKDAY_LABELS.en
@@ -862,6 +876,7 @@ window.__ModuleLoader__.load({
         style: item.done ? S.nmDone : S.nm,
         onClick: (e) => { e.stopPropagation(); onSelect(item.id) },
       }, title),
+      item.isRepeating ? h('span', { style: S.repeatBadge }, t('repeatBadge')) : null,
       category !== '' ? h('span', { style: S.tag }, category) : null,
       item.done && item.doneBy === 'agent' && !item.verifiedAt
         ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-warn-primary)' } }, t('needsReview'))
@@ -885,6 +900,10 @@ window.__ModuleLoader__.load({
         dueTime: editing ? asText(initial.dueTime) : '',
         priority: editing && ['high', 'medium', 'low'].includes(initial.priority) ? initial.priority : null,
         category: editing ? asText(initial.category) : '',
+        repeatFreq: initial?.repeat?.freq ?? '',
+        weekdays: initial?.repeat?.weekdays ?? [],
+        monthDay: initial?.repeat?.monthDay ?? new Date().getDate(),
+        until: initial?.repeat?.until ?? '',
       }))
       const [quick, setQuick] = useState('')
       const [error, setError] = useState(null)
@@ -956,6 +975,10 @@ window.__ModuleLoader__.load({
           setError(t('titleRequired'))
           return
         }
+        if (form.repeatFreq === 'weekly' && form.weekdays.length === 0) {
+          setError(t('weekdaysRequired'))
+          return
+        }
         const category = form.category.trim()
         const payload = {
           title,
@@ -964,7 +987,15 @@ window.__ModuleLoader__.load({
           dueTime: form.dueTime || null,
           priority: form.priority || null,
           category: category === '' ? null : category,
+          repeat: form.repeatFreq === ''
+            ? null
+            : form.repeatFreq === 'weekly'
+              ? { freq: 'weekly', weekdays: form.weekdays }
+              : form.repeatFreq === 'monthly'
+                ? { freq: 'monthly', monthDay: form.monthDay }
+                : { freq: 'daily' },
         }
+        if (form.until !== '' && payload.repeat !== null) payload.repeat.until = form.until
         setError(null)
         setSaving(true)
         try {
@@ -1061,6 +1092,55 @@ window.__ModuleLoader__.load({
             onChange: (next) => setForm((prev) => ({ ...prev, category: next })),
             onManage: onManageCategories,
           })),
+
+        h('label', { style: S.field },
+          h('span', { style: S.fieldLabel }, t('fieldRepeat')),
+          h('select', {
+            className: 'td-input',
+            style: S.input,
+            value: form.repeatFreq,
+            onChange: (e) => setForm((prev) => ({ ...prev, repeatFreq: e.target.value })),
+          },
+          [['', 'repeatNone'], ['daily', 'repeatDaily'], ['weekly', 'repeatWeekly'], ['monthly', 'repeatMonthly']].map(([value, key]) =>
+            h('option', { key: value === '' ? 'none' : value, value }, t(key))))),
+
+        form.repeatFreq === 'weekly'
+          ? h('div', { style: S.field },
+              h('span', { style: S.fieldLabel }, t('fieldWeekdays')),
+              h('div', { style: S.seg }, WEEKDAY_OPTIONS.map(([key, iso]) =>
+                h('button', {
+                  key: iso, type: 'button', className: 'td-btn',
+                  'aria-pressed': form.weekdays.includes(iso) ? 'true' : 'false',
+                  style: { ...S.segItem, ...(form.weekdays.includes(iso) ? S.segItemOn : null) },
+                  onClick: () => setForm((prev) => ({
+                    ...prev,
+                    weekdays: prev.weekdays.includes(iso)
+                      ? prev.weekdays.filter((day) => day !== iso)
+                      : [...prev.weekdays, iso],
+                  })),
+                }, t(key)))))
+          : null,
+
+        form.repeatFreq === 'monthly'
+          ? h('label', { style: S.field },
+              h('span', { style: S.fieldLabel }, t('fieldMonthDay')),
+              h('select', {
+                className: 'td-input',
+                style: S.input,
+                value: String(form.monthDay),
+                onChange: (e) => setForm((prev) => ({ ...prev, monthDay: Number(e.target.value) })),
+              }, MONTH_DAYS.map((day) => h('option', { key: day, value: String(day) }, String(day)))))
+          : null,
+
+        form.repeatFreq !== ''
+          ? h('div', { style: S.field },
+              h('span', { style: S.fieldLabel }, t('fieldUntil')),
+              h(DateField, {
+                t,
+                value: form.until,
+                onChange: (next) => setForm((prev) => ({ ...prev, until: next })),
+              }))
+          : null,
 
         error !== null ? h('div', { style: S.dialogError }, error) : null,
         h('div', { style: S.dialogFoot },
