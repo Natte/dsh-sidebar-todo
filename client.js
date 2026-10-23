@@ -117,7 +117,7 @@ window.__ModuleLoader__.load({
       warn: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-warn-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent)', display: 'flex', alignItems: 'center', gap: 8 },
       addBtn: { height: 32, padding: '0 12px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-primary)', fontSize: 13, cursor: 'pointer' },
       overlay: { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--dsw-alias-bg-mask-1)' },
-      dialog: { width: 520, maxWidth: 'calc(100vw - 32px)', maxHeight: '82vh', overflowY: 'auto', boxSizing: 'border-box', padding: '20px 20px 16px', background: 'var(--dsw-specific-input-major)', borderRadius: 'var(--dsw-radius-xl)', boxShadow: 'var(--dsw-elevation-panel)', color: 'var(--dsw-alias-label-primary)' },
+      dialog: { width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '82vh', overflowY: 'auto', boxSizing: 'border-box', padding: '22px 24px 18px', background: 'var(--dsw-specific-input-major)', borderRadius: 'var(--dsw-radius-xl)', boxShadow: 'var(--dsw-elevation-panel)', color: 'var(--dsw-alias-label-primary)' },
       dialogHead: { fontSize: 15, fontWeight: 600, marginBottom: 12 },
       hint: { marginTop: 6, fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
       field: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, marginBottom: 10 },
@@ -135,10 +135,8 @@ window.__ModuleLoader__.load({
       noticeClose: { flex: 'none', width: 20, height: 20, padding: 0, lineHeight: '18px', textAlign: 'center', border: 'none', borderRadius: 4, color: 'inherit', fontSize: 14, cursor: 'pointer' },
       secBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', marginTop: 6, border: 'none', cursor: 'pointer', textAlign: 'left' },
       subsec: { display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px 0 16px', marginTop: 2 },
-      // 分类组合框：外框仍是普通 input，下拉是绝对定位的兄弟节点，位置与宽度跟随输入框。
-      // 分类字段在弹窗底部，向下展开会被 .td-dialog 的滚动容器裁掉，所以向上弹出。
-      // 外观交给 .td-pop，这里只负责定位。
-      pop: { position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 10, boxSizing: 'border-box' },
+      // 分类组合框：外框仍是普通 input，下拉是同一 React 树里的兄弟节点；
+      // 定位交给 useAnchoredPopover（position: fixed，视口坐标），外观交给 .td-pop。
       popEmpty: { padding: '8px', fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' },
       popList: { maxHeight: 208, overflowY: 'auto' },
       popItem: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-primary)', fontSize: 12.5, cursor: 'pointer', textAlign: 'left' },
@@ -155,13 +153,10 @@ window.__ModuleLoader__.load({
       catEmpty: { padding: '18px 8px', textAlign: 'center', fontSize: 12.5, color: 'var(--dsw-alias-label-tertiary)' },
       catHint: { marginTop: 0, marginBottom: 10, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' },
       // 日期 / 时间选择器：触发区是按钮；弹层外观在 .td-pop，固定宽度与纵向间距在 .td-picker，
-      // 这里只写触发区、弹层内部的网格与列表。
+      // 定位统一交给 useAnchoredPopover，这里只写触发区、弹层内部的网格与列表。
       pickerTrigger: { width: '100%', height: 32, boxSizing: 'border-box', padding: '0 10px', borderRadius: 8, background: 'var(--dsw-alias-bg-layer-1)', color: 'var(--dsw-alias-label-primary)', fontSize: 13, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6, textAlign: 'left', cursor: 'pointer' },
       pickerPlaceholder: { color: 'var(--dsw-alias-label-tertiary)' },
       pickerIcon: { flex: 'none', fontSize: 10, lineHeight: 1, color: 'var(--dsw-alias-label-tertiary)' },
-      pickerPop: { position: 'absolute', left: 0, zIndex: 20, boxSizing: 'border-box' },
-      pickerPopDown: { top: 'calc(100% + 4px)' },
-      pickerPopUp: { bottom: 'calc(100% + 4px)' },
       pickerHead: { display: 'flex', alignItems: 'center', gap: 2, height: 28 },
       pickerTitle: { flex: 1, minWidth: 0, textAlign: 'center', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', color: 'var(--dsw-alias-label-primary)' },
       pickerIconBtn: { flex: 'none', width: 26, height: 26, padding: 0, border: 'none', borderRadius: 6, color: 'var(--dsw-alias-label-secondary)', fontSize: 15, lineHeight: '26px', textAlign: 'center', cursor: 'pointer' },
@@ -246,7 +241,7 @@ window.__ModuleLoader__.load({
 /* 日期 / 时间弹层：固定宽度，纵向间距统一交给 gap。 */
 .td-picker { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .td-picker-date { width: 272px; }
-.td-picker-time { width: 176px; }
+.td-picker-time { width: 196px; }
 
 @media (prefers-reduced-motion: reduce) {
   .td-overlay, .td-dialog, .td-btn, .td-primary, .td-input, .td-row, .td-pop { animation: none; transition: none; }
@@ -400,27 +395,114 @@ window.__ModuleLoader__.load({
       return rows
     }
 
+    // 三个弹层（日期 / 时间 / 分类）共用同一套锚定参数：
+    // 期望高度决定向下还是向上展开，宽度用于左右夹取；分类下拉跟随触发区宽度。
+    const DATE_POP = { width: 272, height: 360 }
+    const TIME_POP = { width: 196, height: 260 }
+    const CATEGORY_POP = { width: null, height: 240 }
+    const POP_GAP = 6
+    const POP_EDGE = 8
+    const POP_FALLBACK_WIDTH = 240
+
+    /**
+     * 弹层锚定：坐标是视口坐标（position: fixed），所以弹层不再被 .td-dialog 的滚动容器裁切。
+     * 打开时按触发区的 getBoundingClientRect() 量一次；打开期间监听 window 的 resize 与
+     * scroll（capture: true 才能收到弹窗容器内部的滚动），触发区移动时重算。关闭时解绑监听
+     * 并清空定位状态。width 传 null 表示跟随触发区宽度；onDismiss 处理点击外部关闭。
+     */
+    function useAnchoredPopover(open, width, height, onDismiss) {
+      const anchorRef = useRef(null)
+      const [placement, setPlacement] = useState(null)
+
+      useEffect(() => {
+        if (!open) {
+          setPlacement(null)
+          return undefined
+        }
+        const place = () => {
+          const node = anchorRef.current
+          const rect = node !== null && typeof node.getBoundingClientRect === 'function'
+            ? node.getBoundingClientRect()
+            : null
+          if (rect === null) return
+          const viewportWidth = Number.isFinite(window.innerWidth) ? window.innerWidth : 0
+          const viewportHeight = Number.isFinite(window.innerHeight) ? window.innerHeight : 0
+          if (viewportWidth <= 0 || viewportHeight <= 0) return
+
+          const popWidth = typeof width === 'number'
+            ? width
+            : (rect.width > 0 ? rect.width : POP_FALLBACK_WIDTH)
+          const below = viewportHeight - rect.bottom - POP_GAP - POP_EDGE
+          // 下方放不下期望高度就翻到上方；两种情况都只给「实际可用空间」作为 maxHeight，
+          // 内容超出时由弹层自己滚动。
+          const up = below < height
+          let top = rect.bottom + POP_GAP
+          let maxHeight = Math.min(height, Math.max(0, below))
+          if (up) {
+            // 先按期望高度把弹层放到触发区上方，再夹到视口上边距；
+            // maxHeight 取「期望高度」和「实际可用空间」的较小值。
+            top = Math.max(POP_EDGE, rect.top - height - POP_GAP)
+            maxHeight = Math.min(
+              height,
+              Math.max(0, rect.top - top - POP_GAP),
+              Math.max(0, viewportHeight - top - POP_EDGE),
+            )
+          }
+          const left = Math.max(POP_EDGE, Math.min(rect.left, viewportWidth - popWidth - POP_EDGE))
+
+          setPlacement((prev) => (prev !== null
+            && prev.left === left && prev.top === top && prev.maxHeight === maxHeight
+            && prev.up === up && prev.width === popWidth
+            ? prev
+            : { left, top, maxHeight, up, width: popWidth }))
+        }
+        place()
+        window.addEventListener('resize', place)
+        window.addEventListener('scroll', place, true)
+        return () => {
+          window.removeEventListener('resize', place)
+          window.removeEventListener('scroll', place, true)
+        }
+      }, [open, width, height])
+
+      // 点外部关闭：文档上监听，触发区（含弹层，因为弹层就在同一个 ref 容器里）内不关。
+      useEffect(() => {
+        if (!open || typeof onDismiss !== 'function') return undefined
+        const onPointerDown = (event) => {
+          const node = anchorRef.current
+          if (node !== null && typeof node.contains === 'function' && node.contains(event.target)) return
+          onDismiss()
+        }
+        document.addEventListener('pointerdown', onPointerDown)
+        return () => document.removeEventListener('pointerdown', onPointerDown)
+      }, [open, onDismiss])
+
+      const up = placement !== null && placement.up
+      const popStyle = placement === null
+        ? {
+            position: 'fixed', zIndex: 20, boxSizing: 'border-box', visibility: 'hidden',
+            ...(typeof width === 'number' ? { width } : null),
+          }
+        : {
+            position: 'fixed', zIndex: 20, boxSizing: 'border-box',
+            left: placement.left, top: placement.top, width: placement.width,
+            maxHeight: placement.maxHeight, overflowY: 'auto',
+          }
+
+      return { anchorRef, popStyle, up }
+    }
+
     /**
      * 分类组合框：可自由输入新分类，聚焦即展开已有分类（名称 + 条数）。
      * 过滤词用独立状态：打开下拉时清空，避免编辑已有分类时被输入框的当前值收窄成一项；
      * 只有下拉打开后继续输入才用新输入过滤，选中或清空后再次复位。
-     * 下拉的定位容器就是 ref 所在的外框，document 上的 pointerdown 据此判断点内还是点外。
+     * 弹层与输入框在同一个 ref 容器里，点击外部的判断因此能覆盖弹层自身。
      */
     function CategoryCombo({ t, value, categories, onChange, onManage }) {
       const [open, setOpen] = useState(false)
       const [query, setQuery] = useState('')
-      const wrapRef = useRef(null)
-
-      useEffect(() => {
-        if (!open) return undefined
-        const onPointerDown = (event) => {
-          const wrap = wrapRef.current
-          if (wrap !== null && typeof wrap.contains === 'function' && wrap.contains(event.target)) return
-          setOpen(false)
-        }
-        document.addEventListener('pointerdown', onPointerDown)
-        return () => document.removeEventListener('pointerdown', onPointerDown)
-      }, [open])
+      const close = useCallback(() => setOpen(false), [])
+      const popover = useAnchoredPopover(open, CATEGORY_POP.width, CATEGORY_POP.height, close)
 
       const openAll = () => {
         setQuery('')
@@ -435,13 +517,13 @@ window.__ModuleLoader__.load({
       const countLabel = t('categoryCount')
 
       return h('div', {
-        ref: wrapRef,
+        ref: popover.anchorRef,
         style: { position: 'relative' },
         // 焦点在输入框或下拉按钮里时，Esc 先收起下拉，再让弹窗的 document 监听看不到这次按键。
         onKeyDown: (event) => {
           if (!open || event.key !== 'Escape') return
           event.stopPropagation?.()
-          setOpen(false)
+          close()
         },
       },
       h('input', {
@@ -472,7 +554,7 @@ window.__ModuleLoader__.load({
           }, '×')
         : null,
       open
-        ? h('div', { className: 'td-pop td-pop-up', style: S.pop },
+        ? h('div', { className: popover.up ? 'td-pop td-pop-up' : 'td-pop', style: popover.popStyle },
             visible.length === 0
               ? h('div', { style: S.popEmpty }, t('categoryEmpty'))
               : h('div', { style: S.popList }, visible.map((row) => h('button', {
@@ -480,7 +562,7 @@ window.__ModuleLoader__.load({
                   type: 'button',
                   className: 'td-btn',
                   style: S.popItem,
-                  onClick: () => { onChange(row.name); setQuery(''); setOpen(false) },
+                  onClick: () => { onChange(row.name); setQuery(''); close() },
                 },
                 h('span', { style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, row.name),
                 h('span', { style: S.popCount }, typeof countLabel === 'function' ? countLabel(row.count) : `${row.count} ${countLabel}`)))),
@@ -489,49 +571,26 @@ window.__ModuleLoader__.load({
               type: 'button',
               className: 'td-btn',
               style: S.popManage,
-              onClick: () => { setOpen(false); onManage?.() },
+              onClick: () => { close(); onManage?.() },
             }, t('categoryManage')))
         : null)
     }
 
     /**
-     * 日期 / 时间选择器共用的弹层行为：打开时按触发区在视口上下半区决定方向，
-     * 打开期间点外部关闭；Esc 交给各字段外框的 onKeyDown，避免连带关掉弹窗。
+     * 日期 / 时间选择器共用的开合状态；定位与点外部关闭都在 useAnchoredPopover。
+     * Esc 交给各字段外框的 onKeyDown，避免连带关掉弹窗。
      */
     function usePickerPopover() {
       const [open, setOpen] = useState(false)
-      const [up, setUp] = useState(false)
-      const wrapRef = useRef(null)
-
-      const openPopover = useCallback(() => {
-        const wrap = wrapRef.current
-        const rect = wrap !== null && typeof wrap.getBoundingClientRect === 'function'
-          ? wrap.getBoundingClientRect()
-          : null
-        const viewport = typeof window.innerHeight === 'number' ? window.innerHeight : 0
-        setUp(rect !== null && viewport > 0 && rect.top + rect.height / 2 > viewport / 2)
-        setOpen(true)
-      }, [])
-
+      const openPopover = useCallback(() => setOpen(true), [])
       const closePopover = useCallback(() => setOpen(false), [])
-
-      useEffect(() => {
-        if (!open) return undefined
-        const onPointerDown = (event) => {
-          const wrap = wrapRef.current
-          if (wrap !== null && typeof wrap.contains === 'function' && wrap.contains(event.target)) return
-          setOpen(false)
-        }
-        document.addEventListener('pointerdown', onPointerDown)
-        return () => document.removeEventListener('pointerdown', onPointerDown)
-      }, [open])
-
-      return { open, up, wrapRef, openPopover, closePopover }
+      return { open, openPopover, closePopover }
     }
 
     /** 自绘日期选择器：触发区 + 快捷行 + 6×7 月历；点日期、快捷按钮或清除都会关闭。 */
     function DateField({ t, value, onChange }) {
       const picker = usePickerPopover()
+      const popover = useAnchoredPopover(picker.open, DATE_POP.width, DATE_POP.height, picker.closePopover)
       const [cursor, setCursor] = useState(() => {
         const at = parseDateKey(value) ?? new Date()
         return { year: at.getFullYear(), month: at.getMonth() }
@@ -579,7 +638,7 @@ window.__ModuleLoader__.load({
       }
 
       return h('div', {
-        ref: picker.wrapRef,
+        ref: popover.anchorRef,
         style: { position: 'relative' },
         onKeyDown: (event) => {
           if (!picker.open || event.key !== 'Escape') return
@@ -601,8 +660,8 @@ window.__ModuleLoader__.load({
 
       picker.open
         ? h('div', {
-            className: picker.up ? 'td-pop td-picker td-picker-date td-pop-up' : 'td-pop td-picker td-picker-date',
-            style: { ...S.pickerPop, ...(picker.up ? S.pickerPopUp : S.pickerPopDown) },
+            className: popover.up ? 'td-pop td-picker td-picker-date td-pop-up' : 'td-pop td-picker td-picker-date',
+            style: popover.popStyle,
             role: 'dialog',
             'aria-label': t('pickDate'),
           },
@@ -660,6 +719,7 @@ window.__ModuleLoader__.load({
     /** 自绘时间选择器：左右两列可滚动列表，点小时即时高亮但不提交，点分钟才设值并关闭。 */
     function TimeField({ t, value, onChange }) {
       const picker = usePickerPopover()
+      const popover = useAnchoredPopover(picker.open, TIME_POP.width, TIME_POP.height, picker.closePopover)
       const [draftHour, setDraftHour] = useState(null)
       const hourItemRef = useRef(null)
       const minuteItemRef = useRef(null)
@@ -700,7 +760,7 @@ window.__ModuleLoader__.load({
       }
 
       return h('div', {
-        ref: picker.wrapRef,
+        ref: popover.anchorRef,
         style: { position: 'relative' },
         onKeyDown: (event) => {
           if (!picker.open || event.key !== 'Escape') return
@@ -722,8 +782,8 @@ window.__ModuleLoader__.load({
 
       picker.open
         ? h('div', {
-            className: picker.up ? 'td-pop td-picker td-picker-time td-pop-up' : 'td-pop td-picker td-picker-time',
-            style: { ...S.pickerPop, ...(picker.up ? S.pickerPopUp : S.pickerPopDown) },
+            className: popover.up ? 'td-pop td-picker td-picker-time td-pop-up' : 'td-pop td-picker td-picker-time',
+            style: popover.popStyle,
             role: 'dialog',
             'aria-label': t('pickTime'),
           },
