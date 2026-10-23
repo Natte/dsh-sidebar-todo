@@ -148,3 +148,31 @@ test('execute(null) 抛 invalid-input 而不是裸 TypeError', async (t) => {
     (err) => err instanceof TodoError && err.code === 'invalid-input',
   )
 })
+
+test('add 支持 repeat，list 标注循环', async (t) => {
+  const { tool, store } = await makeTool(t)
+  const added = await tool.execute(
+    { action: 'add', title: '交日报', dueDate: '2026-10-22', repeat: { freq: 'weekly', weekdays: [1, 2, 3, 4, 5] } },
+    {},
+  )
+  assert.equal(added.item.repeat.freq, 'weekly')
+  await tool.execute(
+    { action: 'add', title: '旧任务', dueDate: '2026-10-01', repeat: { freq: 'daily', until: '2026-10-02' } },
+    {},
+  )
+  const listed = await tool.execute({ action: 'list' }, {})
+  const text = tool.output.render({ action: 'list' }, listed)[0].text
+  assert.match(text, /循环·下次 \d{2}-\d{2}/)
+  assert.match(text, /循环·已结束/)
+  await store.close()
+})
+
+test('complete 支持 date 参数', async (t) => {
+  const { tool, store } = await makeTool(t)
+  const added = await tool.execute({ action: 'add', title: 'A', dueDate: '2026-10-22', repeat: { freq: 'daily' } }, {})
+  const done = await tool.execute({ action: 'complete', id: added.item.id, date: '2026-10-23' }, {})
+  assert.ok(done.item.completions['2026-10-23'])
+  const other = await tool.execute({ action: 'complete', id: added.item.id, date: '2026-11-03' }, {})
+  assert.ok(other.item.completions['2026-11-03'], 'date 要真的透传到 store，而不是落到今天')
+  await store.close()
+})

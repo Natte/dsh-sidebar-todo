@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createStore } from '../lib/store.js'
 import { TodoError } from '../lib/model.js'
-import { dateKey } from '../lib/bucket.js'
+import { dateKey, shiftKey } from '../lib/bucket.js'
 
 async function tempStore(staleDays = 7) {
   const dir = await mkdtemp(join(tmpdir(), 'todo-'))
@@ -341,4 +341,75 @@ test('改名后落盘，重建 store 仍生效', async () => {
   const { items } = await again.list()
   assert.equal(items[0].category, '日常')
   await again.close()
+})
+
+test('循环任务：create 带 repeat，列表给出 nextDue', async () => {
+  const { store } = await tempStore()
+  const today = dateKey(new Date())
+  const todo = await store.create({
+    title: '交日报',
+    dueDate: today,
+    repeat: { freq: 'daily' },
+  })
+  assert.equal(todo.repeat.freq, 'daily')
+  const { items } = await store.list()
+  const row = items.find((t) => t.id === todo.id)
+  assert.equal(row.nextDue, today)
+  assert.equal(row.isRepeating, true)
+  assert.equal(row.bucket, 'today')
+  await store.close()
+})
+
+test('循环任务：完成某一天只记那一天，行滚到下一天', async () => {
+  const { store } = await tempStore()
+  const today = dateKey(new Date())
+  const todo = await store.create({ title: '交日报', dueDate: today, repeat: { freq: 'daily' } })
+  const done = await store.complete(todo.id, true, 'user', today)
+  assert.equal(done.done, false)                       // 循环任务恒 false
+  assert.ok(done.completions[today])
+  const next = await store.list()
+  const row = next.items.find((t) => t.id === todo.id)
+  assert.equal(row.nextDue, shiftKey(today, 1))        // 滚到明天
+  assert.notEqual(row.bucket, 'done')                  // 不进已完成
+  await store.close()
+})
+
+test('循环任务：取消完成会删掉那天的记录', async () => {
+  const { store } = await tempStore()
+  const today = dateKey(new Date())
+  const todo = await store.create({ title: '交日报', dueDate: today, repeat: { freq: 'daily' } })
+  await store.complete(todo.id, true, 'user', today)
+  const undone = await store.complete(todo.id, false, 'user', today)
+  assert.equal(undone.completions[today], undefined)
+  await store.close()
+})
+
+test('occurrences 按区间展开多条任务', async () => {
+  const { store } = await tempStore()
+  const today = dateKey(new Date())
+  await store.create({ title: 'A', dueDate: today, repeat: { freq: 'daily' } })
+  await store.create({ title: 'B', dueDate: today })
+  const { items } = await store.occurrences({ from: today, to: shiftKey(today, 2) })
+  assert.equal(items.filter((o) => o.title === 'A').length, 3)
+  assert.equal(items.filter((o) => o.title === 'B').length, 1)
+  await store.close()
+})
+
+test('occurrences 带出完成状态', async () => {
+  const { store } = await tempStore()
+  const today = dateKey(new Date())
+  const todo = await store.create({ title: 'A', dueDate: today, repeat: { freq: 'daily' } })
+  await store.complete(todo.id, true, 'user', today)
+  const { items } = await store.occurrences({ from: today, to: today })
+  assert.equal(items[0].done, true)
+  await store.close()
+})
+
+test('非法 repeat 被拒绝', async () => {
+  const { store } = await tempStore()
+  await assert.rejects(
+    () => store.create({ title: 'x', dueDate: '2026-10-22', repeat: { freq: 'hourly' } }),
+    (err) => err.code === 'invalid-input',
+  )
+  await store.close()
 })
