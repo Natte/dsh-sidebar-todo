@@ -128,3 +128,12 @@ test('分类三个方法可分发', async () => {
   assert.deepEqual(api.categories().items, [])
   await store.close()
 })
+
+test('occurrences 分发', async () => {
+  const { api, store } = await makeApi()
+  const today = '2026-10-22'
+  await api.create({ title: 'A', dueDate: today, repeat: { freq: 'daily' } })
+  const out = await api.occurrences({ from: today, to: '2026-10-24' })
+  assert.equal(out.items.length, 3)
+  await store.close()
+})
