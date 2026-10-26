@@ -121,7 +121,7 @@ todo.update(id, patch)                 // patch 可改 repeat
 - `add` / `update` 增加可选 `repeat` 参数（`{ freq, weekdays?, monthDay?, until? }`），**这是"让 agent 帮你建循环任务"的唯一入口**：用户说「每周一到周五 18 点交日报」，模型解析成
   `{ action: 'add', title: '交日报', dueTime: '18:00', repeat: { freq: 'weekly', weekdays: [1,2,3,4,5] } }`；
 - `complete` 增加可选 `date`（默认今天）；
-- `list` 的循环任务在文本里标注 `（循环·下次 10-24）`；
+- `list` 的循环任务在文本里标注 `（循环·本次 10-24）`，即本周期待完成的那一次；
 - 新增 `occurrences` 不需要暴露给模型（模型问"这周有什么"用 `list` 足够）；
 - 工具的 `description` 里补一句：用户用口语描述重复安排时，自行推断 `repeat`，不要反问「你要哪种重复」。
 
