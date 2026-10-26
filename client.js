@@ -12,6 +12,7 @@ window.__ModuleLoader__.load({
         today: '今天', overdue: '逾期', tomorrow: '明天', week: '本周', month: '本月', later: '以后', stale: '积压',
         unplanned: '未排期', done: '已完成', doneEmpty: '该范围内没有完成记录', empty: '还没有待办',
         staleHint: '超过 {n} 天未完成', loading: '加载中…', failed: '读取失败',
+        actionFailed: '操作失败，请重试',
         retry: '重试', pickOne: '选一条看详情',
         listView: '列表', calendarView: '日历', prevMonth: '上个月', nextMonth: '下个月',
         nothingThatDay: '这一天没有安排', plansOnDay: (date) => `${date} 的安排`, newOnThatDay: '在这一天新建',
@@ -53,6 +54,7 @@ window.__ModuleLoader__.load({
         today: 'Today', overdue: 'Overdue', tomorrow: 'Tomorrow', week: 'This week', month: 'This month', later: 'Later', stale: 'Backlog',
         unplanned: 'Unscheduled', done: 'Completed', doneEmpty: 'No completions in this range', empty: 'No todos yet',
         staleHint: 'Open for more than {n} days', loading: 'Loading…', failed: 'Failed to load',
+        actionFailed: 'Action failed, please retry',
         retry: 'Retry', pickOne: 'Select an item',
         listView: 'List', calendarView: 'Calendar', prevMonth: 'Previous month', nextMonth: 'Next month',
         nothingThatDay: 'Nothing planned for this day', plansOnDay: (date) => `Plans on ${date}`, newOnThatDay: 'New on this day',
@@ -126,6 +128,10 @@ window.__ModuleLoader__.load({
       row: { display: 'flex', alignItems: 'center', gap: 9, height: 34, padding: '0 8px', borderRadius: 6, cursor: 'pointer' },
       cb: { width: 14, height: 14, borderRadius: 4, border: '0.5px solid var(--dsw-alias-border-l4)', flex: 'none', background: 'var(--dsw-alias-bg-layer-1)' },
       cbDone: { width: 14, height: 14, borderRadius: 4, flex: 'none', background: 'var(--dsw-alias-state-business-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+      // 14×14 的方块太小，点在边缘会落到整行上（表现为“勾了没反应”）。
+      // 外层热区用 6px padding 扩到约 26×26，再用 -6px margin 把布局占位收回 14px；
+      // 不设 background，视觉仍是原来的小方块。
+      cbHit: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 6, margin: -6, flex: 'none', cursor: 'pointer' },
       nm: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13.5 },
       nmDone: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13.5, color: 'var(--dsw-alias-label-tertiary)', textDecoration: 'line-through' },
       tag: { fontSize: 10.5, padding: '0 6px', borderRadius: 4, color: 'var(--dsw-alias-label-secondary)', background: 'var(--dsw-alias-bg-module-platform)', flex: 'none' },
@@ -320,6 +326,20 @@ window.__ModuleLoader__.load({
       return h('div', { style: { display: 'flex', gap: 8, lineHeight: '20px' } },
         h('span', { style: { width: 56, flex: 'none', color: 'var(--dsw-alias-label-tertiary)' } }, label),
         h('span', null, value))
+    }
+
+    /**
+     * 复选框的透明点击热区：点击挂在热区上并在热区截断冒泡，
+     * 避免点偏一点就变成「选中整行」。视觉方块与键盘焦点仍在内层 role="checkbox"。
+     */
+    function checkHit(onClick, inner) {
+      return h('span', {
+        style: S.cbHit,
+        onClick: (event) => {
+          event.stopPropagation()
+          return onClick(event)
+        },
+      }, inner)
     }
 
     /** 手改 JSON 可能让字符串字段变成任意类型；渲染按空串兜底，别让整页被错误边界摘掉。 */
@@ -923,27 +943,26 @@ window.__ModuleLoader__.load({
           background: item.priority ? priorityColor(item.priority) : 'transparent',
         },
       }),
-      h('span', {
-        role: 'checkbox',
-        'aria-checked': item.done ? 'true' : 'false',
-        'aria-disabled': seriesEnded ? 'true' : undefined,
-        'aria-label': title,
-        tabIndex: 0,
-        className: 'td-check',
-        style: seriesEnded ? { ...(item.done ? S.cbDone : S.cb), opacity: 0.45 } : (item.done ? S.cbDone : S.cb),
-        onClick: (e) => {
-          e.stopPropagation()
-          if (!seriesEnded) onToggle(item)
-        },
-        onKeyDown: (e) => {
-          if (e.nativeEvent?.isComposing === true) return
-          if (seriesEnded) return
-          if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onToggle(item) }
-        },
-      }, item.done
-        ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--dsw-alias-label-primary-inverted)', strokeWidth: 2.4 },
-            h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))
-        : null),
+      checkHit(
+        () => { if (!seriesEnded) onToggle(item) },
+        h('span', {
+          role: 'checkbox',
+          'aria-checked': item.done ? 'true' : 'false',
+          'aria-disabled': seriesEnded ? 'true' : undefined,
+          'aria-label': title,
+          tabIndex: 0,
+          className: 'td-check',
+          style: seriesEnded ? { ...(item.done ? S.cbDone : S.cb), opacity: 0.45 } : (item.done ? S.cbDone : S.cb),
+          onKeyDown: (e) => {
+            if (e.nativeEvent?.isComposing === true) return
+            if (seriesEnded) return
+            if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onToggle(item) }
+          },
+        }, item.done
+          ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--dsw-alias-label-primary-inverted)', strokeWidth: 2.4 },
+              h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))
+          : null),
+      ),
       h('button', {
         type: 'button',
         className: 'td-title',
@@ -1552,7 +1571,11 @@ window.__ModuleLoader__.load({
       const [compactDetail, setCompactDetail] = useState(() => window.innerWidth < 1000)
       const [retrying, setRetrying] = useState(false)
       const [view, setView] = useState('list')
-      // 最近 30 天循环任务的完成实例：只喂「已完成」分组，不参与 summary，也不混进主列表。
+      // 写操作（勾选/完成等）失败的可见提示。它和读取失败的 state.error 分开：
+      // 自己保留 5 秒，2.5 秒轮询成功也不会把它清掉。
+      const [actionError, setActionError] = useState(false)
+      // 循环任务已完成实例：窗口覆盖本月并向后多留 62 天，只喂「已完成」分组，
+      // 不参与 summary，也不混进主列表。
       const [recurringDone, setRecurringDone] = useState([])
       // 写操作计数器：日历与当天清单都靠它重拉 occurrences，避免写后还看旧数据。
       const [dataVersion, setDataVersion] = useState(0)
@@ -1582,17 +1605,39 @@ window.__ModuleLoader__.load({
         }
       }, [])
 
+      // 写失败提示的 5s 计时器：重新失败时从头计时，卸载时清掉。
+      const actionErrorTimer = useRef(null)
+      const clearActionErrorTimer = useCallback(() => {
+        if (actionErrorTimer.current !== null) {
+          window.clearTimeout(actionErrorTimer.current)
+          actionErrorTimer.current = null
+        }
+      }, [])
+      const dismissActionError = useCallback(() => {
+        clearActionErrorTimer()
+        setActionError(false)
+      }, [clearActionErrorTimer])
+      const showActionError = useCallback(() => {
+        clearActionErrorTimer()
+        setActionError(true)
+        actionErrorTimer.current = window.setTimeout(() => {
+          actionErrorTimer.current = null
+          setActionError(false)
+        }, 5000)
+      }, [clearActionErrorTimer])
+
       const reload = useCallback(async () => {
         const seq = ++seqRef.current
         try {
           // 循环任务的完成实例单独拉；它失败不该把已经拿到的 list 一起判死。
-          // 窗口覆盖「本月」：本月 1 号，若本周一更早则取本周一；三个范围共用一次拉取。
+          // 窗口覆盖「本月」并向后多留 62 天：循环任务可以提前完成本周期的那一次，
+          // 周循环最多提前到本周日，月循环最多提前一个月，今天之后的实例也要能查到。
           const now = new Date()
           const todayKey = dateKeyOf(now)
           const weekStart = shiftKeyLocal(todayKey, 1 - isoWeekday(now))
           const monthStart = `${todayKey.slice(0, 7)}-01`
           const from = weekStart < monthStart ? weekStart : monthStart
-          const to = todayKey
+          const to = shiftKeyLocal(todayKey, 62)
           const occTask = fetchApi('occurrences', { from, to }, tRef.current).catch((err) => {
             console.error('[dsh-todolist] occurrences (done) failed', err)
             return { items: [] }
@@ -1626,17 +1671,20 @@ window.__ModuleLoader__.load({
         try {
           await fetchApi(method, payload, tRef.current)
           // 写成功后让日历和当天清单重拉 occurrences（它们都依赖 dataVersion）。
+          dismissActionError()
           setDataVersion((v) => v + 1)
           await reload()
           return true
         } catch (err) {
           console.error(`[dsh-todolist] ${method} failed`, err)
-          // 写失败不再占用「读取失败」的红条：重新拉一次 list，让宿主把
-          // notices 里的 write-error 带回来；轮询成功也清不掉它。
+          // 勾选/完成等写失败必须有可见反馈：独立的红条保留 5 秒，避免被
+          // 随后成功的 2.5s 轮询立刻清掉；同时重新拉一次 list，让宿主把
+          // notices 里的 write-error 带回来。
+          showActionError()
           await reload()
           return false
         }
-      }, [reload])
+      }, [reload, dismissActionError, showActionError])
 
       /** 当天清单：只认 dayKey 与 dataVersion，打开 / 切回 / 写后都重新拉，不存快照。 */
       useEffect(() => {
@@ -1690,8 +1738,9 @@ window.__ModuleLoader__.load({
         setConfirming(false)
       }, [selected, clearConfirmTimer])
 
-      // 卸载时清掉计时器，避免组件没了还 setConfirming。
+      // 卸载时清掉计时器，避免组件没了还 setConfirming / setActionError。
       useEffect(() => () => clearConfirmTimer(), [clearConfirmTimer])
+      useEffect(() => () => clearActionErrorTimer(), [clearActionErrorTimer])
 
       // 窄窗口（< 1000px）把详情列从 380 收到 320，避免挤压列表；监听随卸载解绑。
       useEffect(() => {
@@ -1704,8 +1753,13 @@ window.__ModuleLoader__.load({
       const now = new Date()
       const todayKey = dateKeyOf(now)
       const weekStart = shiftKeyLocal(todayKey, 1 - isoWeekday(now))   // 本周一
+      const weekEnd = shiftKeyLocal(weekStart, 6)                        // 本周日
       const monthStart = `${todayKey.slice(0, 7)}-01`
+      const monthEnd = dateKeyOf(new Date(now.getFullYear(), now.getMonth() + 1, 0))  // 本月最后一天
       const rangeStart = doneRange === 'today' ? todayKey : doneRange === 'week' ? weekStart : monthStart
+      // 上界按范围各自取：今天 / 本周日 / 本月最后一天。预完成的未来实例因此只出现在
+      // 「本周」「本月」里；「今天」仍只认今天，不会把 10-30 提前算进今天。
+      const rangeEnd = doneRange === 'today' ? todayKey : doneRange === 'week' ? weekEnd : monthEnd
       const pendingCount = items.filter((item) => item.done && item.doneBy === 'agent' && !item.verifiedAt).length
 
       // 首次出现未核实项（0 → N）时把「已完成」展开，否则标记藏在折叠区里没人看得见。
@@ -1717,7 +1771,7 @@ window.__ModuleLoader__.load({
 
       // 两路完成数据都先按当前范围裁剪；组内的 今天/昨天/本周/更早 分节逻辑不变。
       // 旧数据没有 doneAt：只在最宽的「本月」里保留，仍归入「更早」。
-      const inDoneRange = (key) => key !== null && key >= rangeStart && key <= todayKey
+      const inDoneRange = (key) => key !== null && key >= rangeStart && key <= rangeEnd
       const allDoneItems = items.filter((item) => item.bucket === 'done')
       const doneItems = allDoneItems.filter((item) => {
         const key = doneKeyOf(item)
@@ -1762,14 +1816,13 @@ window.__ModuleLoader__.load({
           void mutate('complete', { id: occurrence.todoId, done: false, date: occurrence.date })
         }
         return h('div', { key: `${occurrence.todoId}-${occurrence.date}`, style: S.catRow },
-          h('span', {
+          checkHit(undo, h('span', {
             role: 'checkbox',
             'aria-checked': 'true',
             'aria-label': title,
             tabIndex: 0,
             className: 'td-check',
             style: S.cbDone,
-            onClick: (event) => { event.stopPropagation(); undo() },
             onKeyDown: (event) => {
               if (event.nativeEvent?.isComposing === true) return
               if (event.key !== ' ' && event.key !== 'Enter') return
@@ -1778,7 +1831,7 @@ window.__ModuleLoader__.load({
               undo()
             },
           }, h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--dsw-alias-label-primary-inverted)', strokeWidth: 2.4 },
-            h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))),
+            h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' })))),
           h('span', { style: S.nmDone, title }, title),
           h('span', { style: S.repeatBadge }, t('repeatBadge')),
           h('span', { style: S.due, title: `${t('completedOn')} ${date}` }, date.slice(5)),
@@ -1860,6 +1913,9 @@ window.__ModuleLoader__.load({
               style: { ...S.addBtn, height: 26, padding: '0 8px', flex: 'none', cursor: retrying ? 'default' : 'pointer' },
               onClick: () => void retryWrite(),
             }, t('retryWrite')))
+          : null,
+        actionError
+          ? h('div', { role: 'alert', style: S.error }, t('actionFailed'))
           : null,
         state.error
           ? h('div', { style: S.error }, `${t('failed')}　`, h('button', {
@@ -1969,25 +2025,27 @@ window.__ModuleLoader__.load({
                       key: `${item.todoId}-${item.date}`,
                       style: S.dayRow,
                     },
-                    h('span', {
-                      role: 'checkbox',
-                      'aria-checked': item.done ? 'true' : 'false',
-                      'aria-label': asText(item.title),
-                      tabIndex: 0,
-                      className: 'td-check',
-                      style: item.done ? S.cbDone : S.cb,
-                      onClick: (event) => { event.stopPropagation(); void toggleDayItem(item) },
-                      onKeyDown: (event) => {
-                        if (event.nativeEvent?.isComposing === true) return
-                        if (event.key !== ' ' && event.key !== 'Enter') return
-                        event.preventDefault()
-                        event.stopPropagation()
-                        void toggleDayItem(item)
-                      },
-                    }, item.done
-                      ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--dsw-alias-label-primary-inverted)', strokeWidth: 2.4 },
-                          h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))
-                      : null),
+                    checkHit(
+                      () => { void toggleDayItem(item) },
+                      h('span', {
+                        role: 'checkbox',
+                        'aria-checked': item.done ? 'true' : 'false',
+                        'aria-label': asText(item.title),
+                        tabIndex: 0,
+                        className: 'td-check',
+                        style: item.done ? S.cbDone : S.cb,
+                        onKeyDown: (event) => {
+                          if (event.nativeEvent?.isComposing === true) return
+                          if (event.key !== ' ' && event.key !== 'Enter') return
+                          event.preventDefault()
+                          event.stopPropagation()
+                          void toggleDayItem(item)
+                        },
+                      }, item.done
+                        ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--dsw-alias-label-primary-inverted)', strokeWidth: 2.4 },
+                            h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))
+                        : null),
+                    ),
                     h('span', { style: item.done ? S.nmDone : S.nm }, asText(item.title)),
                     h('span', { style: { ...S.dot, background: priorityColor(item.priority), marginLeft: 4 }, 'aria-hidden': 'true' }))),
                 h('button', {
