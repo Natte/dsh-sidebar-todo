@@ -180,6 +180,9 @@ window.__ModuleLoader__.load({
       comboClear: { position: 'absolute', top: 0, right: 0, width: 30, height: 32, padding: 0, border: 'none', borderRadius: 8, color: 'var(--dsw-alias-label-tertiary)', fontSize: 14, lineHeight: '32px', textAlign: 'center', cursor: 'pointer' },
       // 分类管理弹窗的行：名称吃满剩余宽度，计数与操作靠右。
       catRow: { display: 'flex', alignItems: 'center', gap: 8, minHeight: 34, padding: '0 8px', borderRadius: 6 },
+      // 「循环任务完成」子分组的行：几何与主列表行一致（34 高、9 间距、左右 8 内边距），
+      // 但没有整行选中态，所以不复用带 cursor:pointer 的 S.row。
+      recurringDoneRow: { display: 'flex', alignItems: 'center', gap: 9, height: 34, padding: '0 8px', borderRadius: 6 },
       catName: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 },
       catCount: { flex: 'none', minWidth: 46, textAlign: 'right', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
       catAction: { flex: 'none', height: 26, padding: '0 9px', borderRadius: 6, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5, cursor: 'pointer' },
@@ -1564,7 +1567,8 @@ window.__ModuleLoader__.load({
       const [dialog, setDialog] = useState(null)
       const [categoryOpen, setCategoryOpen] = useState(false)
       const [confirming, setConfirming] = useState(false)
-      const [doneOpen, setDoneOpen] = useState(false)
+      // 默认展开「已完成」；用户仍可手动收起，收起后靠 doneTouched 保持。
+      const [doneOpen, setDoneOpen] = useState(true)
       // 「已完成」的范围：today | week | month；默认看整周，而不是只看今天。
       const [doneRange, setDoneRange] = useState('week')
       const [noticeHidden, setNoticeHidden] = useState(corruptDismissed)
@@ -1815,7 +1819,15 @@ window.__ModuleLoader__.load({
         const undo = () => {
           void mutate('complete', { id: occurrence.todoId, done: false, date: occurrence.date })
         }
-        return h('div', { key: `${occurrence.todoId}-${occurrence.date}`, style: S.catRow },
+        return h('div', { key: `${occurrence.todoId}-${occurrence.date}`, style: S.recurringDoneRow },
+          // 优先级色条与主列表行同构；无优先级时用透明占位，保证组内复选框左边缘对齐。
+          h('span', {
+            'aria-hidden': 'true',
+            style: {
+              width: 3, height: 16, borderRadius: 2, flex: 'none',
+              background: occurrence.priority ? priorityColor(occurrence.priority) : 'transparent',
+            },
+          }),
           checkHit(undo, h('span', {
             role: 'checkbox',
             'aria-checked': 'true',
