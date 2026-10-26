@@ -9,7 +9,7 @@ window.__ModuleLoader__.load({
     const dict = {
       zh: {
         nav: '待办', title: '待办', new: '新建', search: '搜索待办',
-        today: '今天', tomorrow: '明天', week: '本周', later: '以后', stale: '积压',
+        today: '今天', overdue: '逾期', tomorrow: '明天', week: '本周', later: '以后', stale: '积压',
         unplanned: '未排期', done: '已完成', empty: '还没有待办',
         staleHint: '超过 {n} 天未完成', loading: '加载中…', failed: '读取失败',
         retry: '重试', pickOne: '选一条看详情',
@@ -47,7 +47,7 @@ window.__ModuleLoader__.load({
       },
       en: {
         nav: 'To-do', title: 'To-do', new: 'New', search: 'Search',
-        today: 'Today', tomorrow: 'Tomorrow', week: 'This week', later: 'Later', stale: 'Backlog',
+        today: 'Today', overdue: 'Overdue', tomorrow: 'Tomorrow', week: 'This week', later: 'Later', stale: 'Backlog',
         unplanned: 'Unscheduled', done: 'Completed', empty: 'No todos yet',
         staleHint: 'Open for more than {n} days', loading: 'Loading…', failed: 'Failed to load',
         retry: 'Retry', pickOne: 'Select an item',
@@ -84,7 +84,7 @@ window.__ModuleLoader__.load({
         badResponse: 'Unexpected response', requestFailed: 'Request failed', dismiss: 'Dismiss',
       },
     }
-    const ORDER = ['today', 'tomorrow', 'week', 'later', 'stale', 'unplanned', 'done']
+    const ORDER = ['overdue', 'today', 'tomorrow', 'week', 'later', 'stale', 'unplanned', 'done']
 
     function apiUrl(method) {
       return new URL(`todo/api/${method}`, document.baseURI).href
@@ -202,6 +202,12 @@ window.__ModuleLoader__.load({
       calendarGrid: { flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gridTemplateRows: 'repeat(6, minmax(0, 1fr))', gap: 4 },
       calendarCell: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 2, minWidth: 0, minHeight: 0, padding: 4, borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l2)', overflow: 'hidden', boxSizing: 'border-box', textAlign: 'left', color: 'var(--dsw-alias-label-primary)', cursor: 'pointer' },
       calendarDay: { flex: 'none', fontSize: 11, lineHeight: '14px', color: 'var(--dsw-alias-label-secondary)' },
+      // 今天只强调日期数字；选中才是整格底色 + 内描边，两者可叠加。
+      calendarDayToday: { color: 'var(--dsw-alias-state-business-primary)', fontWeight: 600 },
+      calendarCellSelected: {
+        background: 'var(--dsw-alias-interactive-bg-hover)',
+        boxShadow: 'inset 0 0 0 1.5px var(--dsw-alias-state-business-primary)',
+      },
       calendarItem: { display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, fontSize: 10.5, lineHeight: '14px', color: 'var(--dsw-alias-label-secondary)' },
       calendarMore: { flex: 'none', paddingLeft: 9, fontSize: 10, lineHeight: '12px', color: 'var(--dsw-alias-label-tertiary)' },
       dot: { flex: 'none', width: 5, height: 5, borderRadius: 999, background: 'var(--dsw-alias-label-tertiary)' },
@@ -242,6 +248,10 @@ window.__ModuleLoader__.load({
 
 .td-row { transition: background-color .12s ease; }
 .td-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+
+/* 日历格：选中态由内联底色 + 内描边表达，悬停只给未选中的格子一层底色。 */
+.td-cal-cell { transition: background-color .12s ease; }
+.td-cal-cell:hover { background: var(--dsw-alias-interactive-bg-hover); }
 
 /* 行标题与复选框不再带 .td-btn：行内只留 .td-row:hover 一层底色。 */
 .td-title {
@@ -861,7 +871,8 @@ window.__ModuleLoader__.load({
       const title = asText(item.title)
       const dueDate = asText(item.dueDate)
       const category = asText(item.category)
-      const late = !item.done && dueDate !== '' && dueDate < todayKey
+      // 逾期桶与「截止日早于今天」是同一判定；后半句兜底重复任务按 nextDue 展示的情况。
+      const late = !item.done && (item.bucket === 'overdue' || (dueDate !== '' && dueDate < todayKey))
       // 行本身保持普通 div：按钮的子元素在 ARIA 里是 presentational，行若 role="button"，
       // 里面的 role="checkbox" 读屏就看不到了。鼠标仍点整行选中；键盘走标题与复选框两个独立控件。
       // 未选中时不写内联 background，悬停底色交给 .td-row:hover。
@@ -1387,7 +1398,7 @@ window.__ModuleLoader__.load({
      * 月视图日历：6×7 月网格直接复用 DateField 的 monthGrid / weekdayLabels，
      * 数据按整格区间（首格到末格）拉 occurrences，切月时 from/to 变化重新拉。
      */
-    function CalendarView({ t, onPickDay }) {
+    function CalendarView({ t, selectedDay, onPickDay }) {
       const [cursor, setCursor] = useState(() => {
         const at = new Date()
         return { year: at.getFullYear(), month: at.getMonth() }
@@ -1452,16 +1463,17 @@ window.__ModuleLoader__.load({
           cells.map((key) => {
             const items = byDate[key] ?? []
             const inMonth = key.slice(0, 7) === monthKey
+            const selected = key === selectedDay
             return h('div', {
               key,
               role: 'button',
               tabIndex: 0,
-              className: 'td-btn',
+              className: 'td-btn td-cal-cell',
               'aria-label': key,
               'data-date': key,
               style: {
                 ...S.calendarCell,
-                ...(key === todayKey ? S.pickerDayToday : null),
+                ...(selected ? S.calendarCellSelected : null),
                 ...(inMonth ? null : S.pickerDayOff),
               },
               onClick: () => onPickDay(key, items),
@@ -1471,7 +1483,7 @@ window.__ModuleLoader__.load({
                 onPickDay(key, items)
               },
             },
-            h('div', { style: S.calendarDay }, String(Number(key.slice(8, 10)))),
+            h('div', { style: key === todayKey ? { ...S.calendarDay, ...S.calendarDayToday } : S.calendarDay }, String(Number(key.slice(8, 10)))),
             items.slice(0, 2).map((item) => h('div', {
               key: `${item.todoId}-${item.date}`,
               style: S.calendarItem,
@@ -1654,7 +1666,7 @@ window.__ModuleLoader__.load({
       return h('div', { style: S.page },
         h('div', { style: S.head },
           h('h2', { style: S.h1 }, t('title')),
-          h('span', { style: S.count }, `${t('today')} ${state.summary.today ?? 0} · ${t('stale')} ${state.summary.stale ?? 0}`),
+          h('span', { style: S.count }, `${t('today')} ${state.summary.today ?? 0} · ${t('overdue')} ${state.summary.overdue ?? 0} · ${t('stale')} ${state.summary.stale ?? 0}`),
           h('div', { style: S.grow }),
           h('button', {
             className: 'td-btn td-elevated',
@@ -1717,7 +1729,7 @@ window.__ModuleLoader__.load({
           : null,
         h('div', { style: S.body },
           view === 'calendar'
-            ? h(CalendarView, { t, onPickDay: (key, items) => setDay({ key, items }) })
+            ? h(CalendarView, { t, selectedDay: day?.key ?? null, onPickDay: (key, items) => setDay({ key, items }) })
             : h('div', { style: S.list },
               state.loading && items.length === 0
                 ? h('div', { style: S.empty }, t('loading'))

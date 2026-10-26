@@ -145,7 +145,8 @@ logoRow(60px) → newSession(38px) → panelList(sidebar.panellist) → regionAr
 
 | bucket | 规则 |
 |---|---|
-| `today` | `!done && dueDate <= 今天` |
+| `overdue` | `!done && dueDate < 今天`（2026-10-26 修订：逾期不再并进 `today`，单独成组） |
+| `today` | `!done && dueDate === 今天` |
 | `tomorrow` | `!done && dueDate === 明天` |
 | `week` | `!done && dueDate <= 本周末` |
 | `later` | `!done` 且**有**截止日期、但在本周末之后（2026-10-22 修订：v1 原先把这类任务归入 `unplanned`，与「未排期」字面意思矛盾） |
@@ -153,7 +154,7 @@ logoRow(60px) → newSession(38px) → panelList(sidebar.panellist) → regionAr
 | `unplanned` | 其余 `!done`（无截止且还没到积压阈值） |
 | `done` | `done`，另外带 `doneBucket`：今天 / 昨天 / 本周 / 更早 |
 
-渲染顺序：today → tomorrow → week → later → stale → unplanned → done（折叠）。
+渲染顺序：overdue → today → tomorrow → week → later → stale → unplanned → done（折叠）。
 
 排序：有截止的按 `dueDate + dueTime` 升序，无截止的按 `priority`（high→low）再按 `createdAt` 降序。`dueDate < 今天` 的未完成项标红。
 
@@ -165,7 +166,7 @@ logoRow(60px) → newSession(38px) → panelList(sidebar.panellist) → regionAr
 
 ```ts
 todo.list(filter?)   // filter: { view?: 'all'|'today'|'week'|'stale'|'done', q?: string }
-                     // → { items: Todo[]（含 bucket）, summary: { today, tomorrow, week, later, stale, unplanned, doneToday } }
+                     // → { items: Todo[]（含 bucket）, summary: { overdue, today, tomorrow, week, later, stale, unplanned, doneToday } }
 todo.create(input)   // { title, note?, priority?, category?, dueDate?, dueTime? }
 todo.update(id, patch)
 todo.complete(id, done?, by?)  // 幂等；done=false 可撤销；by 为 'user'（默认）或 'agent'

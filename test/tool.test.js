@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { createStore } from '../lib/store.js'
 import { createApi } from '../lib/api.js'
 import { createTool } from '../lib/tool.js'
+import { dateKey } from '../lib/bucket.js'
 import { TodoError } from '../lib/model.js'
 
 async function makeTool(t) {
@@ -21,7 +22,8 @@ async function makeTool(t) {
 
 test('add 返回新记录与摘要', async (t) => {
   const { tool } = await makeTool(t)
-  const out = await tool.execute({ action: 'add', title: '交周报', dueDate: '2026-10-22' }, {})
+  // 硬编码 2026-10-22 在新分桶下已算逾期，用当天日期才能守住「add 返回今天计数」的意图。
+  const out = await tool.execute({ action: 'add', title: '交周报', dueDate: dateKey(new Date()) }, {})
   assert.equal(out.item.title, '交周报')
   assert.equal(out.summary.today, 1)
 })
