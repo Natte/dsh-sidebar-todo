@@ -1,9 +1,27 @@
 {
   "name": "dsh-todolist",
   "version": "0.2.0",
-  "private": true,
-  "description": "侧栏待办清单：今天 / 本周 / 积压，agent 可读写",
+  "description": "DeepSeek Harness 侧栏待办清单：今天 / 本周 / 逾期 / 积压，支持循环任务、月视图日历与分类，agent 可读写",
   "type": "module",
+  "license": "MIT",
+  "author": "Natte",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "todo",
+    "todolist",
+    "task",
+    "sidebar"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Natte/dsh-todolist.git"
+  },
+  "homepage": "https://github.com/Natte/dsh-todolist#readme",
+  "bugs": {
+    "url": "https://github.com/Natte/dsh-todolist/issues"
+  },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -12,6 +30,7 @@
   },
   "files": ["index.js", "client.js", "lib/**/*.js", "cordis.patch.yml", "locale/*.json", "icon.svg"],
   "scripts": { "test": "node --test" },
+  "publishConfig": { "access": "public" },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
     "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-sidebar", "@deepseek-ai/dsh-client-locale"] }
