@@ -875,9 +875,9 @@ window.__ModuleLoader__.load({
       const title = asText(item.title)
       const dueDate = asText(item.dueDate)
       const category = asText(item.category)
-      // until 已过的循环任务没有下一次：复选框置灰且不响应，避免勾掉今天后行不变。
-      const seriesEnded = Boolean(item.isRepeating) && item.nextDue === null
-      // 逾期桶与「截止日早于今天」是同一判定；后半句兜底重复任务按 nextDue 展示的情况。
+      // 循环任务以本周期实例为准：dueDate 为空说明系列已结束，复选框置灰且不响应。
+      const seriesEnded = Boolean(item.isRepeating) && !dueDate
+      // 逾期桶与「截止日早于今天」是同一判定；循环行的 dueDate 就是本次，同样参与比较。
       const late = !item.done && (item.bucket === 'overdue' || (dueDate !== '' && dueDate < todayKey))
       // 行本身保持普通 div：按钮的子元素在 ARIA 里是 presentational，行若 role="button"，
       // 里面的 role="checkbox" 读屏就看不到了。鼠标仍点整行选中；键盘走标题与复选框两个独立控件。
@@ -1663,8 +1663,10 @@ window.__ModuleLoader__.load({
       const toggleItem = (item) => {
         const payload = { id: item.id, done: !item.done }
         if (item.isRepeating) {
-          if (!item.nextDue) return          // 系列已结束，不可勾
-          payload.date = item.nextDue
+          if (!item.dueDate) return          // 本周期没有待完成实例（系列已结束），不可勾
+          // 勾的是本周期这一次（dueDate），不是下一个未完成实例（nextDue）：
+          // 漏做时 nextDue 已滚到下周，用它会把下周那次误标成完成。
+          payload.date = item.dueDate
         }
         void mutate('complete', payload)
       }
@@ -1691,7 +1693,7 @@ window.__ModuleLoader__.load({
       const selectedLastCompleted = selectedCompletionKeys.length === 0
         ? ''
         : selectedCompletionKeys[selectedCompletionKeys.length - 1]
-      const selectedRepeatEnded = Boolean(selectedItem?.isRepeating && selectedItem.nextDue === null)
+      const selectedRepeatEnded = Boolean(selectedItem?.isRepeating && !selectedItem?.dueDate)
       const selectedCompletionCount = selectedCompletionKeys.length
       const selectedCountLabel = `${t('completedTimes').replace('{n}', String(selectedCompletionCount))}${selectedRepeatEnded ? ` · ${t('seriesEnded')}` : ''}`
 
@@ -1892,7 +1894,7 @@ window.__ModuleLoader__.load({
                       },
                       onClick: () => {
                         const payload = { id: selectedItem.id, done: !selectedItem.done }
-                        if (selectedItem.isRepeating && selectedItem.nextDue) payload.date = selectedItem.nextDue
+                        if (selectedItem.isRepeating && selectedItem.dueDate) payload.date = selectedItem.dueDate
                         void mutate('complete', payload)
                       },
                     }, selectedItem.done ? t('reopen') : (selectedItem.isRepeating ? t('completeOccurrence') : t('complete'))),

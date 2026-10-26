@@ -169,13 +169,28 @@ test('add 支持 repeat，list 标注循环', async (t) => {
   assert.equal(added.item.repeat.freq, 'weekly')
   const listed = await tool.execute({ action: 'list' }, {})
   const text = tool.output.render({ action: 'list' }, listed)[0].text
-  assert.match(text, /循环·下次 \d{2}-\d{2}/)
+  assert.match(text, /循环·本次 \d{2}-\d{2}/)
+  assert.ok(!text.includes('循环·下次'), '循环任务不再显示「下次」')
   // 周期规则生效后，系列已结束的循环任务不再进入 list()；「已结束」文案直接渲染验证。
   const ended = tool.output.render({}, {
     items: [{ id: 't_ended', title: '旧任务', isRepeating: true, nextDue: null, done: false, bucket: 'later' }],
   })[0].text
   assert.match(ended, /循环·已结束/)
   await store.close()
+})
+
+test('describe 的循环任务显示本次（dueDate）而不是下次（nextDue）', () => {
+  const tool = createTool({}, Promise.resolve())
+  // 漏做时两者不同：本次是 10-30，下一个未完成实例已滚到 11-06；文案必须取本次。
+  const text = tool.output.render({ action: 'list' }, {
+    items: [{
+      id: 't_missed', title: '交周报', isRepeating: true,
+      dueDate: '2026-10-30', nextDue: '2026-11-06', done: false, bucket: 'overdue',
+    }],
+    summary: {},
+  })[0].text
+  assert.match(text, /循环·本次 10-30/)
+  assert.ok(!text.includes('11-06'), '循环任务不应显示 nextDue')
 })
 
 test('complete 支持 date 参数', async (t) => {
