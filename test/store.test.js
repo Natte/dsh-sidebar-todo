@@ -485,3 +485,19 @@ test('非法 repeat 被拒绝', async () => {
   )
   await store.close()
 })
+
+test('循环任务拒绝非发生日的完成日期', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({ title: '周报', dueDate: '2026-10-23', repeat: { freq: 'weekly', weekdays: [5] } })
+  await assert.rejects(
+    () => store.complete(todo.id, true, 'user', '2026-10-26'),   // 周一
+    (err) => err instanceof TodoError && err.code === 'invalid-input',
+  )
+  await assert.rejects(
+    () => store.complete(todo.id, true, 'user', '2026-13-01'),
+    (err) => err.code === 'invalid-input',
+  )
+  const ok = await store.complete(todo.id, true, 'user', '2026-10-30')  // 周五
+  assert.ok(ok.completions['2026-10-30'])
+  await store.close()
+})
