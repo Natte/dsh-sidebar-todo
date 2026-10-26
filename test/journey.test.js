@@ -41,12 +41,14 @@ test('旅程 1：每周五的日报 —— 完成本次消失，日历保留，�
       repeat: { freq: 'weekly', weekdays: [5] },
     })
 
-    // 本周期（本周）的实例是本周五；本周五尚未到期（验收日为周一）时落在 week 桶。
+    // 本周期的实例是本周五。周二到周五跑：今天或未来 → today/week；
+    // 周六周日跑：本周五已过 → overdue。断言按运行日推导，避免测试只在周一到周五成立。
+    const expectedBucket = friday === today ? 'today' : friday < today ? 'overdue' : 'week'
     const first = await api.list()
     const row = first.items.find((t) => t.id === todo.id)
     assert.ok(row, '本周五还没完成，应该出现在列表')
     assert.equal(row.dueDate, friday)
-    assert.equal(row.bucket, 'week')
+    assert.equal(row.bucket, expectedBucket)
 
     await api.complete({ id: todo.id, done: true, date: friday })
     const afterDone = await api.list()
