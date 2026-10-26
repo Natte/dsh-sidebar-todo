@@ -37,6 +37,8 @@ window.__ModuleLoader__.load({
         weekdaysRequired: '每周至少选一天',
         mon: '一', tue: '二', wed: '三', thu: '四', fri: '五', sat: '六', sun: '日',
         repeatBadge: '循环',
+        completeOccurrence: '完成本次', lastCompleted: '上次完成', neverCompleted: '尚未完成过',
+        completedTimes: '已完成 {n} 次', seriesEnded: '循环已结束',
         quickFill: '一句话填写，例如：明天下午3点 交周报 #工作',
         quickHint: '也可以只填标题，之后在对话里让我改日期。', titleRequired: '标题不能为空',
         emptyHint: '新建第一条',
@@ -75,6 +77,8 @@ window.__ModuleLoader__.load({
         weekdaysRequired: 'Pick at least one weekday',
         mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
         repeatBadge: 'Repeats',
+        completeOccurrence: 'Complete this one', lastCompleted: 'Last completed', neverCompleted: 'Never completed',
+        completedTimes: 'Completed {n} times', seriesEnded: 'Series ended',
         quickFill: 'Quick fill, e.g. "tomorrow 3pm report #work"',
         quickHint: 'You can fill in just the title and ask me in chat to set the date later.', titleRequired: 'Title is required',
         emptyHint: 'Create the first one',
@@ -871,6 +875,8 @@ window.__ModuleLoader__.load({
       const title = asText(item.title)
       const dueDate = asText(item.dueDate)
       const category = asText(item.category)
+      // until 已过的循环任务没有下一次：复选框置灰且不响应，避免勾掉今天后行不变。
+      const seriesEnded = Boolean(item.isRepeating) && item.nextDue === null
       // 逾期桶与「截止日早于今天」是同一判定；后半句兜底重复任务按 nextDue 展示的情况。
       const late = !item.done && (item.bucket === 'overdue' || (dueDate !== '' && dueDate < todayKey))
       // 行本身保持普通 div：按钮的子元素在 ARIA 里是 presentational，行若 role="button"，
@@ -891,13 +897,18 @@ window.__ModuleLoader__.load({
       h('span', {
         role: 'checkbox',
         'aria-checked': item.done ? 'true' : 'false',
+        'aria-disabled': seriesEnded ? 'true' : undefined,
         'aria-label': title,
         tabIndex: 0,
         className: 'td-check',
-        style: item.done ? S.cbDone : S.cb,
-        onClick: (e) => { e.stopPropagation(); onToggle(item) },
+        style: seriesEnded ? { ...(item.done ? S.cbDone : S.cb), opacity: 0.45 } : (item.done ? S.cbDone : S.cb),
+        onClick: (e) => {
+          e.stopPropagation()
+          if (!seriesEnded) onToggle(item)
+        },
         onKeyDown: (e) => {
           if (e.nativeEvent?.isComposing === true) return
+          if (seriesEnded) return
           if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); onToggle(item) }
         },
       }, item.done
@@ -1649,7 +1660,14 @@ window.__ModuleLoader__.load({
         .map((bucket) => ({ bucket, items: doneItems.filter((item) => doneGroupOf(item) === bucket) }))
         .filter((section) => section.items.length > 0)
       const selectedItem = items.find((item) => item.id === selected) ?? null
-      const toggleItem = (item) => { void mutate('complete', { id: item.id, done: !item.done }) }
+      const toggleItem = (item) => {
+        const payload = { id: item.id, done: !item.done }
+        if (item.isRepeating) {
+          if (!item.nextDue) return          // 系列已结束，不可勾
+          payload.date = item.nextDue
+        }
+        void mutate('complete', payload)
+      }
       const renderRow = (item) => h(Row, {
         key: item.id, item, t,
         selected: item.id === selected,
@@ -1662,6 +1680,20 @@ window.__ModuleLoader__.load({
       const selectedDueDate = selectedItem ? asText(selectedItem.dueDate) : ''
       const selectedDueTime = selectedItem ? asText(selectedItem.dueTime) : ''
       const selectedCategory = selectedItem ? asText(selectedItem.category) : ''
+      // 手改 JSON 可能让 completions 变成任意类型；详情只按对象兜底，坏值当「还没完成过」。
+      const selectedCompletions = selectedItem !== null && selectedItem.isRepeating
+        && selectedItem.completions !== null
+        && typeof selectedItem.completions === 'object'
+        && !Array.isArray(selectedItem.completions)
+        ? selectedItem.completions
+        : {}
+      const selectedCompletionKeys = Object.keys(selectedCompletions).sort()
+      const selectedLastCompleted = selectedCompletionKeys.length === 0
+        ? ''
+        : selectedCompletionKeys[selectedCompletionKeys.length - 1]
+      const selectedRepeatEnded = Boolean(selectedItem?.isRepeating && selectedItem.nextDue === null)
+      const selectedCompletionCount = selectedCompletionKeys.length
+      const selectedCountLabel = `${t('completedTimes').replace('{n}', String(selectedCompletionCount))}${selectedRepeatEnded ? ` · ${t('seriesEnded')}` : ''}`
 
       return h('div', { style: S.page },
         h('div', { style: S.head },
@@ -1836,7 +1868,13 @@ window.__ModuleLoader__.load({
                       : null,
                     selectedDueDate !== '' ? detailRow(t('dueDate'), `${selectedDueDate}${selectedDueTime !== '' ? ' ' + selectedDueTime : ''}`) : null,
                     selectedCategory !== '' ? detailRow(t('category'), selectedCategory) : null,
-                    selectedItem.createdAt ? detailRow(t('created'), formatDateTime(selectedItem.createdAt)) : null),
+                    selectedItem.createdAt ? detailRow(t('created'), formatDateTime(selectedItem.createdAt)) : null,
+                    selectedItem.isRepeating
+                      ? detailRow(t('lastCompleted'), selectedLastCompleted === '' ? t('neverCompleted') : selectedLastCompleted.slice(5))
+                      : null,
+                    selectedItem.isRepeating
+                      ? detailRow(t('repeatBadge'), selectedCountLabel)
+                      : null),
                   h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
                     h('button', {
                       className: 'td-btn',
@@ -1845,9 +1883,19 @@ window.__ModuleLoader__.load({
                     }, t('edit')),
                     h('button', {
                       className: 'td-primary',
-                      style: { flex: 1, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5 },
-                      onClick: () => void mutate('complete', { id: selectedItem.id, done: !selectedItem.done }),
-                    }, selectedItem.done ? t('reopen') : t('complete')),
+                      disabled: selectedRepeatEnded,
+                      style: {
+                        flex: 1, height: 32, borderRadius: 8, border: 'none',
+                        cursor: selectedRepeatEnded ? 'not-allowed' : 'pointer',
+                        opacity: selectedRepeatEnded ? 0.45 : 1,
+                        background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5,
+                      },
+                      onClick: () => {
+                        const payload = { id: selectedItem.id, done: !selectedItem.done }
+                        if (selectedItem.isRepeating && selectedItem.nextDue) payload.date = selectedItem.nextDue
+                        void mutate('complete', payload)
+                      },
+                    }, selectedItem.done ? t('reopen') : (selectedItem.isRepeating ? t('completeOccurrence') : t('complete'))),
                     h('button', {
                       className: 'td-btn',
                       style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', color: confirming ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
