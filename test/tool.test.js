@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { createStore } from '../lib/store.js'
 import { createApi } from '../lib/api.js'
 import { createTool } from '../lib/tool.js'
-import { dateKey } from '../lib/bucket.js'
+import { dateKey, shiftKey } from '../lib/bucket.js'
 import { TodoError } from '../lib/model.js'
 
 async function makeTool(t) {
@@ -26,6 +26,15 @@ test('add 返回新记录与摘要', async (t) => {
   const out = await tool.execute({ action: 'add', title: '交周报', dueDate: dateKey(new Date()) }, {})
   assert.equal(out.item.title, '交周报')
   assert.equal(out.summary.today, 1)
+})
+
+test('list 头部含逾期计数', async (t) => {
+  const { tool } = await makeTool(t)
+  const yesterday = shiftKey(dateKey(new Date()), -1)
+  await tool.execute({ action: 'add', title: '逾期的事', dueDate: yesterday }, {})
+  const out = await tool.execute({ action: 'list' }, {})
+  const text = tool.output.render({ action: 'list' }, out)[0].text
+  assert.ok(text.includes('待办：今天 0 · 逾期 1 · 积压 0 · 未排期 0 · 最近完成 0'), `头部应含逾期计数：\n${text}`)
 })
 
 test('list 默认只给未完成', async (t) => {
