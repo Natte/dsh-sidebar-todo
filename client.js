@@ -9,8 +9,8 @@ window.__ModuleLoader__.load({
     const dict = {
       zh: {
         nav: '待办', title: '待办', new: '新建', search: '搜索待办',
-        today: '今天', overdue: '逾期', tomorrow: '明天', week: '本周', later: '以后', stale: '积压',
-        unplanned: '未排期', done: '已完成', empty: '还没有待办',
+        today: '今天', overdue: '逾期', tomorrow: '明天', week: '本周', month: '本月', later: '以后', stale: '积压',
+        unplanned: '未排期', done: '已完成', doneEmpty: '该范围内没有完成记录', empty: '还没有待办',
         staleHint: '超过 {n} 天未完成', loading: '加载中…', failed: '读取失败',
         retry: '重试', pickOne: '选一条看详情',
         listView: '列表', calendarView: '日历', prevMonth: '上个月', nextMonth: '下个月',
@@ -50,8 +50,8 @@ window.__ModuleLoader__.load({
       },
       en: {
         nav: 'To-do', title: 'To-do', new: 'New', search: 'Search',
-        today: 'Today', overdue: 'Overdue', tomorrow: 'Tomorrow', week: 'This week', later: 'Later', stale: 'Backlog',
-        unplanned: 'Unscheduled', done: 'Completed', empty: 'No todos yet',
+        today: 'Today', overdue: 'Overdue', tomorrow: 'Tomorrow', week: 'This week', month: 'This month', later: 'Later', stale: 'Backlog',
+        unplanned: 'Unscheduled', done: 'Completed', doneEmpty: 'No completions in this range', empty: 'No todos yet',
         staleHint: 'Open for more than {n} days', loading: 'Loading…', failed: 'Failed to load',
         retry: 'Retry', pickOne: 'Select an item',
         listView: 'List', calendarView: 'Calendar', prevMonth: 'Previous month', nextMonth: 'Next month',
@@ -154,7 +154,14 @@ window.__ModuleLoader__.load({
       btnGhost: { height: 32, padding: '0 14px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)', fontSize: 12.5, cursor: 'pointer' },
       btnPrimary: { height: 32, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5, cursor: 'pointer' },
       noticeClose: { flex: 'none', width: 20, height: 20, padding: 0, lineHeight: '18px', textAlign: 'center', border: 'none', borderRadius: 4, color: 'inherit', fontSize: 14, cursor: 'pointer' },
-      secBtn: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 30, padding: '0 8px', marginTop: 6, border: 'none', cursor: 'pointer', textAlign: 'left' },
+      // 「已完成」标题行：标题 + 计数是折叠开关，右侧是范围分段控件，末尾箭头同样可折叠。
+      doneHead: { display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 8px', marginTop: 6 },
+      doneToggle: { display: 'flex', alignItems: 'center', gap: 8, flex: 'none', minWidth: 0, padding: 0, border: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left' },
+      doneRange: { display: 'flex', alignItems: 'center', gap: 4, flex: 'none' },
+      doneRangeItem: { height: 22, padding: '0 7px', borderRadius: 5, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5, lineHeight: '20px', cursor: 'pointer' },
+      doneRangeItemOn: { border: '0.5px solid transparent', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)' },
+      doneArrow: { flex: 'none', padding: '0 2px', border: 'none', color: 'var(--dsw-alias-label-tertiary)', fontSize: 10, lineHeight: '18px', cursor: 'pointer' },
+      doneEmpty: { padding: '2px 8px 4px 16px', fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' },
       subsec: { display: 'flex', alignItems: 'center', gap: 8, height: 26, padding: '0 8px 0 16px', marginTop: 2 },
       // 分类组合框：外框仍是普通 input，下拉是同一 React 树里的兄弟节点；
       // 定位交给 useAnchoredPopover（position: fixed，视口坐标），外观交给 .td-pop。
@@ -344,6 +351,18 @@ window.__ModuleLoader__.load({
       return dateKeyOf(date) === text ? date : null
     }
 
+    /** ISO 星期：周一 = 1 … 周日 = 7；与 `monthGrid` 的周一起始保持一致。 */
+    function isoWeekday(date) {
+      return ((date.getDay() + 6) % 7) + 1
+    }
+
+    /** 把 `YYYY-MM-DD` 在本地日历上平移 `days` 天；非法键原样返回。 */
+    function shiftKeyLocal(key, days) {
+      const date = parseDateKey(key)
+      if (date === null) return key
+      return dateKeyOf(new Date(date.getFullYear(), date.getMonth(), date.getDate() + days))
+    }
+
     /** 6 周 × 7 天，周一起始；返回 42 个 `YYYY-MM-DD`，前后补邻月日期。 */
     function monthGrid(year, month) {
       const first = new Date(year, month, 1)
@@ -436,6 +455,14 @@ window.__ModuleLoader__.load({
       monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
       if (day >= monday.getTime()) return 'week'
       return 'earlier'
+    }
+
+    /** `doneAt` → 本地日期键；旧数据没有 `doneAt`（或值非法）返回 null。 */
+    function doneKeyOf(item) {
+      if (!item.doneAt) return null
+      const at = new Date(item.doneAt)
+      if (Number.isNaN(at.getTime())) return null
+      return dateKeyOf(at)
     }
 
     /** 服务端 categories 返回 `{ items: [{ name, count }] }`；脏数据按空名跳过。 */
@@ -1519,6 +1546,8 @@ window.__ModuleLoader__.load({
       const [categoryOpen, setCategoryOpen] = useState(false)
       const [confirming, setConfirming] = useState(false)
       const [doneOpen, setDoneOpen] = useState(false)
+      // 「已完成」的范围：today | week | month；默认看整周，而不是只看今天。
+      const [doneRange, setDoneRange] = useState('week')
       const [noticeHidden, setNoticeHidden] = useState(corruptDismissed)
       const [compactDetail, setCompactDetail] = useState(() => window.innerWidth < 1000)
       const [retrying, setRetrying] = useState(false)
@@ -1557,8 +1586,13 @@ window.__ModuleLoader__.load({
         const seq = ++seqRef.current
         try {
           // 循环任务的完成实例单独拉；它失败不该把已经拿到的 list 一起判死。
-          const from = dateKeyOf(new Date(Date.now() - 29 * 86400000))
-          const to = dateKeyOf(new Date())
+          // 窗口覆盖「本月」：本月 1 号，若本周一更早则取本周一；三个范围共用一次拉取。
+          const now = new Date()
+          const todayKey = dateKeyOf(now)
+          const weekStart = shiftKeyLocal(todayKey, 1 - isoWeekday(now))
+          const monthStart = `${todayKey.slice(0, 7)}-01`
+          const from = weekStart < monthStart ? weekStart : monthStart
+          const to = todayKey
           const occTask = fetchApi('occurrences', { from, to }, tRef.current).catch((err) => {
             console.error('[dsh-todolist] occurrences (done) failed', err)
             return { items: [] }
@@ -1667,7 +1701,11 @@ window.__ModuleLoader__.load({
       }, [])
 
       const items = state.items
-      const todayKey = dateKeyOf(new Date())
+      const now = new Date()
+      const todayKey = dateKeyOf(now)
+      const weekStart = shiftKeyLocal(todayKey, 1 - isoWeekday(now))   // 本周一
+      const monthStart = `${todayKey.slice(0, 7)}-01`
+      const rangeStart = doneRange === 'today' ? todayKey : doneRange === 'week' ? weekStart : monthStart
       const pendingCount = items.filter((item) => item.done && item.doneBy === 'agent' && !item.verifiedAt).length
 
       // 首次出现未核实项（0 → N）时把「已完成」展开，否则标记藏在折叠区里没人看得见。
@@ -1677,8 +1715,20 @@ window.__ModuleLoader__.load({
         prevPending.current = pendingCount
       }, [pendingCount])
 
-      const doneItems = items.filter((item) => item.bucket === 'done')
-      const doneTotal = doneItems.length + recurringDone.length
+      // 两路完成数据都先按当前范围裁剪；组内的 今天/昨天/本周/更早 分节逻辑不变。
+      // 旧数据没有 doneAt：只在最宽的「本月」里保留，仍归入「更早」。
+      const inDoneRange = (key) => key !== null && key >= rangeStart && key <= todayKey
+      const allDoneItems = items.filter((item) => item.bucket === 'done')
+      const doneItems = allDoneItems.filter((item) => {
+        const key = doneKeyOf(item)
+        return key === null ? doneRange === 'month' : inDoneRange(key)
+      })
+      const recurringDoneInRange = recurringDone.filter((occurrence) => {
+        const key = asText(occurrence.date)
+        return parseDateKey(key) !== null && inDoneRange(key)
+      })
+      const doneTotal = doneItems.length + recurringDoneInRange.length
+      const hasDoneData = allDoneItems.length + recurringDone.length > 0
       const openGroups = ORDER
         .filter((bucket) => bucket !== 'done')
         .map((bucket) => ({ bucket, items: items.filter((item) => item.bucket === bucket) }))
@@ -1846,44 +1896,67 @@ window.__ModuleLoader__.load({
                       ),
                       group.items.map((item) => renderRow(item)),
                     )),
-                    doneTotal === 0 ? null : h('div', { key: 'done' },
-                      h('button', {
-                        className: 'td-btn',
-                        style: S.secBtn,
-                        'aria-expanded': doneOpen ? 'true' : 'false',
-                        onClick: () => {
-                          doneTouched.current = true
-                          setDoneOpen((open) => !open)
+                    hasDoneData ? h('div', { key: 'done' },
+                      h('div', { style: S.doneHead },
+                        h('button', {
+                          className: 'td-btn',
+                          style: S.doneToggle,
+                          'aria-expanded': doneOpen ? 'true' : 'false',
+                          onClick: () => {
+                            doneTouched.current = true
+                            setDoneOpen((open) => !open)
+                          },
                         },
-                      },
-                      h('span', { style: S.secT }, t('done')),
-                      h('span', { style: S.secN }, String(doneTotal)),
-                      pendingCount > 0
-                        ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-warn-primary)' } }, `${pendingCount} ${t('needsReview')}`)
-                        : null,
-                      h('span', { style: S.line }),
-                      h('span', { style: { ...S.secN, fontSize: 10 } }, doneOpen ? '▾' : '▸'),
+                        h('span', { style: S.secT }, t('done')),
+                        h('span', { style: S.secN }, String(doneTotal)),
+                        pendingCount > 0
+                          ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-warn-primary)' } }, `${pendingCount} ${t('needsReview')}`)
+                          : null),
+                        // 范围控件放在计数之后、箭头之前：点它只切范围，不触发折叠。
+                        h('div', { style: S.doneRange, role: 'group', 'aria-label': t('done') },
+                          ['today', 'week', 'month'].map((value) => h('button', {
+                            key: value,
+                            type: 'button',
+                            className: 'td-btn',
+                            'aria-pressed': doneRange === value ? 'true' : 'false',
+                            style: { ...S.doneRangeItem, ...(doneRange === value ? S.doneRangeItemOn : null) },
+                            onClick: () => setDoneRange(value),
+                          }, t(value)))),
+                        h('span', { style: S.line }),
+                        h('button', {
+                          type: 'button',
+                          className: 'td-btn',
+                          style: S.doneArrow,
+                          'aria-expanded': doneOpen ? 'true' : 'false',
+                          'aria-label': t('done'),
+                          onClick: () => {
+                            doneTouched.current = true
+                            setDoneOpen((open) => !open)
+                          },
+                        }, doneOpen ? '▾' : '▸'),
                       ),
                       doneOpen
-                        ? doneSections.map((section) => h('div', { key: section.bucket },
+                        ? (doneTotal === 0
+                          ? h('div', { style: S.doneEmpty }, t('doneEmpty'))
+                          : doneSections.map((section) => h('div', { key: section.bucket },
                             h('div', { style: S.subsec },
                               h('span', { style: S.secT }, t(section.bucket)),
                               h('span', { style: S.secN }, String(section.items.length)),
                               h('span', { style: S.line }),
                             ),
                             section.items.map((item) => renderRow(item)),
-                          )).concat(recurringDone.length === 0 ? [] : [
+                          )).concat(recurringDoneInRange.length === 0 ? [] : [
                             h('div', { key: 'recurring-done' },
                               h('div', { style: S.subsec },
                                 h('span', { style: S.secT }, t('recurringDoneSection')),
-                                h('span', { style: S.secN }, String(recurringDone.length)),
+                                h('span', { style: S.secN }, String(recurringDoneInRange.length)),
                                 h('span', { style: S.line }),
                               ),
-                              recurringDone.map((occurrence) => renderRecurringDone(occurrence)),
+                              recurringDoneInRange.map((occurrence) => renderRecurringDone(occurrence)),
                             ),
-                          ])
+                          ]))
                         : null,
-                    ),
+                    ) : null,
                   ),
             ),
           h('div', { style: compactDetail ? { ...S.detail, width: 320 } : S.detail },
