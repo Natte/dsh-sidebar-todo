@@ -2,6 +2,31 @@
 
 DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和 agent 共用一份。
 
+当前版本 **0.2.0**（v1 + v2 功能：编辑弹窗、循环任务、月视图日历、分类管理）。
+
+## 兼容性
+
+| 宿主版本 | 插件版本 | 结论 | 日期 |
+|---|---|---|---|
+| `0.2.1-rc.3` | `0.2.0` | 已验证可用 | 2026-10-26 |
+| `0.2.1-rc.2` | `0.1.0` | 已验证可用 | 2026-10-22 |
+
+插件**不 import 任何 `@deepseek-ai/*` 包**（无 `dependencies`、无 `peerDependencies`），只依赖宿主在运行时提供的契约：
+
+| 契约 | 用在哪 | 变了会怎样 |
+|---|---|---|
+| `window.__ModuleLoader__.load({ id, factory })` | `client.js` | 侧栏没有「待办」，控制台报模块加载失败 |
+| `ctx.slots.inject / register` + 槽位 `sidebar.panellist` / `main` | 入口行与面板 | 入口消失，或点了不切换 |
+| `ctx.webServer.register` + `ctx.connection.requestRejection` | `index.js` 路由 | 面板一直显示「读取失败」 |
+| `ctx.tools.register` 的 `ToolDefinition` | `lib/tool.js` | agent 看不到 `personal_todo` |
+| `ctx.locale.register / bind` | 文案 | 退化成只有中文（有兜底） |
+| `--dsw-alias-*` 等主题 token | 样式 | 视觉降级，不会崩 |
+| 数据文件 `todos.json` | `lib/store.js` | 与宿主无关，升级不受影响 |
+
+**升级宿主后的自查顺序**：重载插件（`set_plugin` 关再开）→ 侧栏点开「待办」→ 让 agent 调一次 `personal_todo list` → `node --test`。
+
+注意 `node --test` 只覆盖 `lib/`，宿主接口断了它照样全绿，所以前两步不能省。
+
 ## 安装
 
 在本机的 DSH 里执行插件安装（包目录为仓库根目录），装完侧栏「新会话/自动化任务」下方会出现「待办」。
