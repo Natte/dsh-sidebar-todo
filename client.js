@@ -39,6 +39,7 @@ window.__ModuleLoader__.load({
         repeatBadge: '循环',
         completeOccurrence: '完成本次', lastCompleted: '上次完成', neverCompleted: '尚未完成过',
         completedTimes: '已完成 {n} 次', seriesEnded: '循环已结束',
+        completedOn: '完成于', recurringDoneSection: '循环任务完成',
         quickFill: '一句话填写，例如：明天下午3点 交周报 #工作',
         quickHint: '也可以只填标题，之后在对话里让我改日期。', titleRequired: '标题不能为空',
         emptyHint: '新建第一条',
@@ -79,6 +80,7 @@ window.__ModuleLoader__.load({
         repeatBadge: 'Repeats',
         completeOccurrence: 'Complete this one', lastCompleted: 'Last completed', neverCompleted: 'Never completed',
         completedTimes: 'Completed {n} times', seriesEnded: 'Series ended',
+        completedOn: 'Completed on', recurringDoneSection: 'Recurring completions',
         quickFill: 'Quick fill, e.g. "tomorrow 3pm report #work"',
         quickHint: 'You can fill in just the title and ask me in chat to set the date later.', titleRequired: 'Title is required',
         emptyHint: 'Create the first one',
@@ -1407,9 +1409,9 @@ window.__ModuleLoader__.load({
 
     /**
      * 月视图日历：6×7 月网格直接复用 DateField 的 monthGrid / weekdayLabels，
-     * 数据按整格区间（首格到末格）拉 occurrences，切月时 from/to 变化重新拉。
+     * 数据按整格区间（首格到末格）拉 occurrences，切月或任何写操作（version）后重新拉。
      */
-    function CalendarView({ t, selectedDay, onPickDay }) {
+    function CalendarView({ t, selectedDay, onPickDay, version }) {
       const [cursor, setCursor] = useState(() => {
         const at = new Date()
         return { year: at.getFullYear(), month: at.getMonth() }
@@ -1440,7 +1442,7 @@ window.__ModuleLoader__.load({
             setByDate({})
           })
         return () => { alive = false }
-      }, [from, to])
+      }, [from, to, version])
 
       const move = (delta) => {
         const at = new Date(cursor.year, cursor.month + delta, 1)
@@ -1487,11 +1489,11 @@ window.__ModuleLoader__.load({
                 ...(selected ? S.calendarCellSelected : null),
                 ...(inMonth ? null : S.pickerDayOff),
               },
-              onClick: () => onPickDay(key, items),
+              onClick: () => onPickDay(key),
               onKeyDown: (event) => {
                 if (event.key !== 'Enter' && event.key !== ' ') return
                 event.preventDefault?.()
-                onPickDay(key, items)
+                onPickDay(key)
               },
             },
             h('div', { style: key === todayKey ? { ...S.calendarDay, ...S.calendarDayToday } : S.calendarDay }, String(Number(key.slice(8, 10)))),
@@ -1521,8 +1523,13 @@ window.__ModuleLoader__.load({
       const [compactDetail, setCompactDetail] = useState(() => window.innerWidth < 1000)
       const [retrying, setRetrying] = useState(false)
       const [view, setView] = useState('list')
-      // null 或 { key: 'YYYY-MM-DD', items: occurrences[] }；日历点某天后详情列优先显示它。
-      const [day, setDay] = useState(null)
+      // 最近 30 天循环任务的完成实例：只喂「已完成」分组，不参与 summary，也不混进主列表。
+      const [recurringDone, setRecurringDone] = useState([])
+      // 写操作计数器：日历与当天清单都靠它重拉 occurrences，避免写后还看旧数据。
+      const [dataVersion, setDataVersion] = useState(0)
+      // 日历选中的那一天；清单数据由 [dayKey, dataVersion] 单独拉，不再存点击时的快照。
+      const [dayKey, setDayKey] = useState(null)
+      const [dayItems, setDayItems] = useState([])
 
       // t 走 ref：语言切换时调用方可能换掉 props.t，但不该让 reload 重新排队。
       const tRef = useRef(t)
@@ -1549,7 +1556,17 @@ window.__ModuleLoader__.load({
       const reload = useCallback(async () => {
         const seq = ++seqRef.current
         try {
-          const result = await fetchApi('list', query ? { q: query } : {}, tRef.current)
+          // 循环任务的完成实例单独拉；它失败不该把已经拿到的 list 一起判死。
+          const from = dateKeyOf(new Date(Date.now() - 29 * 86400000))
+          const to = dateKeyOf(new Date())
+          const occTask = fetchApi('occurrences', { from, to }, tRef.current).catch((err) => {
+            console.error('[dsh-todolist] occurrences (done) failed', err)
+            return { items: [] }
+          })
+          const [result, occ] = await Promise.all([
+            fetchApi('list', query ? { q: query } : {}, tRef.current),
+            occTask,
+          ])
           if (seq !== seqRef.current) return
           setState({
             loading: false,
@@ -1559,6 +1576,10 @@ window.__ModuleLoader__.load({
             notices: Array.isArray(result.notices) ? result.notices : [],
             staleDays: Number.isInteger(result.staleDays) ? result.staleDays : 7,
           })
+          // 只取循环任务已完成的那次，按完成日期倒序进「已完成」分组。
+          setRecurringDone((Array.isArray(occ?.items) ? occ.items : [])
+            .filter((occurrence) => occurrence.repeat && occurrence.done)
+            .sort((a, b) => b.date.localeCompare(a.date)))
         } catch (err) {
           if (seq !== seqRef.current) return
           console.error('[dsh-todolist] list failed', err)
@@ -1570,6 +1591,8 @@ window.__ModuleLoader__.load({
       const mutate = useCallback(async (method, payload) => {
         try {
           await fetchApi(method, payload, tRef.current)
+          // 写成功后让日历和当天清单重拉 occurrences（它们都依赖 dataVersion）。
+          setDataVersion((v) => v + 1)
           await reload()
           return true
         } catch (err) {
@@ -1581,27 +1604,30 @@ window.__ModuleLoader__.load({
         }
       }, [reload])
 
-      /** 重拉某一天：勾选后让当天清单拿到新的完成状态；期间切了日期就丢弃响应。 */
-      const refreshDay = useCallback(async (key) => {
-        try {
-          const result = await fetchApi('occurrences', { from: key, to: key }, tRef.current)
-          setDay((prev) => (prev !== null && prev.key === key
-            ? { key, items: Array.isArray(result.items) ? result.items : [] }
-            : prev))
-        } catch (err) {
-          console.error('[dsh-todolist] occurrences failed', err)
+      /** 当天清单：只认 dayKey 与 dataVersion，打开 / 切回 / 写后都重新拉，不存快照。 */
+      useEffect(() => {
+        if (dayKey === null) {
+          setDayItems([])
+          return undefined
         }
-      }, [])
+        let alive = true
+        fetchApi('occurrences', { from: dayKey, to: dayKey }, tRef.current)
+          .then((result) => {
+            if (!alive) return
+            setDayItems(Array.isArray(result.items) ? result.items : [])
+          })
+          .catch((err) => {
+            if (!alive) return
+            console.error('[dsh-todolist] occurrences failed', err)
+            setDayItems([])
+          })
+        return () => { alive = false }
+      }, [dayKey, dataVersion])
 
-      /** 当天清单里勾选：complete 带 date，写完重拉这一天。 */
-      const toggleDayItem = useCallback((item) => {
-        if (day === null) return Promise.resolve()
-        const key = day.key
-        return (async () => {
-          await mutate('complete', { id: item.todoId, done: !item.done, date: item.date })
-          await refreshDay(key)
-        })()
-      }, [day, mutate, refreshDay])
+      /** 当天清单里勾选：complete 带 date；成功后 dataVersion 自增，清单自己重拉。 */
+      const toggleDayItem = useCallback((item) => (
+        mutate('complete', { id: item.todoId, done: !item.done, date: item.date })
+      ), [mutate])
 
       /** 把内存里的改动重试落盘；成功后 reload，宿主清掉 writeError，提示条随之消失。 */
       const retryWrite = useCallback(async () => {
@@ -1652,6 +1678,7 @@ window.__ModuleLoader__.load({
       }, [pendingCount])
 
       const doneItems = items.filter((item) => item.bucket === 'done')
+      const doneTotal = doneItems.length + recurringDone.length
       const openGroups = ORDER
         .filter((bucket) => bucket !== 'done')
         .map((bucket) => ({ bucket, items: items.filter((item) => item.bucket === bucket) }))
@@ -1676,6 +1703,37 @@ window.__ModuleLoader__.load({
         onSelect: setSelected,
         onToggle: toggleItem,
       })
+      // 循环任务的完成记录只出现在「已完成」里：勾掉复选框等于撤销那一次的完成，
+      // 该行随 reload 消失，任务重新出现在列表的对应周期里。
+      const renderRecurringDone = (occurrence) => {
+        const title = asText(occurrence.title)
+        const date = asText(occurrence.date)
+        const undo = () => {
+          void mutate('complete', { id: occurrence.todoId, done: false, date: occurrence.date })
+        }
+        return h('div', { key: `${occurrence.todoId}-${occurrence.date}`, style: S.catRow },
+          h('span', {
+            role: 'checkbox',
+            'aria-checked': 'true',
+            'aria-label': title,
+            tabIndex: 0,
+            className: 'td-check',
+            style: S.cbDone,
+            onClick: (event) => { event.stopPropagation(); undo() },
+            onKeyDown: (event) => {
+              if (event.nativeEvent?.isComposing === true) return
+              if (event.key !== ' ' && event.key !== 'Enter') return
+              event.preventDefault()
+              event.stopPropagation()
+              undo()
+            },
+          }, h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--dsw-alias-label-primary-inverted)', strokeWidth: 2.4 },
+            h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))),
+          h('span', { style: S.nmDone, title }, title),
+          h('span', { style: S.repeatBadge }, t('repeatBadge')),
+          h('span', { style: S.due, title: `${t('completedOn')} ${date}` }, date.slice(5)),
+        )
+      }
 
       const selectedTitle = selectedItem ? asText(selectedItem.title) : ''
       const selectedNote = selectedItem ? asText(selectedItem.note) : ''
@@ -1724,7 +1782,7 @@ window.__ModuleLoader__.load({
             onClick: () => {
               setView(value)
               // 切回列表时清掉按天选择，详情列恢复成选中项详情。
-              if (value === 'list') setDay(null)
+              if (value === 'list') setDayKey(null)
             },
           }, t(key)))),
           h('input', {
@@ -1763,7 +1821,7 @@ window.__ModuleLoader__.load({
           : null,
         h('div', { style: S.body },
           view === 'calendar'
-            ? h(CalendarView, { t, selectedDay: day?.key ?? null, onPickDay: (key, items) => setDay({ key, items }) })
+            ? h(CalendarView, { t, selectedDay: dayKey, onPickDay: (key) => setDayKey(key), version: dataVersion })
             : h('div', { style: S.list },
               state.loading && items.length === 0
                 ? h('div', { style: S.empty }, t('loading'))
@@ -1788,7 +1846,7 @@ window.__ModuleLoader__.load({
                       ),
                       group.items.map((item) => renderRow(item)),
                     )),
-                    doneItems.length === 0 ? null : h('div', { key: 'done' },
+                    doneTotal === 0 ? null : h('div', { key: 'done' },
                       h('button', {
                         className: 'td-btn',
                         style: S.secBtn,
@@ -1799,31 +1857,42 @@ window.__ModuleLoader__.load({
                         },
                       },
                       h('span', { style: S.secT }, t('done')),
-                      h('span', { style: S.secN }, String(doneItems.length)),
+                      h('span', { style: S.secN }, String(doneTotal)),
                       pendingCount > 0
                         ? h('span', { style: { ...S.tag, color: 'var(--dsw-alias-state-warn-primary)' } }, `${pendingCount} ${t('needsReview')}`)
                         : null,
                       h('span', { style: S.line }),
                       h('span', { style: { ...S.secN, fontSize: 10 } }, doneOpen ? '▾' : '▸'),
                       ),
-                      doneOpen ? doneSections.map((section) => h('div', { key: section.bucket },
-                        h('div', { style: S.subsec },
-                          h('span', { style: S.secT }, t(section.bucket)),
-                          h('span', { style: S.secN }, String(section.items.length)),
-                          h('span', { style: S.line }),
-                        ),
-                        section.items.map((item) => renderRow(item)),
-                      )) : null,
+                      doneOpen
+                        ? doneSections.map((section) => h('div', { key: section.bucket },
+                            h('div', { style: S.subsec },
+                              h('span', { style: S.secT }, t(section.bucket)),
+                              h('span', { style: S.secN }, String(section.items.length)),
+                              h('span', { style: S.line }),
+                            ),
+                            section.items.map((item) => renderRow(item)),
+                          )).concat(recurringDone.length === 0 ? [] : [
+                            h('div', { key: 'recurring-done' },
+                              h('div', { style: S.subsec },
+                                h('span', { style: S.secT }, t('recurringDoneSection')),
+                                h('span', { style: S.secN }, String(recurringDone.length)),
+                                h('span', { style: S.line }),
+                              ),
+                              recurringDone.map((occurrence) => renderRecurringDone(occurrence)),
+                            ),
+                          ])
+                        : null,
                     ),
                   ),
             ),
           h('div', { style: compactDetail ? { ...S.detail, width: 320 } : S.detail },
-            day !== null
+            dayKey !== null
               ? h('div', null,
-                h('div', { style: S.detailTitle }, t('plansOnDay')(day.key === todayKey ? t('today') : day.key.slice(5))),
-                day.items.length === 0
+                h('div', { style: S.detailTitle }, t('plansOnDay')(dayKey === todayKey ? t('today') : dayKey.slice(5))),
+                dayItems.length === 0
                   ? h('div', { style: S.empty }, t('nothingThatDay'))
-                  : day.items.map((item) => h('div', {
+                  : dayItems.map((item) => h('div', {
                       key: `${item.todoId}-${item.date}`,
                       style: S.dayRow,
                     },
@@ -1852,7 +1921,7 @@ window.__ModuleLoader__.load({
                   type: 'button',
                   className: 'td-btn',
                   style: { ...S.btnGhost, width: '100%', marginTop: 10 },
-                  onClick: () => setDialog({ initial: { dueDate: day.key } }),
+                  onClick: () => setDialog({ initial: { dueDate: dayKey } }),
                 }, t('newOnThatDay')))
               : selectedItem
                 ? h('div', null,
