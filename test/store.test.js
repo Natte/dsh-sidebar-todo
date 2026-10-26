@@ -15,6 +15,28 @@ async function tempStore(staleDays = 7) {
   return { store, file, dir }
 }
 
+/** 在固定的「今天」下跑一段断言，用来覆盖按天/周/月判断的周期边界。 */
+async function withToday(dateStr, fn) {
+  const RealDate = globalThis.Date
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const fixed = new RealDate(y, m - 1, d, 12)
+  class FakeDate extends RealDate {
+    constructor(...args) {
+      super(...(args.length === 0 ? [fixed.getTime()] : args))
+    }
+
+    static now() {
+      return fixed.getTime()
+    }
+  }
+  globalThis.Date = FakeDate
+  try {
+    return await fn()
+  } finally {
+    globalThis.Date = RealDate
+  }
+}
+
 test('新建后能读回，字段齐全', async () => {
   const { store } = await tempStore()
   const todo = await store.create({ title: '交周报', dueDate: dateKey(new Date()), priority: 'high' })
@@ -360,17 +382,67 @@ test('循环任务：create 带 repeat，列表给出 nextDue', async () => {
   await store.close()
 })
 
-test('循环任务：完成某一天只记那一天，行滚到下一天', async () => {
+test('循环任务：完成今天后从列表消失，日历仍保留当天实例', async () => {
   const { store } = await tempStore()
   const today = dateKey(new Date())
   const todo = await store.create({ title: '交日报', dueDate: today, repeat: { freq: 'daily' } })
   const done = await store.complete(todo.id, true, 'user', today)
   assert.equal(done.done, false)                       // 循环任务恒 false
   assert.ok(done.completions[today])
-  const next = await store.list()
-  const row = next.items.find((t) => t.id === todo.id)
-  assert.equal(row.nextDue, shiftKey(today, 1))        // 滚到明天
-  assert.notEqual(row.bucket, 'done')                  // 不进已完成
+  const listed = await store.list()
+  assert.equal(listed.items.find((t) => t.id === todo.id), undefined)  // 本周期已完成，整行消失
+  const calendar = await store.occurrences({ from: today, to: today })
+  assert.equal(calendar.items.length, 1)                // 日历不受列表过滤影响
+  assert.equal(calendar.items[0].done, true)
+  await store.close()
+})
+
+test('循环任务：每周五、今天周一且本周五未完成 → 出现在列表（bucket week）', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({
+    title: '周五检查代码',
+    dueDate: '2026-10-23',
+    repeat: { freq: 'weekly', weekdays: [5] },
+  })
+  await withToday('2026-10-26', async () => {           // 周一
+    const { items } = await store.list()
+    const row = items.find((t) => t.id === todo.id)
+    assert.ok(row, '本周五还没完成，应该出现')
+    assert.equal(row.dueDate, '2026-10-30')             // 本周五
+    assert.equal(row.bucket, 'week')
+  })
+  await store.close()
+})
+
+test('循环任务：完成本周那次后 → 列表不出现', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({
+    title: '周五检查代码',
+    dueDate: '2026-10-23',
+    repeat: { freq: 'weekly', weekdays: [5] },
+  })
+  await withToday('2026-10-26', async () => {
+    await store.complete(todo.id, true, 'user', '2026-10-30')
+    const { items } = await store.list()
+    assert.equal(items.find((t) => t.id === todo.id), undefined)
+  })
+  await store.close()
+})
+
+test('循环任务：每月 25 号未完成、今天 3 号 → 出现且 bucket=later', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({
+    title: '月度对账',
+    dueDate: '2026-10-01',
+    repeat: { freq: 'monthly', monthDay: 25 },
+  })
+  await withToday('2026-10-03', async () => {
+    const { items } = await store.list()
+    const row = items.find((t) => t.id === todo.id)
+    assert.ok(row, '本月 25 号还没到但属于本周期，应该出现')
+    assert.equal(row.dueDate, '2026-10-25')
+    assert.equal(row.bucket, 'later')
+  })
   await store.close()
 })
 

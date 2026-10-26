@@ -167,14 +167,14 @@ test('add 支持 repeat，list 标注循环', async (t) => {
     {},
   )
   assert.equal(added.item.repeat.freq, 'weekly')
-  await tool.execute(
-    { action: 'add', title: '旧任务', dueDate: '2026-10-01', repeat: { freq: 'daily', until: '2026-10-02' } },
-    {},
-  )
   const listed = await tool.execute({ action: 'list' }, {})
   const text = tool.output.render({ action: 'list' }, listed)[0].text
   assert.match(text, /循环·下次 \d{2}-\d{2}/)
-  assert.match(text, /循环·已结束/)
+  // 周期规则生效后，系列已结束的循环任务不再进入 list()；「已结束」文案直接渲染验证。
+  const ended = tool.output.render({}, {
+    items: [{ id: 't_ended', title: '旧任务', isRepeating: true, nextDue: null, done: false, bucket: 'later' }],
+  })[0].text
+  assert.match(ended, /循环·已结束/)
   await store.close()
 })
 

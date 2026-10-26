@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeRepeat, isDueOn, nextOccurrence, occurrencesBetween } from '../lib/repeat.js'
+import { normalizeRepeat, isDueOn, nextOccurrence, occurrencesBetween, periodOccurrence } from '../lib/repeat.js'
 
 const daily = { dueDate: '2026-10-22', repeat: { freq: 'daily', interval: 1 } }
 const weekdays = { dueDate: '2026-10-19', repeat: { freq: 'weekly', interval: 1, weekdays: [1, 2, 3, 4, 5] } }
@@ -43,6 +43,41 @@ test('until 之后不再发生', () => {
   const limited = { ...daily, repeat: { ...daily.repeat, until: '2026-10-24' } }
   assert.equal(isDueOn(limited, '2026-10-24'), true)
   assert.equal(isDueOn(limited, '2026-10-25'), false)
+})
+
+test('periodOccurrence：daily 只看今天', () => {
+  // 今天还没做：就是今天。
+  assert.equal(periodOccurrence(daily, '2026-10-25'), '2026-10-25')
+  // 今天已完成：这个周期不再有待完成实例。
+  const doneToday = { ...daily, dueDate: '2026-10-25', completions: { '2026-10-25': '2026-10-25T09:00:00.000Z' } }
+  assert.equal(periodOccurrence(doneToday, '2026-10-25'), null)
+  // 还没到起始日。
+  assert.equal(periodOccurrence(daily, '2026-10-21'), null)
+})
+
+test('periodOccurrence：weekly 看本周（含未来与漏做）', () => {
+  const friday = { dueDate: '2026-10-19', repeat: { freq: 'weekly', interval: 1, weekdays: [5] } }
+  // 今天周一，本周五还没到：返回本周五。
+  assert.equal(periodOccurrence(friday, '2026-10-19'), '2026-10-23')
+  // 本周五已完成：本周不再显示。
+  assert.equal(periodOccurrence({ ...friday, completions: { '2026-10-23': 'x' } }, '2026-10-19'), null)
+  // 今天周日，周五漏做：仍返回本周五（列表里按逾期显示）。
+  assert.equal(periodOccurrence(friday, '2026-10-25'), '2026-10-23')
+})
+
+test('periodOccurrence：monthly 看本月', () => {
+  const monthly25 = { dueDate: '2026-10-01', repeat: { freq: 'monthly', interval: 1, monthDay: 25 } }
+  // 今天 3 号，本月 25 号还没到：返回本月 25 号。
+  assert.equal(periodOccurrence(monthly25, '2026-10-03'), '2026-10-25')
+  // 今天已是下月 1 号：本月（11 月）的那个发生日。
+  assert.equal(periodOccurrence(monthly25, '2026-11-01'), '2026-11-25')
+  // 系列在本月之前已结束：null。
+  const ended = { ...monthly25, repeat: { ...monthly25.repeat, until: '2026-10-31' } }
+  assert.equal(periodOccurrence(ended, '2026-11-01'), null)
+})
+
+test('periodOccurrence：无 dueDate 返回 null', () => {
+  assert.equal(periodOccurrence({ dueDate: null, repeat: { freq: 'daily' } }, '2026-10-25'), null)
 })
 
 test('nextOccurrence 包含当天', () => {
