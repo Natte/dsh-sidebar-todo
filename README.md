@@ -29,7 +29,30 @@ DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和
 
 ## 安装
 
-在本机的 DSH 里执行插件安装（包目录为仓库根目录），装完侧栏「新会话/自动化任务」下方会出现「待办」。
+**从 npm（推荐）**
+
+```bash
+dsh plugin --profile web add dsh-todolist
+```
+
+装完在侧栏「自动化任务」下方出现「待办」。也可以在宿主的 **插件 → 发现** 里搜 `dsh-todolist`（或「待办」），在市场里一键安装。
+
+**从 GitHub 源码**
+
+```bash
+dsh plugin --profile web add github:Natte/dsh-todolist
+```
+
+适合想跟最新提交、或 npm 还没发到新版本时用；更新按 commit 追，没有版本号。
+
+**本机开发**
+
+把这个仓库目录直接装进 profile（链接方式，改代码即时生效）：
+
+```text
+plugin_manager install_bundle  target: D:\dsh-todolist
+```
+
 装了之后改 `index.js` 需要把插件行关再开才会重新加载模块；只改 `client.js` 会被 HMR 自动拾取。
 
 ## 数据在哪
