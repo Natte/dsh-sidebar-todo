@@ -53,14 +53,13 @@ description:
 - `category` 取值见其 README；我们的功能（清单 + 循环 + 日历）归 `workflow`。
 - 一个 PR 最多 3 条。
 
-## 3. 还在跑的
+## 3. 状态：只等合并
 
-1. **CI**：`check` 工作流（条目数 → `dsh.bundle` → 仓库年龄 → awesome-lint 与站点构建）。失败会以 PR 评论指出要改什么，在同一分支推送即可，不用重开 PR。
-2. **维护者评审**：会读代码核对描述是否属实，通常一天内。
+- **PR CI 已全绿**：`Submission gate` 与 `check` 均 success，`mergeable_state = clean`。
+- **npm 已发布**：`dsh-sidebar-todo@0.2.0`，`repository` 指回本仓库，市场会自动关联下载量，条目无需任何改动。
+- **剩下只有维护者评审合并**，通常一天内；合并后站点自动重建，市场与「发现」在下一轮每日构建后出现。
 
-合并后站点自动重建，市场与「发现」会在下一次每日构建后出现，一般一天内。
-
-## 4. npm（可选，随时可补）
+## 4. npm（已完成：0.2.0）
 
 ```bash
 cd D:\dsh-todolist
