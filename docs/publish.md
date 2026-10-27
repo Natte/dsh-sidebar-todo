@@ -1,116 +1,86 @@
-# 上架到插件市场：还差哪三步
+# 上架到插件市场：现状与规则
 
-> 这份文档只讲「从当前状态到出现在插件市场」的操作。代码与文档已全部就绪（`main` 最新提交见 `git log`）。
+> 更新于 2026-10-27。当前状态：**仓库已公开、PR 已提交（#9770），等 CI 与维护者合并。**
 
-## 0. 链路（先看懂这个，剩下的都是机械操作）
+## 0. 链路
 
 ```
-你的仓库（必须公开）───┐
-                        ├─→ awesome-dsh-plugin 仓库（提 PR 加一条）
-你的包（npm publish）───┘              │  CI 每天跑
-                                       ↓
-                        awesome-dsh-plugin.com/plugins.json
-                        （同时以 npm 包 dsh-plugin-catalog 分发镜像）
-                                       ↓
-                   宿主「插件市场」/「发现 → 索引源」/ plugin_market 工具
+你的仓库（公开 + dsh-plugin topic）───┐
+                                      ├─→ awesome-dsh-plugin（data/plugins/*.yml）
+npm 包（可选，只影响下载量与安装体验）─┘         │ CI 每天跑
+                                                ↓
+                              awesome-dsh-plugin.com/plugins.json
+                              （同时以 npm 包 dsh-plugin-catalog 分发镜像）
+                                                ↓
+                    宿主「插件市场」/「发现 → 索引源」/ plugin_market 工具
 ```
 
 要点：
 
-- **不要**往 `dsh-market` 仓库提插件条目——那是市场应用本身。
-- 收录后不是立刻可见，CI 每天刷新，通常一天内。
-- 只公开仓库、不发 npm 也能收录，但条目没有版本号，更新只能按 commit 追。
+- **不要**往 `dsh-market` 仓库提条目——那是市场应用本身。
+- 条目是**一个独立 YAML 文件**，不是往 README 加一行（README 由脚本生成）。
+- **条目里不能写 `npm:` 字段**：npm 映射从 registry 自动采集，手写会被校验拒绝。
+- npm 是**可选的**，不发布也照常收录，只是没有下载量数字。
 
-## 1. 公开仓库（约 1 分钟）
-
-1. 打开 https://github.com/Natte/dsh-todolist/settings
-2. 拉到底部 **Danger zone** → **Change visibility** → **Change to public**，按提示输入仓库名确认
-3. 同一页往上，**Topics** 加：`dsh-plugin`、`deepseek-harness`、`todo`
-
-验证：
-
-```bash
-curl -s https://api.github.com/repos/Natte/dsh-todolist | findstr /C:"private"
-# 应输出 "private": false
-```
-
-## 2. 发布到 npm（约 2 分钟）
-
-包名 `dsh-todolist` 在 npm 上**未被占用**（`dsh-todo` 已被别人占了，别用）。
-
-```bash
-cd D:\dsh-todolist
-npm login          # 浏览器授权，只需一次
-npm publish --access public
-npm view dsh-todolist version    # 应输出 0.2.0
-```
-
-已用 `npm publish --dry-run` 验证过：16 个文件、46.8 kB、`public` 访问级，没有多余文件被带进去。
-
-> 72 小时内可以 `npm unpublish dsh-todolist@0.2.0` 撤掉；超过就只能发新版本或弃用（deprecate）。
-
-## 3. 提 PR 到 awesome-dsh-plugin（约 5 分钟）
-
-1. Fork https://github.com/awesome-dsh-plugin/awesome-dsh-plugin
-2. 按该仓库 README / CONTRIBUTING 的现有条目格式加一条（字段参考本仓库 `docs/market-entry.json`）
-3. 提 PR
-
-**PR 标题**
-
-```
-Add dsh-todolist — sidebar todo list with recurring tasks and calendar
-```
-
-**PR 正文**
-
-```markdown
-## What
-
-`dsh-todolist` — a sidebar todo list for DeepSeek Harness that shares one JSON file between the UI and the agent.
-
-- Grouped list: overdue / today / tomorrow / this week / later / backlog / unplanned / done
-- Recurring tasks: daily, chosen weekdays, monthly day, optional end date.
-  A recurring task appears only while its current period is still open; completing it hides the row until the next period.
-- Month-view calendar with a per-day checklist (check items, create on that day)
-- Categories: free-text combobox + a manage dialog that renames/removes across existing tasks
-- One-line natural-language quick add (今天/明天/周X/下午3点/p1/#分类)
-- Agent tool `personal_todo`: list / add / update / complete / confirm / delete
-
-## Install
-
-```bash
-dsh plugin --profile web add dsh-todolist
-```
-
-## Verification
-
-- 134 tests: `node --test` (bucket, parser, recurrence expansion, store, API dispatch, tool, HTTP routes, user journeys)
-- Verified against DeepSeek Harness `0.2.1-rc.3`
-- No dependencies on `@deepseek-ai/*` packages; only public slots, webServer, connection, tools and locale services
-- MIT licensed; data stays local at `%DSH_PROFILE_DIR%/data/dsh-todolist/todos.json`
-```
-
-## 4. 收录之后
-
-- 在宿主的 **插件 → 发现** 里搜 `dsh-todolist`，或在市场里搜。
-- 若想立刻试，不必等 CI：
-
-```bash
-dsh plugin --profile web add github:Natte/dsh-todolist
-# 或已发布后
-dsh plugin --profile web add dsh-todolist
-```
-
-- 之后每次发版：改 `package.json` 的 `version` + 补 `CHANGELOG.md` → `npm publish` → 市场第二天自动显示新版本与更新说明。
-
-## 5. 本仓库已就绪的清单
+## 1. 已完成
 
 | 项 | 状态 |
 |---|---|
-| `package.json` 发布元数据（license / repository / keywords / publishConfig，已移除 `private`） | ✅ |
-| `LICENSE`（MIT） | ✅ |
-| `CHANGELOG.md`（市场详情页的「更新内容」来源） | ✅ |
-| `npm pack` / `npm publish --dry-run` 校验 | ✅ 16 files / 46.8 kB |
-| 包名可用性 | ✅ `dsh-todolist` 未被占用 |
-| 市场条目模板 | ✅ `docs/market-entry.json` |
-| README 兼容性矩阵 | ✅ 宿主 `0.2.1-rc.3` 已验证 |
+| 仓库公开 | ✅ `private: false`，未认证访问返回 200 |
+| Topics | ✅ `dsh-plugin`、`deepseek-harness`、`todo`、`cordis` |
+| 条目文件 | ✅ `data/plugins/Natte__dsh-todolist.yml`（fork 分支 `add-dsh-todolist`，提交 `f5bc3f6`） |
+| PR | ✅ https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/9770（1 文件、+6 行、mergeable） |
+| `dsh.bundle` 门槛 | ✅ `package.json` 声明 `dsh.bundle.patch` |
+| 仓库年龄门槛 | ✅ 2026-10-22 创建（≥1 天） |
+| 发布元数据 | ✅ `license` / `repository` / `keywords` / `publishConfig`，已移除 `private` |
+
+## 2. 条目内容（本仓库 `docs/market-entry.yml` 同源）
+
+```yaml
+url: https://github.com/Natte/dsh-todolist
+name: Natte/dsh-todolist
+category: workflow
+description:
+  en: Sidebar todo list for DeepSeek Harness — grouped buckets, recurring tasks with weekday or month-day rules, a month-view calendar, and an agent tool that reads and writes the same JSON file.
+  zh: 侧栏待办清单——逾期/今天/本周分组、循环任务（每周多选周几、每月指定几号）、月视图日历，agent 通过工具读写同一份 JSON。
+```
+
+规则细节（来自该仓库 `contributing.md`）：
+
+- 文件名必须是 `<owner>__<repo>.yml`。
+- 只有 `description.en` 必填；`zh` 可留空由维护者补。
+- 描述里出现 `: `（冒号加空格）必须加引号，否则 YAML 解析失败。
+- `category` 取值见其 README；我们的功能（清单 + 循环 + 日历）归 `workflow`。
+- 一个 PR 最多 3 条。
+
+## 3. 还在跑的
+
+1. **CI**：`check` 工作流（条目数 → `dsh.bundle` → 仓库年龄 → awesome-lint 与站点构建）。失败会以 PR 评论指出要改什么，在同一分支推送即可，不用重开 PR。
+2. **维护者评审**：会读代码核对描述是否属实，通常一天内。
+
+合并后站点自动重建，市场与「发现」会在下一次每日构建后出现，一般一天内。
+
+## 4. npm（可选，随时可补）
+
+```bash
+cd D:\dsh-todolist
+npm login
+npm publish --access public
+npm view dsh-todolist version   # 应输出 0.2.0
+```
+
+- 包名 `dsh-todolist` 未被占用；`dsh-todo` 已被他人占用，勿用。
+- `npm publish --dry-run` 已验证：16 个文件、46.8 kB、public。
+- 发布后 market 会自动关联（因为 `package.json` 的 `repository` 指回本仓库），**不需要**改条目。
+- 72 小时内可 `npm unpublish` 撤回。
+
+## 5. 后续发版
+
+改 `package.json` 的 `version` → 补 `CHANGELOG.md` → `npm publish`。条目不用改，市场次日自动显示新版本与更新说明。
+
+若只走源码安装（不发 npm），更新按 commit 追，市场会在下次构建时更新 star 数与描述。
+
+## 6. 可选增强
+
+- **图标**：目前没有 PNG 图标，市场会回退到 GitHub 头像。想要专属图标就放一张方形 PNG（约 180×180）到 `assets/`，再在条目里加 `icon:`（必须是 GitHub 托管的位图，SVG 会被拒）。
+- **截图**：在仓库根放 `screenshots.json` 列 1–8 个相对路径（如 `assets/screenshot-1.png`），市场详情页按 App Store 样式展示；不写则从 README 自动抽取。

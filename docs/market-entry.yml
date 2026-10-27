@@ -1,0 +1,12 @@
+# 已提交到 awesome-dsh-plugin 的条目（PR #9770）
+# 目标路径：data/plugins/Natte__dsh-todolist.yml
+#
+# 注意：不要加 npm: 字段——映射从 registry 自动采集，手写会被 CI 拒绝。
+# 图标（icon）必须是 GitHub 托管的位图（png/jpg/webp），SVG 会被拒；不写则回退作者头像。
+
+url: https://github.com/Natte/dsh-todolist
+name: Natte/dsh-todolist
+category: workflow
+description:
+  en: Sidebar todo list for DeepSeek Harness — grouped buckets, recurring tasks with weekday or month-day rules, a month-view calendar, and an agent tool that reads and writes the same JSON file.
+  zh: 侧栏待办清单——逾期/今天/本周分组、循环任务（每周多选周几、每月指定几号）、月视图日历，agent 通过工具读写同一份 JSON。
