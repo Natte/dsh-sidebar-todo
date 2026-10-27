@@ -66,10 +66,10 @@ description:
 cd D:\dsh-todolist
 npm login
 npm publish --access public
-npm view dsh-todolist version   # 应输出 0.2.0
+npm view dsh-sidebar-todo version   # 应输出 0.2.0
 ```
 
-- 包名 `dsh-todolist` 未被占用；`dsh-todo` 已被他人占用，勿用。
+- 包名是 dsh-sidebar-todo。原来的 dsh-todolist 被 npm 以「与 dsh-todo-list 过于相似」拒绝（防仿冒），dsh-todo 也已被人占用。
 - `npm publish --dry-run` 已验证：16 个文件、46.8 kB、public。
 - 发布后 market 会自动关联（因为 `package.json` 的 `repository` 指回本仓库），**不需要**改条目。
 - 72 小时内可 `npm unpublish` 撤回。

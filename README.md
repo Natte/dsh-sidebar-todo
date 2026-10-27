@@ -32,10 +32,10 @@ DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和
 **从 npm（推荐）**
 
 ```bash
-dsh plugin --profile web add dsh-todolist
+dsh plugin --profile web add dsh-sidebar-todo
 ```
 
-装完在侧栏「自动化任务」下方出现「待办」。也可以在宿主的 **插件 → 发现** 里搜 `dsh-todolist`（或「待办」），在市场里一键安装。
+装完在侧栏「自动化任务」下方出现「待办」。也可以在宿主的 **插件 → 发现** 里搜 `dsh-sidebar-todo`（或「待办」），在市场里一键安装。
 
 **从 GitHub 源码**
 
