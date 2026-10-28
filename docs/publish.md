@@ -1,6 +1,6 @@
 # 上架到插件市场：现状与规则
 
-> 更新于 2026-10-27。当前状态：**仓库已公开、PR 已提交（#9770），等 CI 与维护者合并。**
+> 更新于 2026-10-28。当前状态：**仓库已公开、PR 已提交（#9770），等 CI 与维护者合并；npm 最新版 `0.2.1`，`0.2.0` 已 deprecated（启动崩溃）。**
 
 ## 0. 链路
 
@@ -56,17 +56,19 @@ description:
 ## 3. 状态：只等合并
 
 - **PR CI 已全绿**：`Submission gate` 与 `check` 均 success，`mergeable_state = clean`。
-- **npm 已发布**：`dsh-sidebar-todo@0.2.0`，`repository` 指回本仓库，市场会自动关联下载量，条目无需任何改动。
+- **npm 已发布**：最新版 `dsh-sidebar-todo@0.2.1`；`0.2.0` 因客户端注册 id 与包名不一致导致启动崩溃，已 `npm deprecate`，市场会自动关联下载量，条目无需任何改动。
 - **剩下只有维护者评审合并**，通常一天内；合并后站点自动重建，市场与「发现」在下一轮每日构建后出现。
 
-## 4. npm（已完成：0.2.0）
+## 4. npm（已完成：0.2.1）
 
 ```bash
 cd D:\dsh-todolist
 npm login
 npm publish --access public
-npm view dsh-sidebar-todo version   # 应输出 0.2.0
+npm view dsh-sidebar-todo version   # 应输出 0.2.1
 ```
+
+发完记得把坏掉的版本标掉：`npm deprecate 'dsh-sidebar-todo@0.2.0' '原因'`。
 
 - 包名是 dsh-sidebar-todo。原来的 dsh-todolist 被 npm 以「与 dsh-todo-list 过于相似」拒绝（防仿冒），dsh-todo 也已被人占用。
 - `npm publish --dry-run` 已验证：16 个文件、46.8 kB、public。
