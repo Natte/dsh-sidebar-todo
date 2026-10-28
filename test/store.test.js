@@ -501,3 +501,127 @@ test('循环任务拒绝非发生日的完成日期', async () => {
   assert.ok(ok.completions['2026-10-30'])
   await store.close()
 })
+
+// ---------------------------------------------------------------- 没有起始日的循环任务
+// 背景：agent 通过 personal_todo 建循环待办时常常只给 repeat、不给 dueDate。
+// 旧实现里 periodOccurrence 遇到空 dueDate 直接返回 null，整条待办在列表、日历里都不可见，
+// 勾选还会报「不是这条循环任务的发生日」。以下用例守住修复。
+
+/** 直接写一份「repeat 有、dueDate 没有」的历史数据，模拟旧版本落盘的文件。 */
+async function legacyRepeatingStore(todo) {
+  const dir = await mkdtemp(join(tmpdir(), 'todo-legacy-'))
+  const file = join(dir, 'todos.json')
+  await writeFile(file, JSON.stringify({ version: 1, todos: [todo] }, null, 2), 'utf8')
+  const store = createStore({ file })
+  await store.load()
+  return { store, file, dir }
+}
+
+const legacyWeekly = {
+  id: 't_legacy_1',
+  title: '周会材料',
+  note: '',
+  priority: 'medium',
+  category: '审计',
+  dueDate: null,
+  dueTime: null,
+  done: false,
+  repeat: { freq: 'weekly', interval: 1, until: null, weekdays: [1] },
+  completions: {},
+  doneAt: null,
+  doneBy: null,
+  verifiedAt: null,
+  createdAt: '2026-10-28T07:00:00.000Z',
+  updatedAt: '2026-10-28T07:00:00.000Z',
+}
+
+test('循环任务：没有起始日时按创建日兜底，列表显示下一次发生日', async () => {
+  const { store } = await legacyRepeatingStore(legacyWeekly)
+  await withToday('2026-10-28', async () => {              // 周三创建，规则是每周一
+    const { items } = await store.list()
+    const row = items.find((t) => t.id === 't_legacy_1')
+    assert.ok(row, '没有起始日的循环待办必须出现在列表里')
+    assert.equal(row.dueDate, '2026-11-02')                // 下一个周一
+    assert.equal(row.isRepeating, true)
+    assert.equal(row.bucket, 'later')
+  })
+  await store.close()
+})
+
+test('循环任务：没有起始日的行也能在月视图展开', async () => {
+  const { store } = await legacyRepeatingStore(legacyWeekly)
+  await withToday('2026-10-28', async () => {
+    const { items } = await store.occurrences({ from: '2026-10-26', to: '2026-11-09' })
+    const dates = items.filter((i) => i.todoId === 't_legacy_1').map((i) => i.date)
+    assert.deepEqual(dates, ['2026-11-02', '2026-11-09'])  // 创建日之前的 10-26 不计
+  })
+  await store.close()
+})
+
+test('循环任务：没有起始日也能勾选，完成后本周期收起', async () => {
+  const { store } = await legacyRepeatingStore(legacyWeekly)
+  await withToday('2026-11-02', async () => {              // 发生日当天
+    const done = await store.complete('t_legacy_1', true, 'user')
+    assert.ok(done.completions['2026-11-02'])              // 不再报「不是发生日」
+    const { items } = await store.list()
+    assert.equal(items.find((t) => t.id === 't_legacy_1'), undefined)
+  })
+  await store.close()
+})
+
+test('循环任务：本周期已办过但下一周期还早 → 保持收起（原设计不变）', async () => {
+  const done = {
+    ...legacyWeekly,
+    dueDate: '2026-10-26',
+    completions: { '2026-10-26': '2026-10-26T01:00:00.000Z' },
+  }
+  const { store } = await legacyRepeatingStore(done)
+  await withToday('2026-10-28', async () => {
+    const { items } = await store.list()
+    assert.equal(items.find((t) => t.id === 't_legacy_1'), undefined)
+  })
+  await store.close()
+})
+
+test('新建循环任务没给起始日 → 自动补当天', async () => {
+  const { store } = await tempStore()
+  await withToday('2026-10-28', async () => {
+    const todo = await store.create({ title: '周报', repeat: { freq: 'weekly', weekdays: [5] } })
+    assert.equal(todo.dueDate, '2026-10-28')               // 起始日补成创建当天
+    const { items } = await store.list()
+    const row = items.find((t) => t.id === todo.id)
+    assert.ok(row)
+    assert.equal(row.dueDate, '2026-10-30')                // 本周五
+  })
+  await store.close()
+})
+
+test('给老待办补设循环时会补起始日', async () => {
+  const { store } = await tempStore()
+  await withToday('2026-10-28', async () => {
+    const todo = await store.create({ title: '月度对账' })   // 单次任务，无日期
+    assert.equal(todo.dueDate, null)
+    const next = await store.update(todo.id, { repeat: { freq: 'monthly', monthDay: 15 } })
+    assert.equal(next.dueDate, '2026-10-28')
+    const { items } = await store.list()
+    assert.equal(items.find((t) => t.id === todo.id)?.dueDate, '2026-11-15')
+  })
+  await store.close()
+})
+
+test('循环任务：起始日在未来时先显示下一次发生日', async () => {
+  const { store } = await tempStore()
+  const todo = await store.create({
+    title: '下月起的月度复盘',
+    dueDate: '2026-11-02',
+    repeat: { freq: 'weekly', weekdays: [1] },
+  })
+  await withToday('2026-10-28', async () => {
+    const { items } = await store.list()
+    const row = items.find((t) => t.id === todo.id)
+    assert.ok(row, '起始日还没到的循环任务也应能看到')
+    assert.equal(row.dueDate, '2026-11-02')
+    assert.equal(row.bucket, 'later')
+  })
+  await store.close()
+})
