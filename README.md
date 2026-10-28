@@ -7,20 +7,21 @@ DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和
 > 安装时用 npm 包名，市场条目用仓库地址；DSH 侧栏显示的名字是「待办」，与两者都无关。
 > 已发布：https://www.npmjs.com/package/dsh-sidebar-todo
 
-当前版本 **0.2.0**（v1 + v2 功能：编辑弹窗、循环任务、月视图日历、分类管理）。
+当前版本 **0.2.1**（v1 + v2 功能：编辑弹窗、循环任务、月视图日历、分类管理）。
 
 ## 兼容性
 
 | 宿主版本 | 插件版本 | 结论 | 日期 |
 |---|---|---|---|
-| `0.2.1-rc.3` | `0.2.0` | 已验证可用 | 2026-10-26 |
+| `0.2.1-rc.3` | `0.2.1` | 已验证可用（修复 0.2.0 的启动崩溃） | 2026-10-28 |
+| `0.2.1-rc.3` | `0.2.0` | ❌ 启动崩溃，请勿使用 | 2026-10-27 |
 | `0.2.1-rc.2` | `0.1.0` | 已验证可用 | 2026-10-22 |
 
 插件**不 import 任何 `@deepseek-ai/*` 包**（无 `dependencies`、无 `peerDependencies`），只依赖宿主在运行时提供的契约：
 
 | 契约 | 用在哪 | 变了会怎样 |
 |---|---|---|
-| `window.__ModuleLoader__.load({ id, factory })` | `client.js` | 侧栏没有「待办」，控制台报模块加载失败 |
+| `window.__ModuleLoader__.load({ id, factory })` | `client.js` | 侧栏没有「待办」；**`id` 必须等于 `package.json` 的 `name`**，否则整窗无法启动（0.2.0 的事故） |
 | `ctx.slots.inject / register` + 槽位 `sidebar.panellist` / `main` | 入口行与面板 | 入口消失，或点了不切换 |
 | `ctx.webServer.register` + `ctx.connection.requestRejection` | `index.js` 路由 | 面板一直显示「读取失败」 |
 | `ctx.tools.register` 的 `ToolDefinition` | `lib/tool.js` | agent 看不到 `personal_todo` |
@@ -30,7 +31,7 @@ DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和
 
 **升级宿主后的自查顺序**：重载插件（`set_plugin` 关再开）→ 侧栏点开「待办」→ 让 agent 调一次 `personal_todo list` → `node --test`。
 
-注意 `node --test` 只覆盖 `lib/`，宿主接口断了它照样全绿，所以前两步不能省。
+注意 `node --test` 覆盖 `lib/` 和 `client.js` 的一条静态约定（注册 id == 包名），宿主接口本身断了它照样全绿，所以前两步不能省。
 
 ## 安装
 

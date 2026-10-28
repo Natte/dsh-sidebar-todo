@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: 'dsh-todolist',
+  id: 'dsh-sidebar-todo',
   factory(require) {
     const React = require('react')
     const h = React.createElement
