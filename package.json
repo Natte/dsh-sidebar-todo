@@ -16,11 +16,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Natte/dsh-todolist.git"
+    "url": "git+https://github.com/Natte/dsh-sidebar-todo.git"
   },
-  "homepage": "https://github.com/Natte/dsh-todolist#readme",
+  "homepage": "https://github.com/Natte/dsh-sidebar-todo#readme",
   "bugs": {
-    "url": "https://github.com/Natte/dsh-todolist/issues"
+    "url": "https://github.com/Natte/dsh-sidebar-todo/issues"
   },
   "exports": {
     ".": "./index.js",

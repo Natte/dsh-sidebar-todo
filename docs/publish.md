@@ -37,8 +37,8 @@ npm 包（可选，只影响下载量与安装体验）─┘         │ CI 每
 ## 2. 条目内容（本仓库 `docs/market-entry.yml` 同源）
 
 ```yaml
-url: https://github.com/Natte/dsh-todolist
-name: Natte/dsh-todolist
+url: https://github.com/Natte/dsh-sidebar-todo
+name: Natte/dsh-sidebar-todo
 category: workflow
 description:
   en: Sidebar todo list for DeepSeek Harness — grouped buckets, recurring tasks with weekday or month-day rules, a month-view calendar, and an agent tool that reads and writes the same JSON file.
@@ -62,7 +62,7 @@ description:
 ## 4. npm（已完成：0.2.2）
 
 ```bash
-cd D:\dsh-todolist
+cd D:\dsh-sidebar-todo
 npm login
 npm publish --access public
 npm view dsh-sidebar-todo version   # 应输出 0.2.2

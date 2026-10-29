@@ -24,7 +24,7 @@ C:\Users\<你>\.dsh\profiles\desktop\
 ```bash
 # 切到本地开发版
 dsh plugin --profile desktop remove dsh-sidebar-todo
-dsh plugin --profile desktop add D:\dsh-todolist
+dsh plugin --profile desktop add D:\dsh-sidebar-todo
 # …改代码、刷新页面验证…
 
 # 验完切回线上版
@@ -47,11 +47,11 @@ dsh plugin --profile desktop add dsh-sidebar-todo@0.2.1
 切到本地链接后，在 profile 的插件行里加 `dataPath`，让开发版读写副本，真实数据完全隔离：
 
 ```yaml
-- id: dsh-todolist
+- id: dsh-sidebar-todo
   name: dsh-sidebar-todo
   config:
     staleDays: 7
-    dataPath: D:/dsh-todolist/.dev/todos.json   # 开发用副本
+    dataPath: D:/dsh-sidebar-todo/.dev/todos.json   # 开发用副本
 ```
 
 第一次切过去时把真实数据复制一份到该路径即可。开发期间的完成/删除都只影响副本。

@@ -1,10 +1,8 @@
-# dsh-todolist
+# dsh-sidebar-todo
 
 DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和 agent 共用一份。
 
-> **仓库名 `dsh-todolist`，npm 包名 `dsh-sidebar-todo`——同一个插件。**
-> npm 的防仿冒规则不允许 `dsh-todolist`（与已有的 `dsh-todo-list` 过于相似），所以包名不同。
-> 安装时用 npm 包名，市场条目用仓库地址；DSH 侧栏显示的名字是「待办」，与两者都无关。
+> 仓库、npm 包与插件标识统一为 `dsh-sidebar-todo`；DSH 侧栏显示的名字是「待办」。
 > 已发布：https://www.npmjs.com/package/dsh-sidebar-todo
 
 当前版本 **0.2.2**（v1 + v2 功能：编辑弹窗、循环任务、月视图日历、分类管理）。
@@ -46,7 +44,7 @@ dsh plugin --profile web add dsh-sidebar-todo
 **从 GitHub 源码**
 
 ```bash
-dsh plugin --profile web add github:Natte/dsh-todolist
+dsh plugin --profile web add github:Natte/dsh-sidebar-todo
 ```
 
 适合想跟最新提交、或 npm 还没发到新版本时用；更新按 commit 追，没有版本号。
@@ -56,7 +54,7 @@ dsh plugin --profile web add github:Natte/dsh-todolist
 把这个仓库目录直接装进 profile（链接方式，改代码即时生效）：
 
 ```text
-plugin_manager install_bundle  target: D:\dsh-todolist
+plugin_manager install_bundle  target: D:\dsh-sidebar-todo
 ```
 
 装了之后改 `index.js` 需要把插件行关再开才会重新加载模块；只改 `client.js` 会被 HMR 自动拾取。
@@ -76,7 +74,7 @@ plugin_manager install_bundle  target: D:\dsh-todolist
 在 `cordis.patch.yml` 的插件行里改：
 
 ```yaml
-- id: dsh-todolist
+- id: dsh-sidebar-todo
   config:
     staleDays: 7   # 超过多少天还没定日期算「积压」
     dataPath: ''   # 可选，覆盖默认数据文件路径

@@ -5,7 +5,7 @@ window.__ModuleLoader__.load({
     const h = React.createElement
     const { useState, useEffect, useCallback, useRef } = React
 
-    const NS = 'dsh-todolist'
+    const NS = 'dsh-sidebar-todo'
     const dict = {
       zh: {
         nav: '待办', title: '待办', new: '新建', search: '搜索待办',
@@ -315,10 +315,10 @@ window.__ModuleLoader__.load({
 
     /** 样式表全页只插一份；返回的清理函数交给 ctx.effect，插件卸载时移除。 */
     function ensureStyles() {
-      const existing = document.querySelector('style[data-plugin-css="dsh-todolist"]')
+      const existing = document.querySelector('style[data-plugin-css="dsh-sidebar-todo"]')
       if (existing !== null) return () => {}
       const el = document.createElement('style')
-      el.dataset.pluginCss = 'dsh-todolist'
+      el.dataset.pluginCss = 'dsh-sidebar-todo'
       el.textContent = PLUGIN_CSS
       document.head.appendChild(el)
       return () => { el.remove() }
@@ -1028,7 +1028,7 @@ window.__ModuleLoader__.load({
             if (cancelled || !alive.current) return
             setCategoryRows(normalizeCategories(result))
           })
-          .catch((err) => console.error('[dsh-todolist] categories failed', err))
+          .catch((err) => console.error('[dsh-sidebar-todo] categories failed', err))
         return () => { cancelled = true }
       }, [])
 
@@ -1291,7 +1291,7 @@ window.__ModuleLoader__.load({
           setLoadFailed(false)
         } catch (err) {
           if (!alive.current) return
-          console.error('[dsh-todolist] categories failed', err)
+          console.error('[dsh-sidebar-todo] categories failed', err)
           setRows([])
           setLoadFailed(true)
         }
@@ -1487,7 +1487,7 @@ window.__ModuleLoader__.load({
           })
           .catch((err) => {
             if (!alive) return
-            console.error('[dsh-todolist] occurrences failed', err)
+            console.error('[dsh-sidebar-todo] occurrences failed', err)
             setByDate({})
           })
         return () => { alive = false }
@@ -1643,7 +1643,7 @@ window.__ModuleLoader__.load({
           const from = weekStart < monthStart ? weekStart : monthStart
           const to = shiftKeyLocal(todayKey, 62)
           const occTask = fetchApi('occurrences', { from, to }, tRef.current).catch((err) => {
-            console.error('[dsh-todolist] occurrences (done) failed', err)
+            console.error('[dsh-sidebar-todo] occurrences (done) failed', err)
             return { items: [] }
           })
           const [result, occ] = await Promise.all([
@@ -1665,7 +1665,7 @@ window.__ModuleLoader__.load({
             .sort((a, b) => b.date.localeCompare(a.date)))
         } catch (err) {
           if (seq !== seqRef.current) return
-          console.error('[dsh-todolist] list failed', err)
+          console.error('[dsh-sidebar-todo] list failed', err)
           setState((prev) => ({ ...prev, loading: false, error: true }))
         }
       }, [query])
@@ -1680,7 +1680,7 @@ window.__ModuleLoader__.load({
           await reload()
           return true
         } catch (err) {
-          console.error(`[dsh-todolist] ${method} failed`, err)
+          console.error(`[dsh-sidebar-todo] ${method} failed`, err)
           // 勾选/完成等写失败必须有可见反馈：独立的红条保留 5 秒，避免被
           // 随后成功的 2.5s 轮询立刻清掉；同时重新拉一次 list，让宿主把
           // notices 里的 write-error 带回来。
@@ -1704,7 +1704,7 @@ window.__ModuleLoader__.load({
           })
           .catch((err) => {
             if (!alive) return
-            console.error('[dsh-todolist] occurrences failed', err)
+            console.error('[dsh-sidebar-todo] occurrences failed', err)
             setDayItems([])
           })
         return () => { alive = false }
@@ -1723,7 +1723,7 @@ window.__ModuleLoader__.load({
           await fetchApi('retry', {}, tRef.current)
           await reload()
         } catch (err) {
-          console.error('[dsh-todolist] retry write failed', err)
+          console.error('[dsh-sidebar-todo] retry write failed', err)
         } finally {
           setRetrying(false)
         }
@@ -2174,12 +2174,12 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots'],
       apply(ctx) {
-        ctx.effect(() => ensureStyles(), 'dsh-todolist: styles')
+        ctx.effect(() => ensureStyles(), 'dsh-sidebar-todo: styles')
 
         const locale = ctx.get('locale')
         let t = (key) => dict.zh[key] ?? key
         if (locale) {
-          ctx.effect(() => locale.register(NS, dict), 'dsh-todolist: dictionaries')
+          ctx.effect(() => locale.register(NS, dict), 'dsh-sidebar-todo: dictionaries')
           t = locale.bind(NS)
         }
 

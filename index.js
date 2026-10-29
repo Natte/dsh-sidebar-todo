@@ -68,9 +68,9 @@ export function apply(ctx, config = {}) {
         })
       }
     },
-  }), 'dsh-todolist: http')
+  }), 'dsh-sidebar-todo: http')
 
-  ctx.effect(() => ctx.tools.register(createTool(api, ready)), 'dsh-todolist: tool')
+  ctx.effect(() => ctx.tools.register(createTool(api, ready)), 'dsh-sidebar-todo: tool')
 
-  ctx.effect(() => () => { void store.close() }, 'dsh-todolist: store')
+  ctx.effect(() => () => { void store.close() }, 'dsh-sidebar-todo: store')
 }
