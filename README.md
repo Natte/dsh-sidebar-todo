@@ -5,7 +5,7 @@ DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和
 > 仓库、npm 包与插件标识统一为 `dsh-sidebar-todo`；DSH 侧栏显示的名字是「待办」。
 > 已发布：https://www.npmjs.com/package/dsh-sidebar-todo
 
-当前版本 **0.2.2**（v1 + v2 功能：编辑弹窗、循环任务、月视图日历、分类管理）。
+当前版本 **0.2.3**（v1 + v2 功能：编辑弹窗、循环任务、月视图日历、分类管理）。
 
 ## 兼容性
 
