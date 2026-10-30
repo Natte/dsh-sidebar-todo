@@ -29,7 +29,7 @@ npm 包（可选，只影响下载量与安装体验）─┘         │ CI 每
 | 仓库公开 | ✅ `private: false`，未认证访问返回 200 |
 | Topics | ✅ `dsh-plugin`、`deepseek-harness`、`todo`、`cordis` |
 | 收录 | ✅ **已合并**：PR [#9770](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/9770)（2026-10-27 by `fkysly`），条目为 `data/plugins/Natte__dsh-todolist.yml` |
-| 改名同步 | ⏳ PR [#10313](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/10313)：条目文件改为 `Natte__dsh-sidebar-todo.yml`、`url`/`name` 跟随仓库改名，等 CI 与合并 |
+| 改名同步 | ✅ **已合并**：PR [#10313](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/10313)（2026-10-29），条目为 `data/plugins/Natte__dsh-sidebar-todo.yml`，旧条目已移除 |
 | `dsh.bundle` 门槛 | ✅ `package.json` 声明 `dsh.bundle.patch` |
 | 仓库年龄门槛 | ✅ 2026-10-22 创建（≥1 天） |
 | npm | ✅ `dsh-sidebar-todo` 已发布到 `0.2.3` |
