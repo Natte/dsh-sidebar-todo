@@ -295,6 +295,11 @@ git commit -m "feat(v3): store 支持便签 notes 数据面（增删改查+兼�
 
 ---
 
+> **实施期修订记录（2026-11-02，实施者提出/控制台追认）**
+> ① 测试 harness 的 `expectBrokenLoad` 与实况矛盾：`load()` 对「损坏但可备份」文件是 resolve `{ corrupt: true }`（有 test/store.test.js:115-117 既有断言为证），reject 只发生在备份失败。测试 8 已改为默认 await（helper 的 true 分支保留未用）。
+> ② 3d 使落盘统一携带 notes → 既有 test/store.test.js 的整文档断言同步为 `{ version: 1, todos: [], notes: [] }`（additive schema 的必然结果），提交含 3 个文件（lib/store.js、test/notes-store.test.js、test/store.test.js）。
+> ③ `.dev/`（开发数据副本目录）已补进 `.gitignore`（控制台属务性操作，代码评审另行覆盖）。
+
 ### Task 2: api 四方法 + 路由验证
 
 **Files:**

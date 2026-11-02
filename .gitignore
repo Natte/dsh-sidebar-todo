@@ -12,3 +12,7 @@ Thumbs.db
 
 # SDD 执行工作区（ledger / brief / 报告 / 审查包）
 .superpowers/
+
+# 开发数据副本（dev-workflow 方式 B）
+.dev/
+
