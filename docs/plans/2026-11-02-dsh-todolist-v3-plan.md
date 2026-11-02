@@ -299,6 +299,8 @@ git commit -m "feat(v3): store 支持便签 notes 数据面（增删改查+兼�
 > ① 测试 harness 的 `expectBrokenLoad` 与实况矛盾：`load()` 对「损坏但可备份」文件是 resolve `{ corrupt: true }`（有 test/store.test.js:115-117 既有断言为证），reject 只发生在备份失败。测试 8 已改为默认 await（helper 的 true 分支保留未用）。
 > ② 3d 使落盘统一携带 notes → 既有 test/store.test.js 的整文档断言同步为 `{ version: 1, todos: [], notes: [] }`（additive schema 的必然结果），提交含 3 个文件（lib/store.js、test/notes-store.test.js、test/store.test.js）。
 > ③ `.dev/`（开发数据副本目录）已补进 `.gitignore`（控制台属务性操作，代码评审另行覆盖）。
+> ④ Task 2 例数口径：实测 **154**（基线 150 + 1 api + 3 route）；计划原文「153 例」为笔误，Step 5 已更正。
+> ⑤ Task 7 例数口径：实测 **159**（154+5）；计划原文「≈157」为提取侧陈旧数，Step 7 已更正。
 
 ### Task 2: api 四方法 + 路由验证
 
@@ -388,7 +390,7 @@ test('便签校验错误映射 400；未知便签 id 映射 404', async () => {
 - [ ] **Step 4: 全量回归 + 收门**
 
 Run: `node --test`
-Expected: 全绿（153 例）。
+Expected: 全绿（154 例 = 150 基线 + 1 api + 3 route）。
 
 - [ ] **Step 5: Commit**
 
@@ -959,7 +961,7 @@ import { createTool, createNoteTool } from './lib/tool.js'
 - [ ] **Step 6: 全量回归 + 收门**
 
 Run: `node --test`
-Expected: 全绿（≈157）。
+Expected: 全绿（159 例 = 154+5）。
 
 - [ ] **Step 7: Commit**
 
@@ -1705,3 +1707,5 @@ git commit -m "docs(v3): 0.3.0 版本文案、README/CHANGELOG/测试与手册�
 - 设计 §一 目标 1-8 ↔ T4/T6、T3/O1、T8、T9、T10、T11、T12、T13；§三 接口 ↔ T1/T2/T7/T8/T10；§四 UI ↔ T3-T6；§5.5 已结束 view/工具 ↔ T10；§六 验收 1-9 ↔ T4-T6/E36-38、T8/T9+E39、T10+E40、T11+E41、T12+E42、T13+全量回归。
 - 类型一致性：`notesList/noteAdd/noteUpdate/noteRemove`（store=api=既定名）；`personal_note` 参数 `text/id/action`；`bucket:'ended'`、`seriesEnded:true`、`summary.ended`；`S.dock*`、`td-note-row/act`；dict 键 `quickNote/noteAddPlaceholder/noteEmpty/noteEditTitle/noteDeleteTitle/toTodo/justNow/minutesAgo/hoursAgo/endedGroup/endedBadge/pickOne` 以 T4/T10 为准（T10 的 `endedGroup/endedBadge` zh: `已结束`、en: `Ended`）。
 - 已知开放点（实现时以测代查）：test/bucket.test.js 若有 summarize 全键断言，把 `ended: 0` 并进期望键集（T10 Step 4 已给代码）。
+
+
