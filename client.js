@@ -13,7 +13,7 @@ window.__ModuleLoader__.load({
         unplanned: '未排期', done: '已完成', doneEmpty: '该范围内没有完成记录', empty: '还没有待办',
         staleHint: '超过 {n} 天未完成', loading: '加载中…', failed: '读取失败',
         actionFailed: '操作失败，请重试',
-        retry: '重试', pickOne: '选一条看详情，或在下方记一条便利贴', quickNote: '便利贴',
+        retry: '重试', pickOne: '选一条看详情，或在下方记一条便利贴', quickNote: '便利贴', todo: '待办',
         noteAddPlaceholder: '记一点… 回车即存', noteEmpty: '一想起来就写一条',
         noteEditTitle: '点击编辑', noteDeleteTitle: '删除这条便签', toTodo: '转为待办',
         justNow: '刚刚', minutesAgo: '{n} 分钟前', hoursAgo: '{n} 小时前',
@@ -58,7 +58,7 @@ window.__ModuleLoader__.load({
         unplanned: 'Unscheduled', done: 'Completed', doneEmpty: 'No completions in this range', empty: 'No todos yet',
         staleHint: 'Open for more than {n} days', loading: 'Loading…', failed: 'Failed to load',
         actionFailed: 'Action failed, please retry',
-        retry: 'Retry', pickOne: 'Select an item for details, or jot a sticky note below', quickNote: 'Sticky notes',
+        retry: 'Retry', pickOne: 'Select an item for details, or jot a sticky note below', quickNote: 'Sticky notes', todo: 'To-do',
         noteAddPlaceholder: 'Jot… Enter to save', noteEmpty: 'Write a thought when it comes',
         noteEditTitle: 'Click to edit', noteDeleteTitle: 'Delete this note', toTodo: 'Turn into todo',
         justNow: 'Just now', minutesAgo: '{n}m ago', hoursAgo: '{n}h ago',
@@ -2251,6 +2251,7 @@ window.__ModuleLoader__.load({
                               maxLength: 500,
                               autoFocus: true,
                               onKeyDown: (event) => {
+                                if (event.nativeEvent?.isComposing === true) return
                                 if (event.key === 'Enter') { event.preventDefault(); void updateNote(note, event.currentTarget.value) }
                                 if (event.key === 'Escape') { event.preventDefault(); setEditingNote(null) }
                               },
