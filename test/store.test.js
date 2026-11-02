@@ -121,7 +121,7 @@ test('文件损坏时备份并空表启动', async () => {
   const backup = names.find((n) => n.startsWith('todos.corrupt-'))
   assert.ok(backup, 'corrupt backup written')
   assert.equal(await readFile(join(dir, backup), 'utf8'), original)
-  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), { version: 1, todos: [] })
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), { version: 1, todos: [], notes: [] })
   await broken.close()
 })
 
