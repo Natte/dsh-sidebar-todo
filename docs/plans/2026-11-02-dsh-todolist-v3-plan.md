@@ -301,6 +301,7 @@ git commit -m "feat(v3): store 支持便签 notes 数据面（增删改查+兼�
 > ③ `.dev/`（开发数据副本目录）已补进 `.gitignore`（控制台属务性操作，代码评审另行覆盖）。
 > ④ Task 2 例数口径：实测 **154**（基线 150 + 1 api + 3 route）；计划原文「153 例」为笔误，Step 5 已更正。
 > ⑤ Task 7 例数口径：实测 **159**（154+5）；计划原文「≈157」为提取侧陈旧数，Step 7 已更正。
+> ⑥ T4 的 `'→ ' + t('todo')` 引用了不存在的 dict 键（计划原文失误），已补 `todo: '待办' / 'To-do'`；同批补编辑 input Enter 的 isComposing 守卫（对齐文件内既有惯例，防 IME 上屏 Enter 误触保存）。
 
 ### Task 2: api 四方法 + 路由验证
 
