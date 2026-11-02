@@ -137,3 +137,15 @@ test('occurrences 分发', async () => {
   assert.equal(out.items.length, 3)
   await store.close()
 })
+
+test('便签四方法：add → list → update → remove', async () => {
+  const { api, store } = await makeApi()
+  const added = await api.noteAdd({ text: '周一问财务' })
+  assert.ok(added.id.startsWith('n_'))
+  assert.deepEqual((await api.notesList({})).items.map((n) => n.text), ['周一问财务'])
+  const updated = await api.noteUpdate({ id: added.id, text: '周二问财务' })
+  assert.equal(updated.text, '周二问财务')
+  assert.deepEqual(await api.noteRemove({ id: added.id }), { id: added.id })
+  assert.deepEqual((await api.notesList({})).items, [])
+  await store.close()
+})

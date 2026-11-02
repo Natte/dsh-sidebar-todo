@@ -199,3 +199,46 @@ test('业务校验失败按 invalid-input 映射成 400', async () => {
     await app.close()
   }
 })
+
+test('POST /todo/api/notesList 返回 200 与空便签列表', async () => {
+  const app = await makeApp()
+  try {
+    const res = await call(app, { url: '/todo/api/notesList', body: '{}' })
+    assert.equal(res.status, 200)
+    assert.equal(res.payload.ok, true)
+    assert.deepEqual(res.payload.result.items, [])
+  } finally { await app.close() }
+})
+
+test('noteAdd → notesList 走完整路由；写盘失败映射 500（.tmp 被占成目录）', async () => {
+  const app = await makeApp()
+  try {
+    const added = await call(app, {
+      url: '/todo/api/noteAdd',
+      body: JSON.stringify({ text: '路由里记一笔' }),
+    })
+    assert.equal(added.status, 200)
+    assert.equal(added.payload.result.text, '路由里记一笔')
+
+    const listed = await call(app, { url: '/todo/api/notesList', body: '{}' })
+    assert.equal(listed.payload.result.items.length, 1)
+
+    await mkdir(`${app.dataPath}.tmp`)
+    const bad = await call(app, { url: '/todo/api/noteUpdate', body: JSON.stringify({ id: added.payload.result.id, text: 'x' }) })
+    assert.equal(bad.status, 500)
+    assert.equal(bad.payload.error.code, 'io-error')
+  } finally { await app.close() }
+})
+
+test('便签校验错误映射 400；未知便签 id 映射 404', async () => {
+  const app = await makeApp()
+  try {
+    const empty = await call(app, { url: '/todo/api/noteAdd', body: JSON.stringify({ text: '  ' }) })
+    assert.equal(empty.status, 400)
+    assert.equal(empty.payload.error.code, 'invalid-input')
+
+    const ghost = await call(app, { url: '/todo/api/noteRemove', body: JSON.stringify({ id: 'n_ghost' }) })
+    assert.equal(ghost.status, 404)
+    assert.equal(ghost.payload.error.code, 'not-found')
+  } finally { await app.close() }
+})
