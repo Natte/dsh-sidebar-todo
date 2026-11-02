@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>便利贴形态原型 · PROTOTYPE（丢弃式）</title>
+<!--
+  PROTOTYPE — 丢弃式原型，只回答一个问题：
+  「右侧详情列下方挂常驻便签区时，三种形态（A 多条小便签 / B 一整块草稿 / C 混合）的实际手上感如何」
+  无持久化、无依赖；用完即删，或把结论折进 docs/specs/2026-11-02-dsh-todolist-v3-design.md
+  打开方式：双击本文件（浏览器直接file://打开）；底部悬浮条切形态 / 切「选中-未选中」。
+-->
+<style>
+  :root {
+    /* 近似宿主 token（出自 design/tokens.css 的解析值） */
+    --label: #0f1115;          /* alias-label-primary */
+    --label-2: #34415b;        /* alias-label-secondary */
+    --label-3: #5b6472;        /* alias-label-tertiary（近似） */
+    --invert: #ffffff;         /* alias-label-primary-inverted */
+    --accent: #4176e6;         /* alias-state-business-primary = deepseek-500 */
+    --danger: #e5484d;         /* alias-state-error-primary（近似） */
+    --hover: rgba(38, 49, 72, .06);   /* alias-interactive-bg-hover */
+    --border: #e5e6eb;         /* alias-border-l2 #0000001a 的实体近似 */
+    --badge-bg: #f2f3f5;
+    --badge-fg: #4e5969;
+    --red-date: #e5484d;
+    --page-bg: #f5f6f7;
+    font-size: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--page-bg); color: var(--label);
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* ── 原型标注条 ─────────────────────────── */
+  .proto-banner {
+    flex: none; padding: 5px 14px; font-size: 11.5px; color: var(--label-3);
+    background: #fffdf2; border-bottom: 1px solid #f0e9c2;
+  }
+  .proto-banner b { color: #ad8b00; }
+
+  /* ── 应用区：伪列表 + 右列 ───────────────── */
+  .app { flex: 1; min-height: 0; display: flex; background: #fff; }
+  .list-col {
+    flex: 1; min-width: 0; overflow-y: auto; padding: 6px 18px 40px;
+    border-right: 1px solid var(--border);
+  }
+  .sec { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
+  .sec-t { font-size: 12px; font-weight: 600; color: var(--label-2); }
+  .sec-n { font-size: 12px; color: var(--label-3); }
+  .sec-line { flex: 1; border-top: 0.5px solid var(--border); }
+  .row {
+    display: flex; align-items: center; gap: 8px; height: 34px;
+    padding: 0 8px; border-radius: 6px; cursor: default;
+  }
+  .row.sel { background: var(--hover); }
+  .row:hover { background: var(--hover); }
+  .prip { width: 3px; height: 16px; border-radius: 2px; flex: none; }
+  .cb {
+    width: 14px; height: 14px; border-radius: 4px; border: 1px solid #c9cdd4;
+    flex: none; margin-left: 3px; background: #fff;
+  }
+  .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nm.strike { color: #8a9099; text-decoration: line-through; }
+  .badge {
+    font-size: 10.5px; padding: 1px 7px; border-radius: 999px; flex: none;
+    background: var(--badge-bg); color: var(--badge-fg);
+  }
+  .due { font-size: 11.5px; color: var(--label-3); flex: none; }
+  .due.red { color: var(--red-date); font-weight: 600; }
+
+  /* ── 右列：上详情 + 下便签 ───────────────── */
+  .right-col {
+    flex: none; width: 380px; display: flex; flex-direction: column; min-height: 0;
+  }
+  .detail { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px; }
+  .detail-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+  .kv { font-size: 12px; color: var(--label-2); display: flex; gap: 12px; padding: 3px 0; }
+  .kv b { font-weight: 500; width: 56px; flex: none; color: var(--label-3); }
+  .act-row { display: flex; gap: 8px; margin-top: 16px; }
+  .btn {
+    height: 30px; padding: 0 12px; border-radius: 7px; font-size: 12px; cursor: pointer;
+    border: 0.5px solid var(--border); background: #fff; color: var(--label-2); flex: 1;
+  }
+  .btn:hover { background: var(--hover); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; flex: 1.3; }
+  .btn.primary:hover { background: #3666cc; }
+  .empty-hint { color: #c0c4cc; text-align: center; margin-top: 46vh; font-size: 12.5px; margin-top: 40px; }
+
+  /* ── 便签坞（三形态共用外壳）────────────── */
+  .dock {
+    flex: none; height: 42%; min-height: 180px; display: flex; flex-direction: column;
+    border-top: 1px solid var(--border); background: #fcfcfd;
+    transition: height .18s ease;
+  }
+  .app.idle .dock { height: 100%; }
+  .dock.slim { height: auto !important; min-height: 0; }
+  .dock-head {
+    flex: none; display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 14px;
+    cursor: pointer; user-select: none;
+  }
+  .dock-head:hover { background: var(--hover); }
+  .dock-title { font-size: 12px; font-weight: 600; color: var(--label-2); }
+  .dock-count { font-size: 11px; color: var(--label-3); }
+  .dock-arrow { margin-left: auto; font-size: 11px; color: var(--label-3); }
+  .dock-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 0 12px 10px; }
+  .dock.slim .dock-body { display: none; }
+
+  /* 形态 A / C 的：快速输入 + 便签列表 */
+  .quick { display: flex; gap: 6px; margin-bottom: 7px; }
+  .quick input {
+    flex: 1; height: 30px; border: 0.5px solid var(--border); border-radius: 7px;
+    padding: 0 10px; font-size: 12.5px; outline: none; background: #fff; color: var(--label);
+  }
+  .quick input::placeholder { color: #b3b8c0; }
+  .quick input:focus { border-color: var(--accent); }
+  .notes-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+  .note {
+    display: flex; align-items: flex-start; gap: 7px; padding: 6px 8px; border-radius: 6px;
+  }
+  .note:hover { background: var(--hover); }
+  .note-text {
+    flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.45; word-break: break-all;
+    cursor: text; color: var(--label);
+  }
+  .note-text input {
+    width: 100%; font: inherit; border: 0.5px solid var(--accent); border-radius: 5px;
+    padding: 2px 6px; outline: none;
+  }
+  .note-time { font-size: 10.5px; color: #a6abb5; flex: none; padding-top: 2px; }
+  .note-x, .note-todo {
+    flex: none; font-size: 11px; color: #b3b8c0; background: transparent; border: none;
+    cursor: pointer; padding: 1px 4px; border-radius: 4px; opacity: 0;
+  }
+  .note:hover .note-x, .note:hover .note-todo { opacity: 1; }
+  .note-x:hover { background: #ffece8; color: var(--danger); }
+  .note-todo:hover { background: #eaf0ff; color: var(--accent); }
+  .sticky-empty { color: #b3b8c0; font-size: 12px; text-align: center; padding: 26px 0; }
+
+  /* 形态 B / C 的：草稿 textarea */
+  .draft-wrap { display: flex; flex-direction: column; }
+  .draft-wrap.for-b { flex: 1; min-height: 0; }
+  .draft {
+    width: 100%; flex: 1; min-height: 0; resize: none; border: 0.5px solid var(--border);
+    border-radius: 7px; padding: 9px 11px; font-size: 12.5px; line-height: 1.55; outline: none;
+    background: #fff; color: var(--label); font-family: inherit;
+  }
+  .draft:focus { border-color: var(--accent); }
+  .draft-meta {
+    flex: none; display: flex; justify-content: space-between; padding: 5px 2px 0;
+    font-size: 10.5px; color: #a6abb5;
+  }
+  .draft-meta .saved { color: #7a7f88; }
+  .c-divider { flex: none; display: flex; align-items: center; gap: 8px; margin: 8px 0 7px; }
+  .c-divider span { font-size: 11px; font-weight: 600; color: var(--label-3); }
+  .c-divider i { flex: 1; border-top: 0.5px solid var(--border); }
+  .c-history { flex: 1; min-height: 0; overflow-y: auto; }
+
+  /* ── 底部悬浮控制条 ─────────────────────── */
+  .ctrl {
+    flex: none; background: rgba(28, 30, 36, .92); color: #cfd3d6; padding: 8px 14px 9px;
+  }
+  .ctrl-row1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ctrl-label { font-size: 11px; color: #8a9099; margin-right: 2px; }
+  .ctrl button {
+    height: 26px; padding: 0 12px; border-radius: 999px; font-size: 12px; cursor: pointer;
+    background: rgba(255,255,255,.08); color: #cfd3d6; border: 1px solid rgba(255,255,255,.14);
+  }
+  .ctrl button:hover { background: rgba(255,255,255,.16); }
+  .ctrl button.on { background: #4176e6; color: #fff; border-color: #4176e6; }
+  .ctrl .gap { flex: 1; }
+  .ctrl-state { font-size: 11px; color: #9aa1ad; }
+  .ctrl-row2 { margin-top: 5px; font-size: 11.5px; color: #9aa1ad; }
+  .ctrl-row2 b { color: #dbe3f5; font-weight: 500; }
+
+  /* toast */
+  .toast {
+    position: fixed; left: 50%; bottom: 92px; transform: translateX(-50%);
+    background: #1c1e24; color: #fff; font-size: 12px; padding: 7px 14px; border-radius: 8px;
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  .toast.show { opacity: .95; }
+</style>
+</head>
+<body>
+
+<div class="proto-banner">
+  <b>PROTOTYPE</b>（丢弃式原型 · 用后删除）— 只回答一个问题：detail 列下方常驻「便利贴」时，三种形态的手上感如何。数据在内存里，刷新即重置。
+</div>
+
+<div class="app" id="app">
+  <!-- 伪左列：复刻真实面板的分组 -->
+  <div class="list-col">
+    <div class="sec"><span class="sec-t">逾期</span><span class="sec-n">1</span><span class="sec-line"></span></div>
+    <div class="row">
+      <span class="prip" style="background:#f7ad31"></span><span class="cb"></span>
+      <span class="nm">区域经营月报</span>
+      <span class="badge">循环</span><span class="badge">审计</span><span class="due red">11-01</span>
+    </div>
+    <div class="sec"><span class="sec-t">今天</span><span class="sec-n">1</span><span class="sec-line"></span></div>
+    <div class="row sel" data-selectable="1">
+      <span class="prip" style="background:#e5484d"></span><span class="cb"></span>
+      <span class="nm">日报</span>
+      <span class="badge">循环</span><span class="badge">工作</span><span class="due">11-02</span>
+    </div>
+    <div class="sec"><span class="sec-t">明天</span><span class="sec-n">1</span><span class="sec-line"></span></div>
+    <div class="row" data-selectable="1">
+      <span class="prip" style="background:#f7ad31"></span><span class="cb"></span>
+      <span class="nm">助理工具使用检查（示例）</span>
+      <span class="badge">循环</span><span class="badge">审计</span><span class="due">11-03</span>
+    </div>
+    <div class="sec"><span class="sec-t">本周</span><span class="sec-n">6</span><span class="sec-line"></span></div>
+    <div class="row"><span class="prip" style="background:#f7ad31"></span><span class="cb"></span><span class="nm">助手对话一次（示例）</span><span class="badge">循环</span><span class="badge">工作</span><span class="due">11-05</span></div>
+    <div class="row"><span class="prip" style="background:#f7ad31"></span><span class="cb"></span><span class="nm">登录内网门户</span><span class="badge">循环</span><span class="badge">工作</span><span class="due">11-05</span></div>
+    <div class="row"><span class="prip" style="background:#f7ad31"></span><span class="cb"></span><span class="nm">整理网盘文档并归档</span><span class="badge">循环</span><span class="badge">工作</span><span class="due">11-05</span></div>
+    <div class="row"><span class="prip" style="background:#e5484d"></span><span class="cb"></span><span class="nm">提交周报</span><span class="badge">循环</span><span class="badge">工作</span><span class="due">11-06</span></div>
+    <div class="sec"><span class="sec-t">已完成</span><span class="sec-n">3</span><span class="sec-line"></span></div>
+    <div class="row"><span class="prip" style="background:#f7ad31"></span><span class="cb" style="background:#4176e6;border-color:#4176e6"></span><span class="nm strike">线上问题跟踪（核心线 24 小时内修复）</span><span class="badge">循环</span><span class="due">11-04</span></div>
+    <div class="row"><span class="prip" style="background:#f7ad31"></span><span class="cb" style="background:#4176e6;border-color:#4176e6"></span><span class="nm strike">上周周报提交情况</span><span class="badge">循环</span><span class="due">11-02</span></div>
+    <div class="row"><span class="prip" style="background:#f7ad31"></span><span class="cb" style="background:#4176e6;border-color:#4176e6"></span><span class="nm strike">工具套件使用情况（知识库、文档、会议）</span><span class="badge">循环</span><span class="due">11-02</span></div>
+  </div>
+
+  <!-- 右列：上（原功能区：详情/当天/空态） + 下（新功能区：便利贴） -->
+  <div class="right-col">
+    <div class="detail" id="detail"></div>
+    <div class="dock" id="dock">
+      <div class="dock-head" id="dockHead">
+        <span class="dock-title">便利贴</span>
+        <span class="dock-count" id="dockCount"></span>
+        <span class="dock-arrow" id="dockArrow">▾</span>
+      </div>
+      <div class="dock-body" id="dockBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 底部悬浮控制条：切形态 / 切内容态 / 重置 -->
+<div class="ctrl">
+  <div class="ctrl-row1">
+    <span class="ctrl-label">形态</span>
+    <button id="vBtnA">A 多条小便签</button>
+    <button id="vBtnB">B 一整块草稿</button>
+    <button id="vBtnC">C 置顶草稿+便签</button>
+    <span class="gap"></span>
+    <span class="ctrl-label">右侧内容</span>
+    <button id="stSel">选中待办「日报」</button>
+    <button id="stIdle">未选中（空白）</button>
+    <button id="reset">重置样例</button>
+    <span class="ctrl-state" id="ctrlState"></span>
+  </div>
+  <div class="ctrl-row2" id="ctrlCaption"></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── 内存态（无持久化） ─────────────────── */
+const state = {
+  variant: 'A',          // A 多条 | B 草稿 | C 混合
+  selected: true,        // 右列上部是否选中待办
+  dockOpen: true,
+  notes: [
+    { id: 1, text: '开票口径再找财务确认一次（示例）', ts: Date.now() - 10 * 60 * 1000 },
+    { id: 2, text: '周五带工牌', ts: Date.now() - 2 * 60 * 60 * 1000 },
+    { id: 3, text: '看看新分组要不要默认收起', ts: Date.now() - 26 * 60 * 60 * 1000 },
+  ],
+  draft: '把区域经营月报导出的口径整理进文档：\n- 核心线按 24 小时，其余项目 48 小时\n- 下次周报要用（draft 草稿自动保存，刷新即丢）',
+  draftSavedAt: Date.now() - 90 * 1000,
+  nextId: 10,
+}
+
+/* ── 小工具 ────────────────────────────── */
+const $ = (id) => document.getElementById(id)
+function rel(ts) {
+  const d = Date.now() - ts
+  if (d < 60e3) return '刚刚'
+  if (d < 3600e3) return Math.floor(d / 60e3) + '分钟前'
+  if (d < 86400e3) return Math.floor(d / 3600e3) + '小时前'
+  if (d < 2 * 86400e3) return '昨天'
+  const dt = new Date(ts)
+  return `${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+}
+function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show')
+  clearTimeout(t._tm); t._tm = setTimeout(() => t.classList.remove('show'), 1800)
+}
+function saveDraft() { state.draftSavedAt = Date.now(); }
+
+/* ── 右列上部（原功能区） ───────────────── */
+function renderDetail() {
+  const el = $('detail')
+  if (!state.selected) {
+    el.innerHTML = `<div class="empty-hint">选一条看详情</div>`
+    return
+  }
+  el.innerHTML = `
+    <div class="detail-title">日报 <span class="badge">循环</span></div>
+    <div class="kv"><b>优先级</b><span style="color:#e5484d;font-weight:600">高</span></div>
+    <div class="kv"><b>分类</b><span class="badge">工作</span></div>
+    <div class="kv"><b>截止</b><span>11-02 18:00</span></div>
+    <div class="kv"><b>重复</b><span>每周一至周五</span></div>
+    <div class="kv"><b>上次完成</b><span>11-01</span></div>
+    <div class="kv"><b>累计</b><span>已完成 13 次</span></div>
+    <div class="act-row">
+      <button class="btn primary" onclick="toast('原型：完成本次')">完成本次</button>
+      <button class="btn" onclick="toast('原型：编辑弹窗')">编辑</button>
+      <button class="btn" onclick="toast('原型：先确认后删除')">删除</button>
+    </div>`,
+  null
+}
+
+/* ── 便签行（A / C 共用） ───────────────── */
+function noteRow(n, editId) {
+  if (editId === n.id) {
+    return `<div class="note" data-nid="${n.id}">
+      <span class="note-text"><input id="ed-${n.id}" value="${esc(n.text).replace(/\"/g, '&quot;')}" maxlength="500"></span>
+    </div>`
+  }
+  return `<div class="note" style="padding-left:8px" data-nid="${n.id}">
+    <span class="note-text" title="点击编辑" data-edit="${n.id}">${esc(n.text)}</span>
+    <span class="note-time">${rel(n.ts)}</span>
+    <button class="note-todo" title="预填到新建弹窗" data-todo="${n.id}">→ 待办</button>
+    <button class="note-x" title="删除" data-x="${n.id}">✕</button>
+  </div>`
+}
+
+/* ── 便签坞（按形态渲染） ───────────────── */
+let editingId = null
+function renderDock() {
+  const app = $('app'), dock = $('dock'), body = $('dockBody')
+  app.classList.toggle('idle', !state.selected)
+  dock.classList.toggle('slim', !state.dockOpen)
+  $('dockArrow').textContent = state.dockOpen ? '▾' : '▸'
+  $('dockCount').textContent = state.variant === 'B' ? '' : ` · ${state.notes.length} 条`
+  if (!state.dockOpen) { body.innerHTML = ''; return }
+
+  if (state.variant === 'A') {
+    body.innerHTML = `
+      <div class="quick"><input id="quickIn" placeholder="记一点… 回车即存" maxlength="500"></div>
+      <div class="notes-scroll" id="noteList">
+        ${state.notes.length ? state.notes.map((n) => noteRow(n, editingId)).join('') : '<div class="sticky-empty">一想起来就写一条</div>'}
+      </div>`
+    bindListEvents(body)
+    const qi = $('quickIn'); qi.focus();
+    qi.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && qi.value.trim()) {
+        state.notes.unshift({ id: state.nextId++, text: qi.value.trim(), ts: Date.now() })
+        qi.value = ''
+        renderDock()
+      }
+    })
+  }
+
+  if (state.variant === 'B') {
+    body.innerHTML = `
+      <div class="draft-wrap for-b">
+        <textarea class="draft" id="draftTa" maxlength="500" placeholder="一整块草稿：想到哪写到哪…">${esc(state.draft)}</textarea>
+        <div class="draft-meta">
+          <span class="saved" id="draftSaved">已于 ${new Date(state.draftSavedAt).toLocaleTimeString('zh-CN', { hour12: false })} 自动保存</span>
+          <span id="draftCount">${state.draft.length} / 500</span>
+        </div>
+      </div>`
+    const ta = $('draftTa'); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length)
+    let tm = null
+    ta.addEventListener('input', () => {
+      state.draft = ta.value
+      $('draftCount').textContent = `${ta.value.length} / 500`
+      clearTimeout(tm); tm = setTimeout(() => { saveDraft(); $('draftSaved').textContent = `已于 ${new Date(state.draftSavedAt).toLocaleTimeString('zh-CN', { hour12: false })} 自动保存` }, 500)
+    })
+  }
+
+  if (state.variant === 'C') {
+    body.innerHTML = `
+      <div class="draft-wrap" style="flex:none">
+        <textarea class="draft" id="draftTa" rows="2" maxlength="500" placeholder="置顶草稿：正在整理的、还没成型的想法…">${esc(state.draft)}</textarea>
+        <div class="draft-meta">
+          <span class="saved" id="draftSaved">已于 ${new Date(state.draftSavedAt).toLocaleTimeString('zh-CN', { hour12: false })} 自动保存</span>
+          <span id="draftCount">${state.draft.length} / 500</span>
+        </div>
+      </div>
+      <div class="c-divider"><span>历史便签 · ${state.notes.length}</span><i></i></div>
+      <div class="c-history" id="noteList">
+        ${state.notes.length ? state.notes.map((n) => noteRow(n, editingId)).join('') : '<div class="sticky-empty">随手想起的一件件小事，一条一行</div>'}
+      </div>`
+    bindListEvents(body)
+    const ta = $('draftTa')
+    let tm = null
+    ta.addEventListener('input', () => {
+      state.draft = ta.value
+      $('draftCount').textContent = `${ta.value.length} / 500`
+      clearTimeout(tm); tm = setTimeout(() => { saveDraft(); $('draftSaved').textContent = `已于 ${new Date(state.draftSavedAt).toLocaleTimeString('zh-CN', { hour12: false })} 自动保存` }, 500)
+    })
+  }
+  renderCtrl()
+}
+
+function bindListEvents(root) {
+  root.querySelectorAll('[data-edit]').forEach((el) => {
+    el.addEventListener('click', () => {
+      editingId = Number(el.dataset.edit); renderDock()
+      const input = document.getElementById('ed-' + editingId)
+      input.focus(); input.setSelectionRange(input.value.length, input.value.length)
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === 'Escape') { e.stopPropagation(); commitEdit(input, e.key !== 'Escape') }
+      })
+      input.addEventListener('blur', () => commitEdit(input, true))
+    })
+  })
+  root.querySelectorAll('[data-x]').forEach((el) => {
+    el.addEventListener('click', () => {
+      state.notes = state.notes.filter((n) => n.id !== Number(el.dataset.x))
+      renderDock()
+    })
+  })
+  root.querySelectorAll('[data-todo]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const n = state.notes.find((n) => n.id === Number(el.dataset.todo))
+      toast(`原型：打开新建弹窗，标题预填「${n.text.slice(0, 12)}…」`)
+    })
+  })
+}
+function commitEdit(input, ok) {
+  const nid = Number(input.parentElement.dataset ? editingId : editingId)
+  const n = state.notes.find((n) => n.id === nid)
+  if (n && ok && input.value.trim() !== '') { n.text = input.value.trim(); n.ts = Date.now() }
+  editingId = null
+  renderDock()
+}
+
+/* ── 控制条 ────────────────────────────── */
+const captions = {
+  A: '<b>A 多条小便签</b>：顶部「回车即存」输入框 + 一条一行的便签，可单删、可点击改、可 →待办；最像便利贴，成本中等。',
+  B: '<b>B 一整块草稿</b>：一个常驻多行文本框自动保存；落笔最快、控件最少，但没法单删、没法转待办，会越写越长。',
+  C: '<b>C 置顶草稿 + 历史便签</b>：上面一块「正在整理」的草稿自动保存，下面是记录下来的小事；最顺手，控件最多（≈A+B）。',
+}
+function renderCtrl() {
+  ;[['vBtnA', 'A'], ['vBtnB', 'B'], ['vBtnC', 'C']].forEach(([id, v]) => $(id).classList.toggle('on', state.variant === v))
+  ;[['stSel', true], ['stIdle', false]].forEach(([id, s]) => $(id).classList.toggle('on', state.selected === s))
+  $('ctrlCaption').innerHTML = captions[state.variant]
+    + (state.variant !== 'B' ? ` <span style="color:#6b707a">（试试：右上「未选中」会自动把便签区升满——这是可选增强）</span>` : '')
+  $('ctrlState').textContent =
+    `形态 ${state.variant} · ${state.selected ? '选中态' : '未选中'} · 便签 ${state.notes.length} 条 · 草稿 ${state.draft.length} 字`
+}
+
+$('vBtnA').onclick = () => { state.variant = 'A'; editingId = null; renderDock() }
+$('vBtnB').onclick = () => { state.variant = 'B'; renderDock() }
+$('vBtnC').onclick = () => { state.variant = 'C'; editingId = null; renderDock() }
+$('stSel').onclick = () => { state.selected = true; renderDetail(); renderDock() }
+$('stIdle').onclick = () => { state.selected = false; renderDetail(); renderDock() }
+$('reset').onclick = () => { toast('内存已重置（真实插件里是落盘的）'); resetSeed(); }
+function resetSeed() {
+  state.notes = [
+    { id: 1, text: '开票口径再找财务确认一次（示例）', ts: Date.now() - 10 * 60 * 1000 },
+    { id: 2, text: '周五带工牌', ts: Date.now() - 2 * 60 * 60 * 1000 },
+    { id: 3, text: '看看新分组要不要默认收起', ts: Date.now() - 26 * 60 * 60 * 1000 },
+  ]
+  state.draft = '把区域经营月报导出的口径整理进文档：\n- 核心线按 24 小时，其余项目 48 小时\n- 下次周报要用（draft 草稿自动保存，刷新即丢）'
+  state.draftSavedAt = Date.now() - 90 * 1000
+  editingId = null
+  renderDetail(); renderDock()
+}
+$('dockHead').onclick = () => { if (!state.dockOpen) { state.dockOpen = true; renderDock() } }
+$('dockArrow').onclick = (e) => { e.stopPropagation(); state.dockOpen = !state.dockOpen; renderDock() }
+
+/* 点左列行 = 模拟选中 */
+document.querySelectorAll('[data-selectable]').forEach((row) => {
+  row.addEventListener('click', () => {
+    document.querySelectorAll('.row.sel').forEach((r) => r.classList.remove('sel'))
+    row.classList.add('sel')
+    state.selected = true; renderDetail(); renderDock()
+  })
+})
+
+renderDetail(); renderDock()
+</script>
+</body>
+</html>
