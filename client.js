@@ -13,7 +13,7 @@ window.__ModuleLoader__.load({
         unplanned: '未排期', done: '已完成', doneEmpty: '该范围内没有完成记录', empty: '还没有待办',
         staleHint: '超过 {n} 天未完成', loading: '加载中…', failed: '读取失败',
         actionFailed: '操作失败，请重试',
-        retry: '重试', pickOne: '选一条看详情',
+        retry: '重试', pickOne: '选一条看详情，或在下方记一条便利贴', quickNote: '便利贴',
         listView: '列表', calendarView: '日历', prevMonth: '上个月', nextMonth: '下个月',
         nothingThatDay: '这一天没有安排', plansOnDay: (date) => `${date} 的安排`, newOnThatDay: '在这一天新建',
         corruptNotice: '数据文件损坏，已备份并以空清单启动',
@@ -55,7 +55,7 @@ window.__ModuleLoader__.load({
         unplanned: 'Unscheduled', done: 'Completed', doneEmpty: 'No completions in this range', empty: 'No todos yet',
         staleHint: 'Open for more than {n} days', loading: 'Loading…', failed: 'Failed to load',
         actionFailed: 'Action failed, please retry',
-        retry: 'Retry', pickOne: 'Select an item',
+        retry: 'Retry', pickOne: 'Select an item for details, or jot a sticky note below', quickNote: 'Sticky notes',
         listView: 'List', calendarView: 'Calendar', prevMonth: 'Previous month', nextMonth: 'Next month',
         nothingThatDay: 'Nothing planned for this day', plansOnDay: (date) => `Plans on ${date}`, newOnThatDay: 'New on this day',
         corruptNotice: 'Data file was corrupt; it is backed up and the list started empty.',
@@ -138,7 +138,15 @@ window.__ModuleLoader__.load({
       repeatBadge: { fontSize: 12, lineHeight: '18px', padding: '0 6px', borderRadius: 4, color: 'var(--dsw-alias-label-secondary)', background: 'var(--dsw-alias-bg-module-platform)', flex: 'none' },
       due: { fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none', minWidth: 52, textAlign: 'right' },
       dueLate: { fontSize: 11, color: 'var(--dsw-alias-state-error-primary)', flex: 'none', minWidth: 52, textAlign: 'right' },
-      detail: { width: 380, flex: 'none', borderLeft: '0.5px solid var(--dsw-alias-border-l2)', padding: 16, fontSize: 12.5, color: 'var(--dsw-alias-label-secondary)' },
+      rightCol: { width: 380, flex: 'none', display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '0.5px solid var(--dsw-alias-border-l2)' },
+      detail: { flex: 1, minWidth: 0, overflowY: 'auto', padding: 16, fontSize: 12.5, color: 'var(--dsw-alias-label-secondary)' },
+      detailEmpty: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--dsw-alias-label-tertiary)', textAlign: 'center', padding: '0 20px' },
+      dock: { flex: 'none', height: '42%', minHeight: 180, display: 'flex', flexDirection: 'column', borderTop: '0.5px solid var(--dsw-alias-border-l2)', transition: 'height 0.18s ease' },
+      dockHead: { flex: 'none', display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 14px', cursor: 'pointer', color: 'var(--dsw-alias-label-secondary)' },
+      dockTitle: { fontSize: 12, fontWeight: 600 },
+      dockCount: { fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
+      dockArrow: { marginLeft: 'auto', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
+      dockBody: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '0 12px 10px' },
       empty: { padding: 40, textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 },
       error: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent)' },
       warn: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-warn-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent)', display: 'flex', alignItems: 'center', gap: 8 },
@@ -311,6 +319,14 @@ window.__ModuleLoader__.load({
   .td-overlay, .td-dialog, .td-btn, .td-primary, .td-input, .td-row, .td-pop { animation: none; transition: none; }
   .td-btn:active:not(:disabled), .td-primary:active:not(:disabled) { transform: none; }
 }
+
+/* 便签坞：头部整条可点折叠，行 hover 提底色，行操作默认隐藏、hover 显出、危险操作 hover 变红。 */
+.td-dock-head:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.td-note-row { }
+.td-note-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.td-note-row .td-note-act { opacity: 0; transition: opacity .12s ease; }
+.td-note-row:hover .td-note-act { opacity: 1; }
+.td-note-act:hover { color: var(--dsw-alias-state-error-primary); }
 `
 
     /** 样式表全页只插一份；返回的清理函数交给 ctx.effect，插件卸载时移除。 */
@@ -2027,118 +2043,123 @@ window.__ModuleLoader__.load({
                     ) : null,
                   ),
             ),
-          h('div', { style: compactDetail ? { ...S.detail, width: 320 } : S.detail },
-            dayKey !== null
-              ? h('div', null,
-                h('div', { style: S.detailTitle }, t('plansOnDay')(dayKey === todayKey ? t('today') : dayKey.slice(5))),
-                dayItems.length === 0
-                  ? h('div', { style: S.empty }, t('nothingThatDay'))
-                  : dayItems.map((item) => h('div', {
-                      key: `${item.todoId}-${item.date}`,
-                      style: S.dayRow,
-                    },
-                    checkHit(
-                      () => { void toggleDayItem(item) },
-                      h('span', {
-                        role: 'checkbox',
-                        'aria-checked': item.done ? 'true' : 'false',
-                        'aria-label': asText(item.title),
-                        tabIndex: 0,
-                        className: 'td-check',
-                        style: item.done ? S.cbDone : S.cb,
-                        onKeyDown: (event) => {
-                          if (event.nativeEvent?.isComposing === true) return
-                          if (event.key !== ' ' && event.key !== 'Enter') return
-                          event.preventDefault()
-                          event.stopPropagation()
-                          void toggleDayItem(item)
-                        },
-                      }, item.done
-                        ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--dsw-alias-label-primary-inverted)', strokeWidth: 2.4 },
-                            h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))
-                        : null),
-                    ),
-                    h('span', { style: item.done ? S.nmDone : S.nm }, asText(item.title)),
-                    h('span', { style: { ...S.dot, background: priorityColor(item.priority), marginLeft: 4 }, 'aria-hidden': 'true' }))),
-                h('button', {
-                  type: 'button',
-                  className: 'td-btn',
-                  style: { ...S.btnGhost, width: '100%', marginTop: 10 },
-                  onClick: () => setDialog({ initial: { dueDate: dayKey } }),
-                }, t('newOnThatDay')))
-              : selectedItem
+          h('div', { style: compactDetail ? { ...S.rightCol, width: 320 } : S.rightCol },
+            h('div', { style: S.detail },
+              dayKey !== null
                 ? h('div', null,
-                  h('div', { style: S.detailTitle }, selectedTitle),
-                  selectedNote !== '' ? h('div', { style: { marginBottom: 10, lineHeight: '20px', whiteSpace: 'pre-wrap' } }, selectedNote) : null,
-                  h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 } },
-                    selectedItem.priority
-                      ? detailRow(t('priority'), h('span', {
-                          style: {
-                            padding: '1px 8px', borderRadius: 999,
-                            color: priorityColor(selectedItem.priority),
-                            background: `color-mix(in srgb, ${priorityColor(selectedItem.priority)} 12%, transparent)`,
+                  h('div', { style: S.detailTitle }, t('plansOnDay')(dayKey === todayKey ? t('today') : dayKey.slice(5))),
+                  dayItems.length === 0
+                    ? h('div', { style: S.empty }, t('nothingThatDay'))
+                    : dayItems.map((item) => h('div', {
+                        key: `${item.todoId}-${item.date}`,
+                        style: S.dayRow,
+                      },
+                      checkHit(
+                        () => { void toggleDayItem(item) },
+                        h('span', {
+                          role: 'checkbox',
+                          'aria-checked': item.done ? 'true' : 'false',
+                          'aria-label': asText(item.title),
+                          tabIndex: 0,
+                          className: 'td-check',
+                          style: item.done ? S.cbDone : S.cb,
+                          onKeyDown: (event) => {
+                            if (event.nativeEvent?.isComposing === true) return
+                            if (event.key !== ' ' && event.key !== 'Enter') return
+                            event.preventDefault()
+                            event.stopPropagation()
+                            void toggleDayItem(item)
                           },
-                        }, priorityLabel(selectedItem.priority, t)))
-                      : null,
-                    selectedDueDate !== '' ? detailRow(t('dueDate'), `${selectedDueDate}${selectedDueTime !== '' ? ' ' + selectedDueTime : ''}`) : null,
-                    selectedCategory !== '' ? detailRow(t('category'), selectedCategory) : null,
-                    selectedItem.createdAt ? detailRow(t('created'), formatDateTime(selectedItem.createdAt)) : null,
-                    selectedItem.isRepeating
-                      ? detailRow(t('lastCompleted'), selectedLastCompleted === '' ? t('neverCompleted') : selectedLastCompleted.slice(5))
-                      : null,
-                    selectedItem.isRepeating
-                      ? detailRow(t('repeatBadge'), selectedCountLabel)
-                      : null),
-                  h('div', { style: { display: 'flex', gap: 8, marginTop: 14 } },
-                    h('button', {
-                      className: 'td-btn',
-                      style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)' },
-                      onClick: () => setDialog({ initial: selectedItem }),
-                    }, t('edit')),
-                    h('button', {
-                      className: 'td-primary',
-                      disabled: selectedRepeatEnded,
-                      style: {
-                        flex: 1, height: 32, borderRadius: 8, border: 'none',
-                        cursor: selectedRepeatEnded ? 'not-allowed' : 'pointer',
-                        opacity: selectedRepeatEnded ? 0.45 : 1,
-                        background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5,
-                      },
-                      onClick: () => {
-                        const payload = { id: selectedItem.id, done: !selectedItem.done }
-                        if (selectedItem.isRepeating && selectedItem.dueDate) payload.date = selectedItem.dueDate
-                        void mutate('complete', payload)
-                      },
-                    }, selectedItem.done ? t('reopen') : (selectedItem.isRepeating ? t('completeOccurrence') : t('complete'))),
-                    h('button', {
-                      className: 'td-btn',
-                      style: { flex: 1, height: 32, borderRadius: 8, cursor: 'pointer', fontSize: 12.5, border: '0.5px solid var(--dsw-alias-border-l3)', color: confirming ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
-                      onClick: async () => {
-                        // 进入或结束确认态之前都先清掉旧 timer，保证只剩当前这一轮。
-                        clearConfirmTimer()
-                        if (!confirming) {
-                          setConfirming(true)
-                          confirmTimer.current = window.setTimeout(() => {
-                            confirmTimer.current = null
-                            setConfirming(false)
-                          }, 3000)
-                          return
-                        }
-                        setConfirming(false)
-                        setSelected(null)
-                        await mutate('remove', { id: selectedItem.id })
-                      },
-                    }, confirming ? t('confirmRemove') : t('remove')),
-                  ),
-                  selectedItem.done && selectedItem.doneBy === 'agent' && !selectedItem.verifiedAt
-                    ? h('button', {
+                        }, item.done
+                          ? h('svg', { width: 9, height: 9, viewBox: '0 0 16 16', fill: 'none', stroke: 'var(--dsw-alias-label-primary-inverted)', strokeWidth: 2.4 },
+                              h('path', { d: 'M3.4 8.4 6.2 11l6.4-6.4', strokeLinecap: 'round', strokeLinejoin: 'round' }))
+                          : null),
+                      ),
+                      h('span', { style: item.done ? S.nmDone : S.nm }, asText(item.title)),
+                      h('span', { style: { ...S.dot, background: priorityColor(item.priority), marginLeft: 4 }, 'aria-hidden': 'true' }))),
+                  h('button', {
+                    type: 'button',
+                    className: 'td-btn',
+                    style: { ...S.btnGhost, width: '100%', marginTop: 10 },
+                    onClick: () => setDialog({ initial: { dueDate: dayKey } }),
+                  }, t('newOnThatDay')))
+                : selectedItem
+                  ? h('div', null,
+                    h('div', { style: S.detailTitle }, selectedTitle),
+                    selectedNote !== '' ? h('div', { style: { marginBottom: 10, lineHeight: '20px', whiteSpace: 'pre-wrap' } }, selectedNote) : null,
+                    h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 } },
+                      selectedItem.priority
+                        ? detailRow(t('priority'), h('span', {
+                            style: {
+                              padding: '1px 8px', borderRadius: 999,
+                              color: priorityColor(selectedItem.priority),
+                              background: `color-mix(in srgb, ${priorityColor(selectedItem.priority)} 12%, transparent)`,
+                            },
+                          }, priorityLabel(selectedItem.priority, t)))
+                        : null,
+                      selectedDueDate !== '' ? detailRow(t('dueDate'), `${selectedDueDate}${selectedDueTime !== '' ? ' ' + selectedDueTime : ''}`) : null,
+                      selectedCategory !== '' ? detailRow(t('category'), selectedCategory) : null,
+                      selectedItem.createdAt ? detailRow(t('created'), formatDateTime(selectedItem.createdAt)) : null,
+                      selectedItem.isRepeating
+                        ? detailRow(t('lastCompleted'), selectedLastCompleted === '' ? t('neverCompleted') : selectedLastCompleted.slice(5))
+                        : null,
+                      selectedItem.isRepeating
+                        ? detailRow(t('repeatBadge'), selectedCountLabel)
+                        : null),
+                    h('div', { style: { display: 'flex', gap: 8, marginTop: 14, justifyContent: 'center' } },
+                      h('button', {
+                        className: 'td-btn',
+                        style: { ...S.btnGhost, minWidth: 76 },
+                        onClick: () => setDialog({ initial: selectedItem }),
+                      }, t('edit')),
+                      h('button', {
                         className: 'td-primary',
-                        style: { width: '100%', height: 32, marginTop: 8, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5 },
-                        onClick: () => void mutate('confirm', { id: selectedItem.id }),
-                      }, t('confirmDone'))
-                    : null,
-                )
-                : h('div', { style: { color: 'var(--dsw-alias-label-tertiary)' } }, t('pickOne')),
+                        disabled: selectedRepeatEnded,
+                        style: { ...S.btnPrimary, minWidth: 104, opacity: selectedRepeatEnded ? 0.45 : 1, cursor: selectedRepeatEnded ? 'not-allowed' : 'pointer' },
+                        onClick: () => {
+                          const payload = { id: selectedItem.id, done: !selectedItem.done }
+                          if (selectedItem.isRepeating && selectedItem.dueDate) payload.date = selectedItem.dueDate
+                          void mutate('complete', payload)
+                        },
+                      }, selectedItem.done ? t('reopen') : (selectedItem.isRepeating ? t('completeOccurrence') : t('complete'))),
+                      h('button', {
+                        className: 'td-btn',
+                        style: { ...S.btnGhost, minWidth: 76, color: confirming ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
+                        onClick: async () => {
+                          // 进入或结束确认态之前都先清掉旧 timer，保证只剩当前这一轮。
+                          clearConfirmTimer()
+                          if (!confirming) {
+                            setConfirming(true)
+                            confirmTimer.current = window.setTimeout(() => {
+                              confirmTimer.current = null
+                              setConfirming(false)
+                            }, 3000)
+                            return
+                          }
+                          setConfirming(false)
+                          setSelected(null)
+                          await mutate('remove', { id: selectedItem.id })
+                        },
+                      }, confirming ? t('confirmRemove') : t('remove')),
+                    ),
+                    selectedItem.done && selectedItem.doneBy === 'agent' && !selectedItem.verifiedAt
+                      ? h('button', {
+                          className: 'td-primary',
+                          style: { width: '100%', height: 32, marginTop: 8, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'var(--dsw-alias-state-business-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5 },
+                          onClick: () => void mutate('confirm', { id: selectedItem.id }),
+                        }, t('confirmDone'))
+                      : null,
+                  )
+                  : h('div', { style: S.detailEmpty }, h('div', null, t('pickOne'))),
+            ),
+            h('div', { className: 'td-dock', style: S.dock },
+              h('div', { className: 'td-dock-head', style: S.dockHead, role: 'button', 'aria-expanded': 'true', tabIndex: 0 },
+                h('span', { style: S.dockTitle }, t('quickNote')),
+                h('span', { style: S.dockCount }, ''),
+                h('span', { style: S.dockArrow }, '▾'),
+              ),
+              h('div', { style: S.dockBody }, null),
+            ),
           ),
         ),
         dialog !== null
