@@ -14,6 +14,9 @@ window.__ModuleLoader__.load({
         staleHint: '超过 {n} 天未完成', loading: '加载中…', failed: '读取失败',
         actionFailed: '操作失败，请重试',
         retry: '重试', pickOne: '选一条看详情，或在下方记一条便利贴', quickNote: '便利贴',
+        noteAddPlaceholder: '记一点… 回车即存', noteEmpty: '一想起来就写一条',
+        noteEditTitle: '点击编辑', noteDeleteTitle: '删除这条便签', toTodo: '转为待办',
+        justNow: '刚刚', minutesAgo: '{n} 分钟前', hoursAgo: '{n} 小时前',
         listView: '列表', calendarView: '日历', prevMonth: '上个月', nextMonth: '下个月',
         nothingThatDay: '这一天没有安排', plansOnDay: (date) => `${date} 的安排`, newOnThatDay: '在这一天新建',
         corruptNotice: '数据文件损坏，已备份并以空清单启动',
@@ -56,6 +59,9 @@ window.__ModuleLoader__.load({
         staleHint: 'Open for more than {n} days', loading: 'Loading…', failed: 'Failed to load',
         actionFailed: 'Action failed, please retry',
         retry: 'Retry', pickOne: 'Select an item for details, or jot a sticky note below', quickNote: 'Sticky notes',
+        noteAddPlaceholder: 'Jot… Enter to save', noteEmpty: 'Write a thought when it comes',
+        noteEditTitle: 'Click to edit', noteDeleteTitle: 'Delete this note', toTodo: 'Turn into todo',
+        justNow: 'Just now', minutesAgo: '{n}m ago', hoursAgo: '{n}h ago',
         listView: 'List', calendarView: 'Calendar', prevMonth: 'Previous month', nextMonth: 'Next month',
         nothingThatDay: 'Nothing planned for this day', plansOnDay: (date) => `Plans on ${date}`, newOnThatDay: 'New on this day',
         corruptNotice: 'Data file was corrupt; it is backed up and the list started empty.',
@@ -327,6 +333,12 @@ window.__ModuleLoader__.load({
 .td-note-row .td-note-act { opacity: 0; transition: opacity .12s ease; }
 .td-note-row:hover .td-note-act { opacity: 1; }
 .td-note-act:hover { color: var(--dsw-alias-state-error-primary); }
+
+/* 减弱动态效果时动作按钮不再淡入。注意这条要放在 .td-note-row 基础规则之后：
+   同特异性按源顺序取胜，放进上面的既有复位块会被后面的规则盖掉 transition。 */
+@media (prefers-reduced-motion: reduce) {
+  .td-note-row .td-note-act { transition: none; }
+}
 `
 
     /** 样式表全页只插一份；返回的清理函数交给 ctx.effect，插件卸载时移除。 */
@@ -448,6 +460,17 @@ window.__ModuleLoader__.load({
       const at = new Date(iso)
       if (Number.isNaN(at.getTime())) return ''
       return `${dateKeyOf(at)} ${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`
+    }
+
+    /** 便签行相对时间：1 分钟内「刚刚」，1 小时内 N 分钟，1 天内 N 小时，更久退回日期键。 */
+    function noteRelTime(t, iso) {
+      const ts = Date.parse(iso)
+      if (Number.isNaN(ts)) return ''
+      const diff = Date.now() - ts
+      if (diff < 60000) return t('justNow')
+      if (diff < 3600000) return t('minutesAgo').replace('{n}', String(Math.floor(diff / 60000)))
+      if (diff < 86400000) return t('hoursAgo').replace('{n}', String(Math.floor(diff / 3600000)))
+      return dateKeyOf(new Date(ts))
     }
 
     const PRIORITY_COLOR = {
@@ -1591,6 +1614,12 @@ window.__ModuleLoader__.load({
       const [compactDetail, setCompactDetail] = useState(() => window.innerWidth < 1000)
       const [retrying, setRetrying] = useState(false)
       const [view, setView] = useState('list')
+      // 便签坞：notes 数据、坞体折叠态、正在行内编辑的便签 id、快速输入框内容与焦点。
+      const [notes, setNotes] = useState([])
+      const [dockOpen, setDockOpen] = useState(true)
+      const [editingNote, setEditingNote] = useState(null)
+      const [quickNote, setQuickNote] = useState('')
+      const noteInputRef = useRef(null)
       // 写操作（勾选/完成等）失败的可见提示。它和读取失败的 state.error 分开：
       // 自己保留 5 秒，2.5 秒轮询成功也不会把它清掉。
       const [actionError, setActionError] = useState(false)
@@ -1662,10 +1691,11 @@ window.__ModuleLoader__.load({
             console.error('[dsh-sidebar-todo] occurrences (done) failed', err)
             return { items: [] }
           })
-          const [result, occ] = await Promise.all([
-            fetchApi('list', query ? { q: query } : {}, tRef.current),
-            occTask,
-          ])
+          const noteTask = fetchApi('notesList', {}, tRef.current).catch((err) => {
+            console.error('[dsh-sidebar-todo] notesList failed', err)
+            return { items: [] }
+          })
+          const [result, occ, noteRes] = await Promise.all([fetchApi('list', query ? { q: query } : {}, tRef.current), occTask, noteTask])
           if (seq !== seqRef.current) return
           setState({
             loading: false,
@@ -1679,6 +1709,7 @@ window.__ModuleLoader__.load({
           setRecurringDone((Array.isArray(occ?.items) ? occ.items : [])
             .filter((occurrence) => occurrence.repeat && occurrence.done)
             .sort((a, b) => b.date.localeCompare(a.date)))
+          setNotes(Array.isArray(noteRes?.items) ? noteRes.items : [])
         } catch (err) {
           if (seq !== seqRef.current) return
           console.error('[dsh-sidebar-todo] list failed', err)
@@ -1744,6 +1775,31 @@ window.__ModuleLoader__.load({
           setRetrying(false)
         }
       }, [reload, retrying])
+
+      // 便签坞操作：快速输入回车提交、行内编辑保存、删除、坞体折叠开关。
+      // mutate 现返回 boolean，res !== true 即失败：输入与编辑态保持不动，由用户重试。
+      const addQuickNote = useCallback(async (event) => {
+        event.preventDefault()
+        const text = quickNote.trim()
+        if (text === '' || text.length > 500) return
+        const res = await mutate('noteAdd', { text })
+        if (res !== true) return
+        setQuickNote('')
+        if (noteInputRef.current) noteInputRef.current.focus()
+      }, [mutate, quickNote])
+
+      const updateNote = useCallback(async (note, text) => {
+        const clean = text.trim()
+        setEditingNote(null)
+        if (clean === '' || clean === note.text) return
+        await mutate('noteUpdate', { id: note.id, text: clean })
+      }, [mutate])
+
+      const removeNote = useCallback(async (note) => {
+        await mutate('noteRemove', { id: note.id })
+      }, [mutate])
+
+      const toggleDock = useCallback(() => setDockOpen((open) => !open), [])
 
       useEffect(() => { void reload() }, [reload])
 
@@ -2153,12 +2209,82 @@ window.__ModuleLoader__.load({
                   : h('div', { style: S.detailEmpty }, h('div', null, t('pickOne'))),
             ),
             h('div', { className: 'td-dock', style: S.dock },
-              h('div', { className: 'td-dock-head', style: S.dockHead, role: 'button', 'aria-expanded': 'true', tabIndex: 0 },
-                h('span', { style: S.dockTitle }, t('quickNote')),
-                h('span', { style: S.dockCount }, ''),
-                h('span', { style: S.dockArrow }, '▾'),
+              h('div', {
+                className: 'td-dock-head',
+                style: S.dockHead,
+                role: 'button',
+                'aria-expanded': dockOpen ? 'true' : 'false',
+                tabIndex: 0,
+                onClick: toggleDock,
+                onKeyDown: (event) => {
+                  if (event.nativeEvent?.isComposing === true) return
+                  if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleDock() }
+                },
+              },
+              h('span', { style: S.dockTitle }, t('quickNote')),
+              h('span', { style: S.dockCount }, notes.length > 0 ? ` · ${notes.length}` : ''),
+              h('span', { style: S.dockArrow }, dockOpen ? '▾' : '▸'),
               ),
-              h('div', { style: S.dockBody }, null),
+              h('div', { style: S.dockBody },
+                dockOpen
+                  ? [
+                    h('form', { key: 'quick', style: { flex: 'none', display: 'flex', marginBottom: 8 }, onSubmit: addQuickNote },
+                      h('input', {
+                        className: 'td-input',
+                        style: { flex: 1, height: 30, border: '0.5px solid var(--dsw-alias-border-l3)', borderRadius: 8, padding: '0 10px', fontSize: 12.5, color: 'var(--dsw-alias-label-primary)', background: 'transparent', outline: 'none' },
+                        ref: noteInputRef,
+                        placeholder: t('noteAddPlaceholder'),
+                        maxLength: 500,
+                        value: quickNote,
+                        onChange: (e) => setQuickNote(e.target.value),
+                        'aria-label': t('quickNote'),
+                      })),
+                    h('div', { key: 'list', style: { flex: 1, minHeight: 0, overflowY: 'auto' } },
+                      notes.length === 0
+                        ? h('div', { style: { color: 'var(--dsw-alias-label-tertiary)', fontSize: 12, textAlign: 'center', padding: '24px 0' } }, t('noteEmpty'))
+                        : notes.map((note) => editingNote === note.id
+                          ? h('div', { key: note.id, className: 'td-note-row', style: { display: 'flex', gap: 6, padding: '5px 8px', borderRadius: 6 } },
+                            h('input', {
+                              className: 'td-input',
+                              style: { flex: 1, minWidth: 0, border: '0.5px solid var(--dsw-alias-state-business-primary)', borderRadius: 6, padding: '3px 8px', fontSize: 12.5, color: 'var(--dsw-alias-label-primary)', outline: 'none', background: 'transparent' },
+                              defaultValue: note.text,
+                              maxLength: 500,
+                              autoFocus: true,
+                              onKeyDown: (event) => {
+                                if (event.key === 'Enter') { event.preventDefault(); void updateNote(note, event.currentTarget.value) }
+                                if (event.key === 'Escape') { event.preventDefault(); setEditingNote(null) }
+                              },
+                              onBlur: (event) => void updateNote(note, event.currentTarget.value),
+                            }))
+                          : h('div', {
+                            key: note.id,
+                            className: 'td-note-row',
+                            style: { display: 'flex', alignItems: 'flex-start', gap: 6, padding: '5px 8px', borderRadius: 6 },
+                          },
+                          h('span', {
+                            style: { flex: 1, minWidth: 0, fontSize: 12.5, lineHeight: '19px', wordBreak: 'break-all', color: 'var(--dsw-alias-label-primary)', cursor: 'text' },
+                            title: t('noteEditTitle'),
+                            onClick: () => setEditingNote(note.id),
+                          }, asText(note.text)),
+                          h('span', { style: { flex: 'none', fontSize: 10.5, color: 'var(--dsw-alias-label-tertiary)', paddingTop: 3 } }, noteRelTime(t, note.createdAt)),
+                          h('button', {
+                            className: 'td-note-act td-btn',
+                            style: { flex: 'none', fontSize: 11, border: 'none', background: 'transparent', color: 'var(--dsw-alias-label-tertiary)', cursor: 'pointer', padding: '1px 5px', borderRadius: 4 },
+                            title: t('toTodo'),
+                            'aria-label': t('toTodo'),
+                            onClick: () => setDialog({ initial: { title: note.text } }),
+                          }, '→ ' + t('todo')),
+                          h('button', {
+                            className: 'td-note-act td-btn',
+                            style: { flex: 'none', fontSize: 11, border: 'none', background: 'transparent', color: 'var(--dsw-alias-label-tertiary)', cursor: 'pointer', padding: '1px 5px', borderRadius: 4 },
+                            title: t('noteDeleteTitle'),
+                            'aria-label': t('noteDeleteTitle'),
+                            onClick: () => void removeNote(note),
+                          }, '✕'),
+                        ))),
+                  ]
+                  : null,
+              ),
             ),
           ),
         ),
