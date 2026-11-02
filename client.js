@@ -1945,7 +1945,7 @@ window.__ModuleLoader__.load({
       return h('div', { style: S.page },
         h('div', { style: S.head },
           h('h2', { style: S.h1 }, t('title')),
-          h('span', { style: S.count }, `${t('today')} ${state.summary.today ?? 0} · ${t('overdue')} ${state.summary.overdue ?? 0} · ${t('stale')} ${state.summary.stale ?? 0}`),
+          h('span', { style: S.count }, `${t('today')} ${state.summary.today ?? 0} · ${t('overdue')} ${state.summary.overdue ?? 0} · ${t('stale')} ${state.summary.stale ?? 0} · ${t('unplanned')} ${state.summary.unplanned ?? 0}`),
           h('div', { style: S.grow }),
           h('button', {
             className: 'td-btn td-elevated',
