@@ -1620,6 +1620,13 @@ window.__ModuleLoader__.load({
       const [editingNote, setEditingNote] = useState(null)
       const [quickNote, setQuickNote] = useState('')
       const noteInputRef = useRef(null)
+      // 便签坞焦点防压缩（v3）：焦点记在 ref 里，不进渲染状态——useRef 的内部变更
+      // React 不追踪，改完 ref 要靠 dockTick 手动 bump 强制重渲。 quick input 与
+      // 行内编辑共用这一判定，只要焦点还在坞内就算「正在编辑」。
+      const dockRef = useRef(null)
+      const dockFocusRef = useRef(false)
+      const [, dockTick] = useState(0)
+      const forceDockTick = useCallback(() => dockTick((v) => v + 1), [])
       // 写操作（勾选/完成等）失败的可见提示。它和读取失败的 state.error 分开：
       // 自己保留 5 秒，2.5 秒轮询成功也不会把它清掉。
       const [actionError, setActionError] = useState(false)
@@ -1942,6 +1949,15 @@ window.__ModuleLoader__.load({
       const selectedCompletionCount = selectedCompletionKeys.length
       const selectedCountLabel = `${t('completedTimes').replace('{n}', String(selectedCompletionCount))}${selectedRepeatEnded ? ` · ${t('seriesEnded')}` : ''}`
 
+      // 便签坞高度：未选中待办且不在当天清单时升满（idleDetail）；quick input 或
+      // 行内编辑获焦时不压缩，失焦后回落。折叠优先级最高——dockOpen=false 时高度
+      // 直接 auto，grow 再强也只剩头部一行。放在 selectedItem 之后才能读到它。
+      const dayDetailActive = dayKey !== null
+      const idleDetail = selectedItem === null && !dayDetailActive
+      const dockGrow = idleDetail || (dockFocusRef.current && dockOpen)
+      const dockHeight = dockOpen ? (dockGrow ? '100%' : '42%') : 'auto'
+      const dockMinHeight = dockGrow ? 320 : 180
+
       return h('div', { style: S.page },
         h('div', { style: S.head },
           h('h2', { style: S.h1 }, t('title')),
@@ -2208,7 +2224,24 @@ window.__ModuleLoader__.load({
                   )
                   : h('div', { style: S.detailEmpty }, h('div', null, t('pickOne'))),
             ),
-            h('div', { className: 'td-dock', style: S.dock },
+            h('div', {
+              className: 'td-dock',
+              // 焦点捕获防压缩：进坞（任何可聚焦子元素获焦）记「正在编辑」；失焦时
+              // 若新焦点仍在坞内（relatedTarget 复点 dock 内目标）则保持。命中变化
+              // 都 bump 一次 forceDockTick 撑起重渲，高度才能跟着 dockFocusRef 走。
+              ref: dockRef,
+              onFocusCapture: () => {
+                dockFocusRef.current = true
+                forceDockTick()
+              },
+              onBlurCapture: (event) => {
+                if (!dockRef.current?.contains(event.relatedTarget)) {
+                  dockFocusRef.current = false
+                  forceDockTick()
+                }
+              },
+              style: { ...S.dock, height: dockHeight, minHeight: dockMinHeight },
+            },
               h('div', {
                 className: 'td-dock-head',
                 style: S.dockHead,
