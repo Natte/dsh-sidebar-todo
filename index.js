@@ -2,7 +2,7 @@
 
 import { createStore, resolveDataFile } from './lib/store.js'
 import { createApi } from './lib/api.js'
-import { createTool } from './lib/tool.js'
+import { createTool, createNoteTool } from './lib/tool.js'
 
 export const inject = ['webServer', 'connection', 'tools']
 
@@ -71,6 +71,8 @@ export function apply(ctx, config = {}) {
   }), 'dsh-sidebar-todo: http')
 
   ctx.effect(() => ctx.tools.register(createTool(api, ready)), 'dsh-sidebar-todo: tool')
+
+  ctx.effect(() => ctx.tools.register(createNoteTool(api, ready)), 'dsh-sidebar-todo: note-tool')
 
   ctx.effect(() => () => { void store.close() }, 'dsh-sidebar-todo: store')
 }
