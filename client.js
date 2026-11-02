@@ -2285,8 +2285,11 @@ window.__ModuleLoader__.load({
                               autoFocus: true,
                               onKeyDown: (event) => {
                                 if (event.nativeEvent?.isComposing === true) return
-                                if (event.key === 'Enter') { event.preventDefault(); void updateNote(note, event.currentTarget.value) }
-                                if (event.key === 'Escape') { event.preventDefault(); setEditingNote(null) }
+                                // 收尾（Enter/Escape）都会随重渲卸载这个 input；主流引擎对被移除的
+                                // 聚焦元素不派发 blur → onBlurCapture 永不触发 → dockFocusRef 残留。
+                                // 先同步真实 blur（relatedTarget=null，按坞外清 ref 收口）再走原收尾。
+                                if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); void updateNote(note, event.currentTarget.value) }
+                                if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); setEditingNote(null) }
                               },
                               onBlur: (event) => void updateNote(note, event.currentTarget.value),
                             }))
