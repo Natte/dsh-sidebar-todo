@@ -1031,7 +1031,7 @@ window.__ModuleLoader__.load({
       const editing = initial !== null && initial !== undefined && initial.id !== null && initial.id !== undefined
       const [form, setForm] = useState(() => ({
         id: editing ? initial.id : null,
-        title: editing ? asText(initial.title) : '',
+        title: editing ? asText(initial.title) : (asText(initial?.title) ?? ''),
         note: editing ? asText(initial.note) : '',
         dueDate: editing ? asText(initial.dueDate) : (asText(initial?.dueDate) || dateKeyOf(new Date())),
         dueTime: editing ? asText(initial.dueTime) : '',
