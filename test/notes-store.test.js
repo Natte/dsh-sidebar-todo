@@ -125,3 +125,23 @@ test('损坏文件照旧走备份路径（notes 无从谈起，不新增崩溃�
     assert.equal(item.text, '废墟上重建')
   } finally { await broken.clean() }
 })
+
+test('notesList 返回项是拷贝：就地篡改不污染 store 内存与落盘', async () => {
+  const a = await make()
+  try {
+    await a.store.noteAdd({ text: '不该被污染' })
+    const first = (await a.store.notesList()).items[0]
+    first.text = '内存篡改'
+    first.updatedAt = '1999-01-01T00:00:00.000Z'
+    const again = (await a.store.notesList()).items
+    assert.equal(again.length, 1)
+    assert.equal(again[0].text, '不该被污染')
+    assert.ok(again[0].updatedAt !== '1999-01-01T00:00:00.000Z')
+    // 篡改后再触发一次写操作重落盘：盘上的 notes 也不能出现篡改值
+    await a.store.noteAdd({ text: '触发落盘' })
+    await a.store.close()
+    const doc = JSON.parse(await readFile(a.file, 'utf8'))
+    assert.deepEqual(doc.notes.map((n) => n.text), ['不该被污染', '触发落盘'])
+    assert.ok(doc.notes.every((n) => n.updatedAt !== '1999-01-01T00:00:00.000Z'))
+  } finally { await a.clean() }
+})
