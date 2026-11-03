@@ -2061,7 +2061,18 @@ window.__ModuleLoader__.load({
                 style: S.filterClear,
                 title: t('clearValue'),
                 'aria-label': t('clearValue'),
+                tabIndex: 0,
                 onClick: (event) => {
+                  event.stopPropagation()
+                  setFCategory('')
+                  setFUncategorized(false)
+                  setFPriority('')
+                },
+                // 键盘可达：Enter / 空格与点击同效（防止原生冒泡把触发钮一并触发）。
+                onKeyDown: (event) => {
+                  if (event.nativeEvent?.isComposing === true) return
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  event.preventDefault()
                   event.stopPropagation()
                   setFCategory('')
                   setFUncategorized(false)
@@ -2123,6 +2134,18 @@ window.__ModuleLoader__.load({
                 }),
                 h('div', { style: S.popSep, 'aria-hidden': 'true' }),
                 h('div', { style: S.popGroup }, t('priority')),
+                // 「全部」行：清 fPriority→不筛（读写双向都有行，fPriority='' 时本轴有选中态）。
+                h('button', {
+                  key: 'all',
+                  type: 'button',
+                  className: 'td-btn',
+                  style: fPriority === '' ? { ...S.popItem, ...S.segItemOn } : S.popItem,
+                  'aria-pressed': fPriority === '' ? 'true' : 'false',
+                  onClick: () => {
+                    setFPriority('')
+                    setFilterOpen(false)
+                  },
+                }, t('all')),
                 ['high', 'medium', 'low'].map((value) => h('button', {
                   key: value,
                   type: 'button',
