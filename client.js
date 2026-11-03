@@ -1970,7 +1970,9 @@ window.__ModuleLoader__.load({
       // 行上没有复选框，点击只选中；编辑/删除在详情里，完成按钮置灰（selectedRepeatEnded）。
       const renderEndedRow = (item) => {
         const keys = Object.keys(item.completions ?? {}).sort()
-        const lastCompletion = keys.length > 0 ? keys[keys.length - 1] : ''
+        // 预完成可能留下未来日期键，不算「上次完成」；全是未来键时回退最大键保持展示。
+        const pastKeys = keys.filter((k) => k <= dateKeyOf(new Date()))
+        const lastCompletion = pastKeys.length > 0 ? pastKeys[pastKeys.length - 1] : (keys.length > 0 ? keys[keys.length - 1] : '')
         return h('div', {
           key: item.id,
           className: 'td-note-row',
@@ -1980,7 +1982,7 @@ window.__ModuleLoader__.load({
           h('span', { 'aria-hidden': 'true', style: { width: 3, height: 16, borderRadius: 2, flex: 'none', background: item.priority ? priorityColor(item.priority) : 'transparent' } }),
           h('span', { style: S.nm }, asText(item.title)),
           h('span', { style: S.tag }, t('endedBadge')),
-          h('span', { style: S.due }, lastCompletion ? `上次完成 ${lastCompletion.slice(5)}` : ''),
+          h('span', { style: S.due }, lastCompletion ? `${t('lastCompleted')} ${lastCompletion.slice(5)}` : ''),
         )
       }
 
