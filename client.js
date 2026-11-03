@@ -1856,8 +1856,15 @@ window.__ModuleLoader__.load({
       useEffect(() => { void reload() }, [reload])
 
       useEffect(() => {
-        const timer = window.setInterval(() => { void reload() }, 2500)
-        return () => window.clearInterval(timer)
+        const tick = () => {
+          if (document.visibilityState === 'visible') void reload()
+        }
+        const timer = window.setInterval(tick, 2500)
+        document.addEventListener('visibilitychange', tick)
+        return () => {
+          window.clearInterval(timer)
+          document.removeEventListener('visibilitychange', tick)
+        }
       }, [reload])
 
       // 换选另一条时：先取消上一条的自动撤回计时，再复位「确认删除」。
