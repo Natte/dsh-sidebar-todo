@@ -13,7 +13,7 @@ window.__ModuleLoader__.load({
         unplanned: '未排期', done: '已完成', doneEmpty: '该范围内没有完成记录', empty: '还没有待办',
         staleHint: '超过 {n} 天未完成', loading: '加载中…', failed: '读取失败',
         actionFailed: '操作失败，请重试',
-        retry: '重试', pickOne: '选一条看详情，或在下方记一条便利贴', quickNote: '便利贴', todo: '待办',
+        retry: '重试', pickOne: '选一条看详情，或在下方记一条便利贴', quickNote: '便利贴', todo: '待办', filter: '筛选', all: '全部', filterEmpty: '该筛选下没有待办',
         noteAddPlaceholder: '记一点… 回车即存', noteEmpty: '一想起来就写一条',
         noteEditTitle: '点击编辑', noteDeleteTitle: '删除这条便签', toTodo: '转为待办',
         justNow: '刚刚', minutesAgo: '{n} 分钟前', hoursAgo: '{n} 小时前',
@@ -58,7 +58,7 @@ window.__ModuleLoader__.load({
         unplanned: 'Unscheduled', done: 'Completed', doneEmpty: 'No completions in this range', empty: 'No todos yet',
         staleHint: 'Open for more than {n} days', loading: 'Loading…', failed: 'Failed to load',
         actionFailed: 'Action failed, please retry',
-        retry: 'Retry', pickOne: 'Select an item for details, or jot a sticky note below', quickNote: 'Sticky notes', todo: 'To-do',
+        retry: 'Retry', pickOne: 'Select an item for details, or jot a sticky note below', quickNote: 'Sticky notes', todo: 'To-do', filter: 'Filter', all: 'All', filterEmpty: 'No todos under this filter',
         noteAddPlaceholder: 'Jot… Enter to save', noteEmpty: 'Write a thought when it comes',
         noteEditTitle: 'Click to edit', noteDeleteTitle: 'Delete this note', toTodo: 'Turn into todo',
         justNow: 'Just now', minutesAgo: '{n}m ago', hoursAgo: '{n}h ago',
@@ -157,6 +157,8 @@ window.__ModuleLoader__.load({
       error: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent)' },
       warn: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-warn-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 8%, transparent)', display: 'flex', alignItems: 'center', gap: 8 },
       addBtn: { height: 32, padding: '0 12px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-primary)', fontSize: 13, cursor: 'pointer' },
+      // 页头筛选按钮与 addBtn 同族（32 高、0.5px 边框）；flex 让条件摘要能省略号截断、× 固定右侧。
+      filterBtn: { height: 32, padding: '0 10px', borderRadius: 8, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-primary)', fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 },
       overlay: { position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--dsw-alias-bg-mask-1)' },
       dialog: { width: 560, maxWidth: 'calc(100vw - 32px)', maxHeight: '82vh', overflowY: 'auto', boxSizing: 'border-box', padding: '22px 24px 18px', background: 'var(--dsw-specific-input-major)', borderRadius: 'var(--dsw-radius-xl)', boxShadow: 'var(--dsw-elevation-panel)', color: 'var(--dsw-alias-label-primary)' },
       dialogHead: { fontSize: 15, fontWeight: 600, marginBottom: 12 },
@@ -191,6 +193,9 @@ window.__ModuleLoader__.load({
       popCount: { marginLeft: 'auto', flex: 'none', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
       popSep: { height: '0.5px', margin: 4, background: 'var(--dsw-alias-border-l2)' },
       popManage: { display: 'flex', alignItems: 'center', width: '100%', height: 30, padding: '0 8px', border: 'none', borderRadius: 6, color: 'var(--dsw-alias-state-business-primary)', fontSize: 12.5, cursor: 'pointer', textAlign: 'left' },
+      // 筛选弹层的组标题；触发钮右侧的 × 小按钮（几何同 noticeClose 一族，颜色走次要标签）。
+      popGroup: { padding: '4px 8px 2px', fontSize: 11, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)', textAlign: 'left' },
+      filterClear: { flex: 'none', width: 16, height: 20, padding: 0, lineHeight: '18px', textAlign: 'center', border: 'none', borderRadius: 4, color: 'var(--dsw-alias-label-tertiary)', fontSize: 14, cursor: 'pointer' },
       comboClear: { position: 'absolute', top: 0, right: 0, width: 30, height: 32, padding: 0, border: 'none', borderRadius: 8, color: 'var(--dsw-alias-label-tertiary)', fontSize: 14, lineHeight: '32px', textAlign: 'center', cursor: 'pointer' },
       // 分类管理弹窗的行：名称吃满剩余宽度，计数与操作靠右。
       catRow: { display: 'flex', alignItems: 'center', gap: 8, minHeight: 34, padding: '0 8px', borderRadius: 6 },
@@ -540,11 +545,13 @@ window.__ModuleLoader__.load({
       return rows
     }
 
-    // 三个弹层（日期 / 时间 / 分类）共用同一套锚定参数：
+    // 四个弹层（日期 / 时间 / 分类 / 页头筛选）共用同一套锚定参数：
     // 期望高度决定向下还是向上展开，宽度用于左右夹取；分类下拉跟随触发区宽度。
     const DATE_POP = { width: 272, height: 360 }
     const TIME_POP = { width: 196, height: 260 }
     const CATEGORY_POP = { width: null, height: 240 }
+    // 页头筛选面板：固定 240 宽；高度给两组选择钮的常见上限，超出交内部滚动，放不下时整体夹取。
+    const FILTER_POP = { width: 240, height: 280 }
     const POP_GAP = 6
     const POP_EDGE = 8
     const POP_FALLBACK_WIDTH = 240
@@ -1620,6 +1627,13 @@ window.__ModuleLoader__.load({
       const [editingNote, setEditingNote] = useState(null)
       const [quickNote, setQuickNote] = useState('')
       const noteInputRef = useRef(null)
+      // 页头筛选（v3 拆分缺口补录）：分类 / 无分类 / 优先级三路 + 面板开合；categoryRows 由 reload 侧车刷新。
+      const [fCategory, setFCategory] = useState('')
+      const [fUncategorized, setFUncategorized] = useState(false)
+      const [fPriority, setFPriority] = useState('')
+      const [categoryRows, setCategoryRows] = useState([])
+      const [filterOpen, setFilterOpen] = useState(false)
+      const headFilterRef = useRef(null)
       // 便签坞焦点防压缩（v3）：焦点记在 ref 里，不进渲染状态——useRef 的内部变更
       // React 不追踪，改完 ref 要靠 dockTick 手动 bump 强制重渲。 quick input 与
       // 行内编辑共用这一判定，只要焦点还在坞内就算「正在编辑」。
@@ -1638,6 +1652,11 @@ window.__ModuleLoader__.load({
       // 日历选中的那一天；清单数据由 [dayKey, dataVersion] 单独拉，不再存点击时的快照。
       const [dayKey, setDayKey] = useState(null)
       const [dayItems, setDayItems] = useState([])
+
+      // 页头筛选弹层：定位与点外部关闭交给 useAnchoredPopover（调用形态对齐 DateField）。
+      // 锚容器必须把触发钮与面板包在一起——点外判断用的 node.contains 只认同一个 ref 容器。
+      const closeFilter = useCallback(() => setFilterOpen(false), [])
+      const filterPop = useAnchoredPopover(filterOpen, FILTER_POP.width, FILTER_POP.height, closeFilter)
 
       // t 走 ref：语言切换时调用方可能换掉 props.t，但不该让 reload 重新排队。
       const tRef = useRef(t)
@@ -1702,7 +1721,18 @@ window.__ModuleLoader__.load({
             console.error('[dsh-sidebar-todo] notesList failed', err)
             return { items: [] }
           })
-          const [result, occ, noteRes] = await Promise.all([fetchApi('list', query ? { q: query } : {}, tRef.current), occTask, noteTask])
+          // 分类侧车（筛选面板用）：失败不拖死 list，行内 { name, count } 保序进下拉。
+          const catTask = fetchApi('categories', {}, tRef.current).catch((err) => {
+            console.error('[dsh-sidebar-todo] categories (filter) failed', err)
+            return { items: [] }
+          })
+          // list 载荷：搜索 / 分类 / 无分类 / 优先级四路 AND；空串与缺省键都不过滤（T8 契约）。
+          const listPayload = {}
+          if (query) listPayload.q = query
+          if (fCategory) listPayload.category = fCategory
+          if (fUncategorized) listPayload.uncategorized = true
+          if (fPriority) listPayload.priority = fPriority
+          const [result, occ, noteRes, catRes] = await Promise.all([fetchApi('list', listPayload, tRef.current), occTask, noteTask, catTask])
           if (seq !== seqRef.current) return
           setState({
             loading: false,
@@ -1717,12 +1747,14 @@ window.__ModuleLoader__.load({
             .filter((occurrence) => occurrence.repeat && occurrence.done)
             .sort((a, b) => b.date.localeCompare(a.date)))
           setNotes(Array.isArray(noteRes?.items) ? noteRes.items : [])
+          // 与 setNotes 一样收在 seq 守卫内：过期响应（含旧筛选的组合）不得落进 state。
+          setCategoryRows(Array.isArray(catRes?.items) ? catRes.items : [])
         } catch (err) {
           if (seq !== seqRef.current) return
           console.error('[dsh-sidebar-todo] list failed', err)
           setState((prev) => ({ ...prev, loading: false, error: true }))
         }
-      }, [query])
+      }, [query, fCategory, fUncategorized, fPriority])
 
       /** 写操作：返回是否成功，调用方（如 TodoDialog）据此决定要不要关闭。 */
       const mutate = useCallback(async (method, payload) => {
@@ -1958,6 +1990,13 @@ window.__ModuleLoader__.load({
       const dockHeight = dockOpen ? (dockGrow ? '100%' : '42%') : 'auto'
       const dockMinHeight = dockGrow ? 320 : 180
 
+      // 页头筛选按钮的激活文案：无分类优先代表分类轴；优先级轴独立在后。完整摘要进 title。
+      const filterActive = fCategory !== '' || fUncategorized || fPriority !== ''
+      const filterSummary = [
+        fUncategorized ? t('noCategory') : (fCategory !== '' ? fCategory : ''),
+        fPriority !== '' ? priorityLabel(fPriority, t) : '',
+      ].filter(Boolean).join(' · ')
+
       return h('div', { style: S.page },
         h('div', { style: S.head },
           h('h2', { style: S.h1 }, t('title')),
@@ -1988,6 +2027,115 @@ window.__ModuleLoader__.load({
               if (value === 'list') setDayKey(null)
             },
           }, t(key)))),
+          // 筛选入口在搜索框左侧（其余控件不动）：外层 div 是锚容器，把触发钮与面板
+          // 包在一起——useAnchoredPopover 的点外关闭只认同一个 ref 容器；Esc 在容器上
+          // 拦截，避免穿透。hover 层级与日期/分类弹层一致（同 hook，同 .td-pop 外观）。
+          h('div', {
+            ref: filterPop.anchorRef,
+            style: { position: 'relative' },
+            onKeyDown: (event) => {
+              if (!filterOpen || event.key !== 'Escape') return
+              event.stopPropagation?.()
+              setFilterOpen(false)
+            },
+          },
+          h('button', {
+            type: 'button',
+            className: 'td-btn',
+            style: S.filterBtn,
+            ref: headFilterRef,
+            'aria-haspopup': 'dialog',
+            'aria-expanded': filterOpen ? 'true' : 'false',
+            title: filterSummary,
+            onClick: () => setFilterOpen((open) => !open),
+          },
+          h('span', {
+            style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          }, filterActive ? `${t('filter')} · ${filterSummary}` : t('filter')),
+          filterActive
+            ? h('span', {
+                // 浏览器禁 button 套 button：× 用 role="button" 的 span，stopPropagation
+                // 防止这次点击冒泡进触发钮的 toggle 把面板再次打开。
+                role: 'button',
+                className: 'td-btn',
+                style: S.filterClear,
+                title: t('clearValue'),
+                'aria-label': t('clearValue'),
+                onClick: (event) => {
+                  event.stopPropagation()
+                  setFCategory('')
+                  setFUncategorized(false)
+                  setFPriority('')
+                },
+              }, '×')
+            : null),
+          filterOpen
+            ? h('div', {
+                className: filterPop.up ? 'td-pop td-pop-up' : 'td-pop',
+                style: filterPop.popStyle,
+                role: 'dialog',
+                'aria-label': t('filter'),
+              },
+              h('div', { style: S.popList },
+                h('div', { style: S.popGroup }, t('category')),
+                h('button', {
+                  type: 'button',
+                  className: 'td-btn',
+                  style: fCategory === '' && !fUncategorized ? { ...S.popItem, ...S.segItemOn } : S.popItem,
+                  'aria-pressed': fCategory === '' && !fUncategorized ? 'true' : 'false',
+                  onClick: () => {
+                    setFCategory('')
+                    setFUncategorized(false)
+                    setFilterOpen(false)
+                  },
+                }, t('all')),
+                h('button', {
+                  type: 'button',
+                  className: 'td-btn',
+                  style: fUncategorized ? { ...S.popItem, ...S.segItemOn } : S.popItem,
+                  'aria-pressed': fUncategorized ? 'true' : 'false',
+                  onClick: () => {
+                    setFUncategorized(true)
+                    setFCategory('')
+                    setFilterOpen(false)
+                  },
+                }, t('noCategory')),
+                categoryRows.map((row) => {
+                  // 侧车是原样数组：脏行（非字符串名）按空名跳过，与分类同名待办互不影响。
+                  const name = asText(row?.name)
+                  if (name === '') return null
+                  const selected = !fUncategorized && fCategory === name
+                  return h('button', {
+                    key: name,
+                    type: 'button',
+                    className: 'td-btn',
+                    style: selected ? { ...S.popItem, ...S.segItemOn } : S.popItem,
+                    'aria-pressed': selected ? 'true' : 'false',
+                    title: name,
+                    onClick: () => {
+                      setFCategory(name)
+                      setFUncategorized(false)
+                      setFilterOpen(false)
+                    },
+                  }, h('span', {
+                    style: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+                  }, name))
+                }),
+                h('div', { style: S.popSep, 'aria-hidden': 'true' }),
+                h('div', { style: S.popGroup }, t('priority')),
+                ['high', 'medium', 'low'].map((value) => h('button', {
+                  key: value,
+                  type: 'button',
+                  className: 'td-btn',
+                  style: fPriority === value ? { ...S.popItem, ...S.segItemOn } : S.popItem,
+                  'aria-pressed': fPriority === value ? 'true' : 'false',
+                  onClick: () => {
+                    setFPriority(value)
+                    setFilterOpen(false)
+                  },
+                }, priorityLabel(value, t))),
+              ))
+            : null),
           h('input', {
             className: 'td-input',
             style: S.search, placeholder: t('search'), value: query,
@@ -2032,8 +2180,9 @@ window.__ModuleLoader__.load({
               state.loading && items.length === 0
                 ? h('div', { style: S.empty }, t('loading'))
                 : items.length === 0
-                  ? (query !== ''
-                    ? h('div', { style: S.empty }, t('noMatch'))
+                  ? (query !== '' || filterActive
+                    // 空态三分支：搜索优先（noMatch），其次筛选空，最后才是 idle 的两段引导。
+                    ? h('div', { style: S.empty }, query !== '' ? t('noMatch') : t('filterEmpty'))
                     : h('div', { style: S.empty },
                       h('div', null, t('empty')),
                       h('div', { style: { marginTop: 12 } },
