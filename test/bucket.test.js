@@ -33,7 +33,7 @@ test('昨天截止归 overdue，摘要单独计数', () => {
   const bucket = bucketOf({ ...base, dueDate: yesterday }, NOW)
   assert.equal(bucket, 'overdue')
   assert.deepEqual(summarize([{ bucket }], NOW), {
-    overdue: 1, today: 0, tomorrow: 0, week: 0, later: 0, stale: 0, unplanned: 0, doneToday: 0,
+    overdue: 1, today: 0, tomorrow: 0, week: 0, later: 0, stale: 0, unplanned: 0, doneToday: 0, ended: 0,
   })
 })
 
@@ -88,6 +88,6 @@ test('摘要按 bucket 计数', () => {
   ]
   // now 必须显式传入，否则 doneToday 依赖跑测试当天是不是 2026-10-22
   assert.deepEqual(summarize(items, NOW), {
-    overdue: 0, today: 2, tomorrow: 0, week: 0, later: 0, stale: 1, unplanned: 0, doneToday: 1,
+    overdue: 0, today: 2, tomorrow: 0, week: 0, later: 0, stale: 1, unplanned: 0, doneToday: 1, ended: 0,
   })
 })

@@ -42,7 +42,7 @@ window.__ModuleLoader__.load({
         mon: '一', tue: '二', wed: '三', thu: '四', fri: '五', sat: '六', sun: '日',
         repeatBadge: '循环',
         completeOccurrence: '完成本次', lastCompleted: '上次完成', neverCompleted: '尚未完成过',
-        completedTimes: '已完成 {n} 次', seriesEnded: '循环已结束',
+        completedTimes: '已完成 {n} 次', seriesEnded: '循环已结束', endedGroup: '已结束', endedBadge: '已结束',
         completedOn: '完成于', recurringDoneSection: '循环任务完成',
         quickFill: '一句话填写，例如：明天下午3点 交周报 #工作',
         quickHint: '也可以只填标题，之后在对话里让我改日期。', titleRequired: '标题不能为空',
@@ -87,7 +87,7 @@ window.__ModuleLoader__.load({
         mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
         repeatBadge: 'Repeats',
         completeOccurrence: 'Complete this one', lastCompleted: 'Last completed', neverCompleted: 'Never completed',
-        completedTimes: 'Completed {n} times', seriesEnded: 'Series ended',
+        completedTimes: 'Completed {n} times', seriesEnded: 'Series ended', endedGroup: 'Ended', endedBadge: 'Ended',
         completedOn: 'Completed on', recurringDoneSection: 'Recurring completions',
         quickFill: 'Quick fill, e.g. "tomorrow 3pm report #work"',
         quickHint: 'You can fill in just the title and ask me in chat to set the date later.', titleRequired: 'Title is required',
@@ -98,7 +98,7 @@ window.__ModuleLoader__.load({
         badResponse: 'Unexpected response', requestFailed: 'Request failed', dismiss: 'Dismiss',
       },
     }
-    const ORDER = ['overdue', 'today', 'tomorrow', 'week', 'later', 'stale', 'unplanned', 'done']
+    const ORDER = ['overdue', 'today', 'tomorrow', 'week', 'later', 'stale', 'unplanned', 'ended', 'done']
 
     function apiUrl(method) {
       return new URL(`todo/api/${method}`, document.baseURI).href
@@ -202,6 +202,8 @@ window.__ModuleLoader__.load({
       // 「循环任务完成」子分组的行：几何与主列表行一致（34 高、9 间距、左右 8 内边距），
       // 但没有整行选中态，所以不复用带 cursor:pointer 的 S.row。
       recurringDoneRow: { display: 'flex', alignItems: 'center', gap: 9, height: 34, padding: '0 8px', borderRadius: 6 },
+      // endedRow：已结束循环行（无复选框），点击选中；hover 用 .td-note-row 的公共规则。
+      endedRow: { display: 'flex', alignItems: 'center', gap: 8, height: 34, padding: '0 8px', borderRadius: 6, cursor: 'pointer' },
       catName: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 },
       catCount: { flex: 'none', minWidth: 46, textAlign: 'right', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
       catAction: { flex: 'none', height: 26, padding: '0 9px', borderRadius: 6, border: '0.5px solid var(--dsw-alias-border-l3)', color: 'var(--dsw-alias-label-secondary)', fontSize: 11.5, cursor: 'pointer' },
@@ -1652,6 +1654,8 @@ window.__ModuleLoader__.load({
       // 日历选中的那一天；清单数据由 [dayKey, dataVersion] 单独拉，不再存点击时的快照。
       const [dayKey, setDayKey] = useState(null)
       const [dayItems, setDayItems] = useState([])
+      // 「已结束」循环分组折叠区：默认收起，点组头开合（与已完成区同型交互）。
+      const [endedOpen, setEndedOpen] = useState(false)
 
       // 页头筛选弹层：定位与点外部关闭交给 useAnchoredPopover（调用形态对齐 DateField）。
       // 锚容器必须把触发钮与面板包在一起——点外判断用的 node.contains 只认同一个 ref 容器。
@@ -1899,9 +1903,11 @@ window.__ModuleLoader__.load({
       const doneTotal = doneItems.length + recurringDoneInRange.length
       const hasDoneData = allDoneItems.length + recurringDone.length > 0
       const openGroups = ORDER
-        .filter((bucket) => bucket !== 'done')
+        .filter((bucket) => bucket !== 'done' && bucket !== 'ended')
         .map((bucket) => ({ bucket, items: items.filter((item) => item.bucket === bucket) }))
         .filter((group) => group.items.length > 0)
+      // 已结束的循环系列：独立折叠区，不占 openGroups；默认 open 视图那路也不含它们。
+      const endedItems = items.filter((item) => item.bucket === 'ended')
       const doneSections = ['today', 'yesterday', 'week', 'earlier']
         .map((bucket) => ({ bucket, items: doneItems.filter((item) => doneGroupOf(item) === bucket) }))
         .filter((section) => section.items.length > 0)
@@ -1958,6 +1964,23 @@ window.__ModuleLoader__.load({
           h('span', { style: S.nmDone, title }, title),
           h('span', { style: S.repeatBadge }, t('repeatBadge')),
           h('span', { style: S.due, title: `${t('completedOn')} ${date}` }, date.slice(5)),
+        )
+      }
+      // 已结束循环行：与 renderRecurringDone 同构的优先级色条（无优先级用透明占位）。
+      // 行上没有复选框，点击只选中；编辑/删除在详情里，完成按钮置灰（selectedRepeatEnded）。
+      const renderEndedRow = (item) => {
+        const keys = Object.keys(item.completions ?? {}).sort()
+        const lastCompletion = keys.length > 0 ? keys[keys.length - 1] : ''
+        return h('div', {
+          key: item.id,
+          className: 'td-note-row',
+          style: S.endedRow,
+          onClick: () => setSelected(item.id),
+        },
+          h('span', { 'aria-hidden': 'true', style: { width: 3, height: 16, borderRadius: 2, flex: 'none', background: item.priority ? priorityColor(item.priority) : 'transparent' } }),
+          h('span', { style: S.nm }, asText(item.title)),
+          h('span', { style: S.tag }, t('endedBadge')),
+          h('span', { style: S.due }, lastCompletion ? `上次完成 ${lastCompletion.slice(5)}` : ''),
         )
       }
 
@@ -2224,6 +2247,25 @@ window.__ModuleLoader__.load({
                       ),
                       group.items.map((item) => renderRow(item)),
                     )),
+                    endedItems.length > 0
+                      ? h('div', { key: 'ended' },
+                        h('div', { style: S.sec },
+                          h('button', {
+                            type: 'button', className: 'td-btn', style: S.doneToggle,
+                            'aria-expanded': endedOpen ? 'true' : 'false',
+                            onClick: () => setEndedOpen((open) => !open),
+                          },
+                            h('span', { style: S.secT }, t('endedGroup')),
+                            h('span', { style: S.secN }, String(endedItems.length)),
+                          ),
+                          h('span', { style: S.line }),
+                          h('span', { style: { ...S.tag, color: 'var(--dsw-alias-label-tertiary)' } }, endedOpen ? '▾' : '▸'),
+                        ),
+                        endedOpen
+                          ? h('div', null, endedItems.map((item) => renderEndedRow(item)))
+                          : null,
+                      )
+                      : null,
                     hasDoneData ? h('div', { key: 'done' },
                       h('div', { style: S.doneHead },
                         h('button', {
