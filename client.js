@@ -113,8 +113,13 @@ window.__ModuleLoader__.load({
         body: JSON.stringify(payload ?? {}),
       })
       const body = await res.json().catch(() => null)
-      if (!body) throw new Error(t('badResponse'))
-      if (!body.ok) throw new Error(body.error?.message ?? t('requestFailed'))
+      if (!body) {
+        const err = new Error(t('badResponse')); err.code = 'bad-response'; err.status = res.status; throw err
+      }
+      if (!body.ok) {
+        const err = new Error(body.error?.message ?? t('requestFailed'))
+        err.code = body.error?.code; err.status = res.status; throw err
+      }
       return body.result
     }
 
@@ -682,6 +687,7 @@ window.__ModuleLoader__.load({
       },
       h('input', {
         className: 'td-input',
+        maxLength: 24,
         style: text === '' ? S.input : { ...S.input, paddingRight: 32 },
         value: text,
         placeholder: t('noCategory'),
@@ -1145,11 +1151,11 @@ window.__ModuleLoader__.load({
         setError(null)
         setSaving(true)
         try {
-          const ok = form.id === null
+          const res = form.id === null
             ? await mutate('create', payload)
             : await mutate('update', { id: form.id, patch: payload })
-          if (!ok) {
-            setError(t('requestFailed'))
+          if (!res.ok) {
+            setError(res.error?.message ?? t('requestFailed'))
             return
           }
           onSaved()
@@ -1182,6 +1188,7 @@ window.__ModuleLoader__.load({
           h('span', { style: S.fieldLabel }, t('fieldTitle')),
           h('input', {
             className: 'td-input',
+            maxLength: 200,
             autoFocus: true, style: S.input, value: form.title,
             onChange: (e) => setForm((prev) => ({ ...prev, title: e.target.value })),
             onKeyDown: (e) => {
@@ -1194,6 +1201,7 @@ window.__ModuleLoader__.load({
           h('span', { style: S.fieldLabel }, t('fieldNote')),
           h('textarea', {
             className: 'td-input',
+            maxLength: 2000,
             rows: 3, style: S.textarea, value: form.note,
             onChange: (e) => setForm((prev) => ({ ...prev, note: e.target.value })),
           })),
@@ -1643,9 +1651,9 @@ window.__ModuleLoader__.load({
       const dockFocusRef = useRef(false)
       const [, dockTick] = useState(0)
       const forceDockTick = useCallback(() => dockTick((v) => v + 1), [])
-      // 写操作（勾选/完成等）失败的可见提示。它和读取失败的 state.error 分开：
-      // 自己保留 5 秒，2.5 秒轮询成功也不会把它清掉。
-      const [actionError, setActionError] = useState(false)
+      // 写操作（勾选/完成等）失败的可见提示，存服务端错误文案（null = 无错误）。
+      // 它和读取失败的 state.error 分开：自己保留 5 秒，2.5 秒轮询成功也不会把它清掉。
+      const [actionError, setActionError] = useState(null)
       // 循环任务已完成实例：窗口覆盖本月并向后多留 62 天，只喂「已完成」分组，
       // 不参与 summary，也不混进主列表。
       const [recurringDone, setRecurringDone] = useState([])
@@ -1694,14 +1702,15 @@ window.__ModuleLoader__.load({
       }, [])
       const dismissActionError = useCallback(() => {
         clearActionErrorTimer()
-        setActionError(false)
+        setActionError(null)
       }, [clearActionErrorTimer])
-      const showActionError = useCallback(() => {
+      const showActionError = useCallback((message) => {
         clearActionErrorTimer()
-        setActionError(true)
+        // 收文案展示；显式传 null/undefined 直接清空（无可见残留）。
+        setActionError(message ?? null)
         actionErrorTimer.current = window.setTimeout(() => {
           actionErrorTimer.current = null
-          setActionError(false)
+          setActionError(null)
         }, 5000)
       }, [clearActionErrorTimer])
 
@@ -1760,7 +1769,7 @@ window.__ModuleLoader__.load({
         }
       }, [query, fCategory, fUncategorized, fPriority])
 
-      /** 写操作：返回是否成功，调用方（如 TodoDialog）据此决定要不要关闭。 */
+      /** 写操作：返回 { ok: true } | { ok: false, error }，调用方（如 TodoDialog）据此决定要不要关闭/内联报错。 */
       const mutate = useCallback(async (method, payload) => {
         try {
           await fetchApi(method, payload, tRef.current)
@@ -1768,15 +1777,15 @@ window.__ModuleLoader__.load({
           dismissActionError()
           setDataVersion((v) => v + 1)
           await reload()
-          return true
+          return { ok: true }
         } catch (err) {
           console.error(`[dsh-sidebar-todo] ${method} failed`, err)
           // 勾选/完成等写失败必须有可见反馈：独立的红条保留 5 秒，避免被
           // 随后成功的 2.5s 轮询立刻清掉；同时重新拉一次 list，让宿主把
           // notices 里的 write-error 带回来。
-          showActionError()
+          showActionError(err?.message ?? '')
           await reload()
-          return false
+          return { ok: false, error: err }
         }
       }, [reload, dismissActionError, showActionError])
 
@@ -1820,13 +1829,13 @@ window.__ModuleLoader__.load({
       }, [reload, retrying])
 
       // 便签坞操作：快速输入回车提交、行内编辑保存、删除、坞体折叠开关。
-      // mutate 现返回 boolean，res !== true 即失败：输入与编辑态保持不动，由用户重试。
+      // mutate 返回 { ok }，noteAdd 失败即不落输入：快速输入保持不动，由用户重试。
       const addQuickNote = useCallback(async (event) => {
         event.preventDefault()
         const text = quickNote.trim()
         if (text === '' || text.length > 500) return
         const res = await mutate('noteAdd', { text })
-        if (res !== true) return
+        if (!res.ok) return
         setQuickNote('')
         if (noteInputRef.current) noteInputRef.current.focus()
       }, [mutate, quickNote])
@@ -2211,7 +2220,7 @@ window.__ModuleLoader__.load({
             }, t('retryWrite')))
           : null,
         actionError
-          ? h('div', { role: 'alert', style: S.error }, t('actionFailed'))
+          ? h('div', { role: 'alert', style: S.error }, `操作失败：${actionError}`)
           : null,
         state.error
           ? h('div', { style: S.error }, `${t('failed')}　`, h('button', {
@@ -2425,8 +2434,9 @@ window.__ModuleLoader__.load({
                             return
                           }
                           setConfirming(false)
-                          setSelected(null)
-                          await mutate('remove', { id: selectedItem.id })
+                          // 失败则保留选中等用户再试，成功才收起详情。
+                          const res = await mutate('remove', { id: selectedItem.id })
+                          if (res.ok) setSelected(null)
                         },
                       }, confirming ? t('confirmRemove') : t('remove')),
                     ),
