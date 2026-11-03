@@ -4,8 +4,6 @@ DeepSeek Harness 的侧栏待办插件：清单、循环任务、月视图日历
 
 仓库、npm 包与插件标识统一为 `dsh-sidebar-todo`，侧栏显示的名字是「待办」。已发布：https://www.npmjs.com/package/dsh-sidebar-todo
 
-![待办面板：左侧分组列表，右侧详情与便利贴](docs/images/panel-list.png)
-
 当前版本 0.3.0，功能包含编辑弹窗、循环任务、月视图日历、分类，以及 0.3.0 新增的便签、筛选与已结束循环组。改动记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
@@ -91,8 +89,6 @@ plugin_manager install_bundle  target: D:\dsh-sidebar-todo
 - 顶部输入框回车即存，可连续记多条；没有便签时显示空态引导。
 - 每条支持行内编辑（Esc 丢弃未保存改动，Enter 或失焦保存）、单独删除、一键转待办（标题预填进新建弹窗，日期等细节再补）。
 - 单条上限 500 字，超长拒绝保存。
-
-![悬停便签行：转待办与删除](docs/images/notes-row.png)
 
 ### 筛选
 
