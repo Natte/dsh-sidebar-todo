@@ -2479,28 +2479,33 @@ window.__ModuleLoader__.load({
                           : h('div', {
                             key: note.id,
                             className: 'td-note-row',
-                            style: { display: 'flex', alignItems: 'flex-start', gap: 6, padding: '5px 8px', borderRadius: 6 },
+                            style: { display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 6 },
                           },
                           h('span', {
                             style: { flex: 1, minWidth: 0, fontSize: 12.5, lineHeight: '19px', wordBreak: 'break-all', color: 'var(--dsw-alias-label-primary)', cursor: 'text' },
                             title: t('noteEditTitle'),
                             onClick: () => setEditingNote(note.id),
-                          }, asText(note.text)),
-                          h('span', { style: { flex: 'none', fontSize: 10.5, color: 'var(--dsw-alias-label-tertiary)', paddingTop: 3 } }, noteRelTime(t, note.createdAt)),
-                          h('button', {
-                            className: 'td-note-act td-btn',
-                            style: { flex: 'none', fontSize: 11, border: 'none', background: 'transparent', color: 'var(--dsw-alias-label-tertiary)', cursor: 'pointer', padding: '1px 5px', borderRadius: 4 },
-                            title: t('toTodo'),
-                            'aria-label': t('toTodo'),
-                            onClick: () => setDialog({ initial: { title: note.text } }),
-                          }, '→ ' + t('todo')),
-                          h('button', {
-                            className: 'td-note-act td-btn',
-                            style: { flex: 'none', fontSize: 11, border: 'none', background: 'transparent', color: 'var(--dsw-alias-label-tertiary)', cursor: 'pointer', padding: '1px 5px', borderRadius: 4 },
-                            title: t('noteDeleteTitle'),
-                            'aria-label': t('noteDeleteTitle'),
-                            onClick: () => void removeNote(note),
-                          }, '✕'),
+                          }, asText(note.text),
+                          // 时间内联在文本流末尾（走查 R1）：随长文本换行贴在文末，不再右端漂移；
+                          // 位于可点击 span 内，点击时间同样进入编辑。
+                          h('span', { style: { marginLeft: 6, fontSize: 10.5, color: 'var(--dsw-alias-label-tertiary)' } }, noteRelTime(t, note.createdAt))),
+                          // 悬停操作簇（走查 R2）：→待办 / ✕ 统一 18px 高、同规格内边距，垂直居中。
+                          h('div', { style: { flex: 'none', display: 'flex', alignItems: 'center', gap: 4 } },
+                            h('button', {
+                              className: 'td-note-act td-btn',
+                              style: { flex: 'none', height: 18, padding: '0 5px', fontSize: 11, lineHeight: '18px', display: 'inline-flex', alignItems: 'center', border: 'none', background: 'transparent', color: 'var(--dsw-alias-label-tertiary)', cursor: 'pointer', borderRadius: 4 },
+                              title: t('toTodo'),
+                              'aria-label': t('toTodo'),
+                              onClick: () => setDialog({ initial: { title: note.text } }),
+                            }, '→ ' + t('todo')),
+                            h('button', {
+                              className: 'td-note-act td-btn',
+                              style: { flex: 'none', height: 18, padding: '0 5px', fontSize: 11, lineHeight: '18px', display: 'inline-flex', alignItems: 'center', border: 'none', background: 'transparent', color: 'var(--dsw-alias-label-tertiary)', cursor: 'pointer', borderRadius: 4 },
+                              title: t('noteDeleteTitle'),
+                              'aria-label': t('noteDeleteTitle'),
+                              onClick: () => void removeNote(note),
+                            }, '✕'),
+                          ),
                         ))),
                 ]),
             ),
