@@ -1,6 +1,6 @@
 # 开发与线上版本并存的工作流
 
-> 当前状态：主 profile（`desktop`）跑的是 **npm 上的 `dsh-sidebar-todo@0.2.1`**，不再是 `link:` 的本地目录。
+> 当前状态：主 profile（`desktop`）跑的是 **npm 上的 `dsh-sidebar-todo@0.3.0`**。注意：profile 的 pnpm 默认走 npmmirror 镜像，发版后若镜像未同步，用 `install_bundle` 的 registry 参数指回官方源。
 > 数据仍在 `%DSH_PROFILE_DIR%/data/dsh-todolist/todos.json`，**与安装方式无关**。
 
 ## 为什么换安装方式不会丢待办

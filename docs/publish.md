@@ -1,6 +1,6 @@
 # 上架到插件市场：现状与规则
 
-> 更新于 2026-10-28。当前状态：**仓库已公开、PR 已提交（#9770），等 CI 与维护者合并；npm 最新版 `0.2.2`（修复无起始日的循环待办不可见），`0.2.0` 已 deprecated（启动崩溃）。**
+> 更新于 2026-11-03。当前状态：**npm 最新版 `0.3.0`（v3：便签/筛选/已结束/错误内联/轮询可见性，主 @"分支".**
 
 ## 0. 链路
 
@@ -32,7 +32,7 @@ npm 包（可选，只影响下载量与安装体验）─┘         │ CI 每
 | 改名同步 | ✅ **已合并**：PR [#10313](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/10313)（2026-10-29），条目为 `data/plugins/Natte__dsh-sidebar-todo.yml`，旧条目已移除 |
 | `dsh.bundle` 门槛 | ✅ `package.json` 声明 `dsh.bundle.patch` |
 | 仓库年龄门槛 | ✅ 2026-10-22 创建（≥1 天） |
-| npm | ✅ `dsh-sidebar-todo` 已发布到 `0.2.3` |
+| npm | ✅ `dsh-sidebar-todo` 已发布到 `0.3.0` |
 | 命名统一 | ✅ 仓库、目录、npm 包、cordis 行 id、客户端命名空间全部为 `dsh-sidebar-todo` |
 
 ## 2. 条目内容（本仓库 `docs/market-entry.yml` 同源）
@@ -57,16 +57,16 @@ description:
 ## 3. 状态：只等合并
 
 - **PR CI 已全绿**：`Submission gate` 与 `check` 均 success，`mergeable_state = clean`。
-- **npm 已发布**：最新版 `dsh-sidebar-todo@0.2.2`；`0.2.0` 因客户端注册 id 与包名不一致导致启动崩溃，已 `npm deprecate`，市场会自动关联下载量，条目无需任何改动。
+- **npm 已发布**：最新版 `dsh-sidebar-todo@0.3.0`；`0.2.0` 因客户端注册 id 与包名不一致导致启动崩溃，已 `npm deprecate`，市场会自动关联下载量，条目无需任何改动。
 - **剩下只有维护者评审合并**，通常一天内；合并后站点自动重建，市场与「发现」在下一轮每日构建后出现。
 
-## 4. npm（已完成：0.2.2）
+## 4. npm（已完成：0.3.0）
 
 ```bash
 cd D:\dsh-sidebar-todo
 npm login
 npm publish --access public
-npm view dsh-sidebar-todo version   # 应输出 0.2.2
+npm view dsh-sidebar-todo version   # 应输出 0.3.0
 ```
 
 发完记得把坏掉的版本标掉：`npm deprecate 'dsh-sidebar-todo@0.2.0' '原因'`。
