@@ -143,6 +143,8 @@ plugin_manager install_bundle  target: D:\dsh-sidebar-todo
 
 完整走查记录见 [docs/notes/testing.md](docs/notes/testing.md)。
 
+宿主版本要求通过 `engines.dsh` 声明：`>=0.2.1-rc.2 <0.3.0-0`。落在区间外的宿主会直接安装失败，而不是装出错乱的面板；`0.2.0` 被排除在外，因为插件在那个宿主版本上有过启动 bug（后来在 `0.2.1` 修复）。已验证的是 `0.2.1-rc.5`；宿主出下一个大版本时，把区间上界跟着放宽即可。若确有豁免需要，插件管理器支持按「插件版本 × 宿主版本」人工放行。
+
 插件不 import 任何 `@deepseek-ai/*` 包（无 `dependencies`、无 `peerDependencies`），只依赖宿主在运行时提供的契约：
 
 | 契约 | 用在哪 | 变了会怎样 |

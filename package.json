@@ -31,6 +31,7 @@
   "files": ["index.js", "client.js", "lib/**/*.js", "cordis.patch.yml", "locale/*.json", "icon.svg"],
   "scripts": { "test": "node --test" },
   "publishConfig": { "access": "public" },
+  "engines": { "node": ">=20", "dsh": ">=0.2.1-rc.2 <0.3.0-0" },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
     "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-sidebar", "@deepseek-ai/dsh-client-locale"] }
