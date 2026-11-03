@@ -1637,6 +1637,10 @@ window.__ModuleLoader__.load({
       const [editingNote, setEditingNote] = useState(null)
       const [quickNote, setQuickNote] = useState('')
       const noteInputRef = useRef(null)
+      // 行内编辑 Esc=丢弃草稿（设计 §4.2）：按 note.id 在 Set 里记「这次失焦不保存」，
+      // 再照 T6 链路同步真实 blur；onBlur 见到标记就跳过保存。标记只在 blur 同步派发
+      // onBlur 的一瞬存活，由 onBlur 的 delete 消费，Enter/失焦保存仍走原路。
+      const discardNoteRef = useRef(new Set())
       // 页头筛选（v3 拆分缺口补录）：分类 / 无分类 / 优先级三路 + 面板开合；categoryRows 由 reload 侧车刷新。
       const [fCategory, setFCategory] = useState('')
       const [fUncategorized, setFUncategorized] = useState(false)
@@ -2024,12 +2028,13 @@ window.__ModuleLoader__.load({
 
       // 便签坞高度：未选中待办且不在当天清单时升满（idleDetail）；quick input 或
       // 行内编辑获焦时不压缩，失焦后回落。折叠优先级最高——dockOpen=false 时高度
-      // 直接 auto，grow 再强也只剩头部一行。放在 selectedItem 之后才能读到它。
+      // auto、minHeight 归零且不渲染坞体，只剩码头一行（真实细条），grow 再强也
+      // 托不成空板。放在 selectedItem 之后才能读到它。
       const dayDetailActive = dayKey !== null
       const idleDetail = selectedItem === null && !dayDetailActive
       const dockGrow = idleDetail || (dockFocusRef.current && dockOpen)
       const dockHeight = dockOpen ? (dockGrow ? '100%' : '42%') : 'auto'
-      const dockMinHeight = dockGrow ? 320 : 180
+      const dockMinHeight = dockOpen ? (dockGrow ? 320 : 180) : 0
 
       // 页头筛选按钮的激活文案：无分类优先代表分类轴；优先级轴独立在后。完整摘要进 title。
       const filterActive = fCategory !== '' || fUncategorized || fPriority !== ''
@@ -2491,9 +2496,11 @@ window.__ModuleLoader__.load({
               h('span', { style: S.dockCount }, notes.length > 0 ? ` · ${notes.length}` : ''),
               h('span', { style: S.dockArrow }, dockOpen ? '▾' : '▸'),
               ),
-              h('div', { style: S.dockBody },
-                dockOpen
-                  ? [
+              dockOpen
+                ? h('div', { style: S.dockBody },
+                  [
+                    // 折叠时坞体连容器一起不渲染——容器带 padding('0 12px 10px')，
+                    // 只留 null 会靠这份 ~10px 托底，细条压不住。
                     h('form', { key: 'quick', style: { flex: 'none', display: 'flex', marginBottom: 8 }, onSubmit: addQuickNote },
                       h('input', {
                         className: 'td-input',
@@ -2522,9 +2529,14 @@ window.__ModuleLoader__.load({
                                 // 聚焦元素不派发 blur → onBlurCapture 永不触发 → dockFocusRef 残留。
                                 // 先同步真实 blur（relatedTarget=null，按坞外清 ref 收口）再走原收尾。
                                 if (event.key === 'Enter') { event.preventDefault(); event.currentTarget.blur(); void updateNote(note, event.currentTarget.value) }
-                                if (event.key === 'Escape') { event.preventDefault(); event.currentTarget.blur(); setEditingNote(null) }
+                                if (event.key === 'Escape') { event.preventDefault(); discardNoteRef.current.add(note.id); event.currentTarget.blur(); setEditingNote(null) }
                               },
-                              onBlur: (event) => void updateNote(note, event.currentTarget.value),
+                              onBlur: (event) => {
+                                // Esc 丢弃：清标记、跳过保存；清空编辑态由 Esc 分支在
+                                // blur 之后照旧 setEditingNote(null)，这里不再翻一次状态。
+                                if (discardNoteRef.current.delete(note.id)) { return }
+                                void updateNote(note, event.currentTarget.value)
+                              },
                             }))
                           : h('div', {
                             key: note.id,
@@ -2552,9 +2564,8 @@ window.__ModuleLoader__.load({
                             onClick: () => void removeNote(note),
                           }, '✕'),
                         ))),
-                  ]
-                  : null,
-              ),
+                  ])
+                : null,
             ),
           ),
         ),
