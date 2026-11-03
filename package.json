@@ -1,7 +1,7 @@
 {
   "name": "dsh-sidebar-todo",
-  "version": "0.3.0",
-  "description": "DeepSeek Harness 侧栏待办清单：今天 / 本周 / 逾期 / 积压，支持循环任务、月视图日历与分类，agent 可读写",
+  "version": "0.3.1",
+  "description": "DeepSeek Harness 侧栏待办清单：分组、循环任务、月视图日历、分类、便签坞与筛选，agent 可读写",
   "type": "module",
   "license": "MIT",
   "author": "Natte",
