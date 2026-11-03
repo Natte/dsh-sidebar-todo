@@ -5,12 +5,13 @@ DeepSeek Harness 的侧栏待办插件：管理日常工作的清单，数据和
 > 仓库、npm 包与插件标识统一为 `dsh-sidebar-todo`；DSH 侧栏显示的名字是「待办」。
 > 已发布：https://www.npmjs.com/package/dsh-sidebar-todo
 
-当前版本 **0.2.3**（v1 + v2 功能：编辑弹窗、循环任务、月视图日历、分类管理）。
+当前版本 **0.3.0**（v1 + v2 + v3：编辑弹窗、循环任务、月视图日历、分类、**便签、筛选、已结束回收区**）。
 
 ## 兼容性
 
 | 宿主版本 | 插件版本 | 结论 | 日期 |
 |---|---|---|---|
+| `0.2.1-rc.5` | `0.3.0` | 待走查（清单见 `docs/notes/testing.md` §四 E36-E44） | 2026-11-02 |
 | `0.2.1-rc.5` | `0.2.3` | ✅ **已验证可用**（完整走查，见下） | 2026-10-30 |
 | `0.2.1-rc.3` | `0.2.1` | ✅ 已验证可用（修复 0.2.0 的启动崩溃） | 2026-10-28 |
 | `0.2.1-rc.3` | `0.2.0` | ❌ 启动崩溃，请勿使用 | 2026-10-27 |
@@ -77,10 +78,10 @@ plugin_manager install_bundle  target: D:\dsh-sidebar-todo
 默认 `%DSH_PROFILE_DIR%/data/dsh-todolist/todos.json`，普通 JSON，可以直接打开、编辑、备份。
 
 ```json
-{ "version": 1, "todos": [ { "id": "t_...", "title": "交周报", "dueDate": "2026-10-22", "done": false } ] }
+{ "version": 1, "todos": [ { "id": "t_...", "title": "交周报", "dueDate": "2026-10-22", "done": false } ], "notes": [ { "id": "n_...", "text": "周五带门禁卡" } ] }
 ```
 
-文件损坏时会备份为 `todos.corrupt-<时间戳>.json` 并以空清单启动。
+文件损坏时会备份为 `todos.corrupt-<时间戳>.json` 并以空清单启动。`notes` 是 0.3.0 新增的顶层字段：从 0.3.x 回退到 0.2.x 后再改动待办，旧版本写盘不认识该字段，便签会丢失——回退前复制一份 `todos.json` 备份即可。
 
 ## 配置
 
@@ -122,15 +123,57 @@ plugin_manager install_bundle  target: D:\dsh-sidebar-todo
 - 弹窗里的分类是可输入的下拉，显示每个分类下有多少条。
 - 页头「分类」打开管理弹窗：可以改名（已有待办批量跟随）、删除（退回「无分类」）。
 
+## 便签
+
+详情列下方常驻一条「便利贴」坞，记随手小事——没有日期、没有完成状态，不参与任何分组统计：
+
+- 底部输入框**回车即存**，可连续记多条；没有便签时显示空态引导。
+- 每条便签支持**行内编辑**（Enter 或失焦保存；Esc 关闭编辑，当前实现会先按失焦把草稿提交再关闭）、**✕ 单独删除**、**→ 一键转待办**（标题预填进新建弹窗，日期等细节再补）。
+- 单条上限 **500 字**，超长拒绝保存。
+- **未选中待办**时便签坞自动升满详情列的空白区；在便签里输入或编辑时点击左列待办不回落，失焦后才回落到常驻高度。
+- 坞头可**折叠**成细条（显示条数），刷新后复位展开。
+
+## 筛选
+
+页头「筛选」打开弹层，两个维度：
+
+- **分类**：全部 / 无分类 / 各分类（带条数）；
+- **优先级**：全部 / 高 / 中 / 低。
+
+筛选与搜索词 **AND** 叠加；有激活条件时入口按钮显示摘要，旁边的 **×** 一键三清（分类、优先级、搜索，键盘可达）。筛选**不持久化**，刷新或重开面板即复位；非法的优先级值会直接报错，而不是静默返回空列表。
+
+## 已结束的循环任务
+
+结束日期（`until`）已过的循环任务不再凭空消失，单独收进「已结束」折叠组（默认收起）：
+
+- 组内可查看重复规则与上次完成日期；
+- 编辑弹窗把结束日期往后延，保存后**即时复活**回正常分组；
+- 也可以直接删除。
+
+`personal_todo list` 用 `view: 'ended'` 可单独查询这一组。
+
 ## agent 工具
 
-`personal_todo`，`action` 可选 `list` / `add` / `update` / `complete` / `confirm` / `delete`。
+### personal_todo
+
+`action` 可选 `list` / `add` / `update` / `complete` / `confirm` / `delete`。
 
 - `add` / `update` 接受 `repeat: { freq, weekdays?, monthDay?, until? }`；
 - `complete` 接受 `date`（默认今天），循环任务用它指定完成哪一次；
-- `list` 对循环任务标注「循环·本次 MM-DD」——即本周期待完成的那一次；`occurrences` 返回区间内全部实例。
+- `list` 对循环任务标注「循环·本次 MM-DD」——即本周期待完成的那一次；`occurrences` 返回区间内全部实例；
+- `list` 支持筛选参数：`category`（精确匹配分类名，空串等于不过滤）、`priority`（`high` / `medium` / `low`）、`uncategorized`（只看无分类）、`view`（`open` / `today` / `week` / `stale` / `done` / `ended`，默认 `open`；`ended` = 已结束的循环系列）。
 
 工具会从口语里自行推断重复规则，不需要用户回答「你要哪种重复」。
+
+### personal_note
+
+管理用户本人的**临时便签**（随手记的小事：没有日期、没有完成状态、不参与任何分组统计）。
+
+- `action=add`：新增，`text` 必填，≤500 字；
+- `action=list`：全量列表（按创建时间倒序）；
+- `action=delete`：删除，`id` 必填。
+
+与 `personal_todo` 的分界：需要日期、完成勾选或提醒的事用 `personal_todo`；用户说「记一下/便签上记一笔」且没要求时间、提醒或跟踪排期时用 `personal_note`。工具不会替用户清理或改写便签，除非用户明确要求。
 
 ## 一句话解析支持什么
 
@@ -142,6 +185,6 @@ plugin_manager install_bundle  target: D:\dsh-sidebar-todo
 ## 开发
 
 ```bash
-node --test          # 107 个测试
+node --test          # 172 个测试（以命令输出为准）
 node --check client.js
 ```

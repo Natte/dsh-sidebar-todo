@@ -1,8 +1,8 @@
 # 测试方案与验收清单
 
 **日期**: 2026-10-26
-**对象**: dsh-todolist v1 + v2（当前 `main`）
-**总量**: 134 个自动化用例全绿；UI 层为人工清单（无浏览器测试框架）
+**对象**: dsh-todolist v1 + v2 + v3（当前 `feat/todo-v3`）
+**总量**: 172 个自动化用例全绿（v3 后）
 
 ---
 
@@ -13,17 +13,22 @@
 | A 单元 | 分桶与排序 | `test/bucket.test.js` | 13 |
 | | 一句话解析 | `test/quickadd.test.js` | 28 |
 | | 循环规则展开 | `test/repeat.test.js` | 16 |
-| | 存储（持久化/损坏/队列/幂等/分类） | `test/store.test.js` | 34 |
-| | 方法分发表 | `test/api.test.js` | 8 |
+| | 存储（持久化/损坏/队列/幂等/分类） | `test/store.test.js` | 41 |
+| | 便签存储（增删改/500 字/坏数据消毒） | `test/notes-store.test.js` | 9 |
+| | 方法分发表 | `test/api.test.js` | 9 |
 | | 工具定义与渲染 | `test/tool.test.js` | 18 |
+| | 便签工具（闭环/校验/命名分界） | `test/note-tool.test.js` | 5 |
 | | 主题 token 白名单 | `test/client-tokens.test.js` | 2 |
+| | 注册 id == 包名 | `test/client-id.test.js` | 1 |
 | B 集成 | store + api 串联 | 同上（散布） | — |
-| C 路由层 | `index.js` 的 `apply` + HTTP handler | `test/route.test.js` | 9 |
+| | 筛选与计数口径 | `test/filters.test.js` + `test/summary-caliber.test.js` | 6 |
+| | 已结束循环（回收区/复活） | `test/ended.test.js` | 6 |
+| C 路由层 | `index.js` 的 `apply` + HTTP handler | `test/route.test.js` | 12 |
 | D 用户旅程 | 多操作串起来的业务规则 | `test/journey.test.js` | 6 |
-| E 手工 UI | 弹窗/日历/悬浮/主题 | 本文档 §四 | 35 条 |
+| E 手工 UI | 弹窗/日历/悬浮/主题/便签/筛选 | 本文档 §四 | 44 条 |
 
 ```bash
-node --test                     # 全部 134
+node --test                     # 全部 172
 node --test test/journey.test.js # 单层
 ```
 
@@ -43,7 +48,7 @@ node --test test/journey.test.js # 单层
 | C8 | 写盘失败（`.tmp` 被占成目录） | 500 + `error.code === 'io-error'` |
 | C9 | 非法输入 | 400 + `invalid-input` |
 
-## 三、D 层：六条用户旅程
+## 三、D 层：八条用户旅程
 
 | # | 旅程 | 断言要点 |
 |---|---|---|
@@ -53,6 +58,8 @@ node --test test/journey.test.js # 单层
 | D4 | 分类改名与删除 | 改名合并到目标分类；删除后退回 `null`，`categories()` 为空 |
 | D5 | 写失败与恢复 | 写失败 → `notices` 含 `write-error` → `retryPersist()` → 落盘且通知消失 |
 | D6 | v1 老数据 | 缺 `repeat` / `completions` / `doneBy` 时 `list()` 正常 |
+| D7 | 已结束循环的可见与复活（`test/ended.test.js`） | `until` 已过的循环系列落 `bucket: 'ended'`（`dueDate` 为空、`seriesEnded: true`），`summary.ended` 计数；`view: 'open'` 不含它们、`view: 'ended'` 单独可查；把 `until` 往后延即「复活」回正常分组；本周期已办过但规则未结束的维持隐藏、不误判 ended；`bucketOf` 本身不产出 ended（只由 `store.list` 派发，防呆检查） |
+| D8 | 便签生命周期与筛选/计数口径（`test/notes-store.test.js` / `test/filters.test.js` / `test/summary-caliber.test.js`） | 便签：老数据无 `notes` 字段加载为空数组、坏形状回退不崩；`noteAdd` trim + `n_` 前缀 id + 空文本/超 500 字报 `invalid-input`；list 按 createdAt 倒序、update/remove 未知 id 报 `not-found`、落盘含 notes 且第二个 store 可读、返回项是拷贝。筛选：`category` / `uncategorized` / `priority` 三轴各自生效可组合、与搜索词 AND、空串与缺省等价不过滤、非法 priority 报 `invalid-input`（不静默空结果）、循环任务同样吃筛选。计数：summary 恒为过滤前全量（搜索/筛选不缩小，被掐掉的行仍计入未排期；`doneToday` 语义迁移保留） |
 
 ### 已知限制
 
@@ -122,6 +129,31 @@ node --test test/journey.test.js # 单层
 - [ ] **E34** 数据文件损坏时顶部出现可关闭的提示条
 - [ ] **E35** 卸载插件后侧栏恢复原样，`main` 面板里不再有 `todo`
 
+### v3（0.3.0）
+
+- [ ] **E36** 便利贴：回车即存/行内编辑/✕ 删除/→ 待办预填/500 字截断，刷新后仍在
+- [ ] **E37** 未选中待办便签坞升满；编辑中不回落，失焦回落
+- [ ] **E38** dock 折叠成细条且计数正确；刷新复位
+- [ ] **E39** 筛选弹层：分类/优先级/无分类 AND 搜索；页头计数不缩水；清除复原
+- [ ] **E40** 已结束循环出现在折叠区；延长 until 复活；删除后消失
+- [ ] **E41** 标题 201 字保存 → 弹窗内联显示原因且不关闭
+- [ ] **E42** 后台标签无轮询请求；回前台立即刷新
+
+**E43** dock 焦点语义回归（T6，场景 a-g，来自评审产出）：
+
+- [ ] a) 选中 + 输入中点行空白 → 保持升满
+- [ ] b) 点行内标题/checkbox（未选中态）→ blur 不塌（idle 保持）
+- [ ] c) 已选中再点行内可聚焦件 → 持续回落 42%
+- [ ] d) 未选中非编辑点坞外空白 → 保持 100%（预期）
+- [ ] e) 编辑中点坞外非可聚焦区 → 保持 100%（预期，与 E37 字面差异）
+- [ ] **f) 选中态行内编辑便签 → Enter/Escape → dock 应回落 42%（修复回归点，必测）**
+- [ ] g) 选中态点头行收起 → 闪扩后收起，再开直接 100%
+
+**E44** 错误内联两步（T11）：
+
+- [ ] 201 字标题保存 → 弹窗内联「标题过长（上限 200 字）」且不关闭
+- [ ] 断网/写失败 → 红条出现且 5s 后消失
+
 ---
 
 ## 五、执行记录（2026-10-26）
@@ -130,5 +162,6 @@ node --test test/journey.test.js # 单层
 |---|---|
 | A–D 自动化 | **134/134 通过** |
 | E 手工 | 未执行——当时会话拿不到交互桌面（截图 API 报 `handle is invalid`，通常是锁屏），留待人工在机器前按清单执行 |
+| 后续（2026-11-03） | v3 文档校准：自动化 **172/172**（`node --test` 实测）；手工清单扩至 E36-E44，待人工走查 |
 
 本轮补的两层测试过程中**未发现产品缺陷**；此前提到的「已完成里显示 23 号」经查是记录本身就是 10-23（旧客户端把日期写错），已清除该脏记录，并由新增的「完成日期必须是发生日」校验堵住。
