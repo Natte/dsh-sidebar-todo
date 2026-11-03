@@ -302,6 +302,7 @@ git commit -m "feat(v3): store 支持便签 notes 数据面（增删改查+兼�
 > ④ Task 2 例数口径：实测 **154**（基线 150 + 1 api + 3 route）；计划原文「153 例」为笔误，Step 5 已更正。
 > ⑤ Task 7 例数口径：实测 **159**（154+5）；计划原文「≈157」为提取侧陈旧数，Step 7 已更正。
 > ⑥ T4 的 `'→ ' + t('todo')` 引用了不存在的 dict 键（计划原文失误），已补 `todo: '待办' / 'To-do'`；同批补编辑 input Enter 的 isComposing 守卫（对齐文件内既有惯例，防 IME 上屏 Enter 误触保存）。
+> ⑦ 拆分缺口补录（2026-11-03）：设计 §4.3 的页头筛选弹层 UI 未被任何任务承载（T8 仅服务端）——新增 **Task 14: 页头筛选 UI**（见文末 Task 13 之后），恢复作业时插队执行。
 
 ### Task 2: api 四方法 + 路由验证
 
@@ -1700,6 +1701,83 @@ git commit -m "docs(v3): 0.3.0 版本文案、README/CHANGELOG/测试与手册�
 1. `set_plugin` 关→开重载插件（index.js/tool 变过，必须重载），刷新页面；
 2. 手工走 E36-E42 一遍，结论写回 README 兼容表；
 3. 满意后合 `feat/todo-v3` → `main`（finishing-a-development-branch 流程），随后 **是否 npm publish 0.3.0** 由用户单独拍板，agent 不擅自发布。
+
+---
+
+### Task 14: 页头筛选 UI（2026-11-03 拆分缺口补录，服务端已就绪）
+
+**Files:**
+- Modify: `client.js`（dict / header / 页头状态 / reload 载荷 / 空态三分支）
+
+**Interfaces:**
+- Consumes: T8 的 store 筛选契约（`list({ category?, uncategorized?, priority?, q?, view? })`，空串/缺省不过滤、uncategorized===true 只看无分类）与 `api.categories()`（同步读宿主侧 name+count 列表）；既有 `useAnchoredPopover`、`priorityLabel`、`t()` 体系。
+- Produces: TodoPage 筛选状态 `fCategory('')/fUncategorized(false)/fPriority('')`；`categoryRows`（reload 侧车）；`filterActive` 派生；popover（分类组：全部/无分类/各分类名；优先级组：全部/高/中/低）；按钮激活态显示条件摘要 + × 清除；dict 键 `filter/all/filterEmpty`。T10 与 E39 走查依赖。
+
+**Steps:**
+
+1. **dict 补键（zh/en 同步）**：`filter: '筛选' / 'Filter'`、`all: '全部' / 'All'`、`filterEmpty: '该筛选下没有待办' / 'No todos under this filter'`（与 quickNote 键同一行区追加即可）。
+
+2. **state（TodoPage 顶部，接 notes 五件套后）**：
+
+```js
+      const [fCategory, setFCategory] = useState('')
+      const [fUncategorized, setFUncategorized] = useState(false)
+      const [fPriority, setFPriority] = useState('')
+      const [categoryRows, setCategoryRows] = useState([])
+      const [filterOpen, setFilterOpen] = useState(false)
+      const headFilterRef = useRef(null)
+```
+
+3. **reload 侧车与载荷（现有 noteTask 三路组合旁）**：
+
+```js
+          const catTask = fetchApi('categories', {}, tRef.current).catch((err) => {
+            console.error('[dsh-sidebar-todo] categories (filter) failed', err)
+            return { items: [] }
+          })
+```
+
+`Promise.all` 改四元并把 `categoryRows` 收进 seq 守卫后：`Array.isArray(catRes?.items) ? catRes.items : []`（行内对象 `{ name, count }` 原样使用）。`fetchApi('list', …)` 的 payload 从 `query ? { q: query } : {}` 改为：
+
+```js
+          const listPayload = {}
+          if (query) listPayload.q = query
+          if (fCategory) listPayload.category = fCategory
+          if (fUncategorized) listPayload.uncategorized = true
+          if (fPriority) listPayload.priority = fPriority
+```
+
+（reload 的 useCallback 依赖数组加 `fCategory, fUncategorized, fPriority`；`fetchApi('list', listPayload, tRef.current)`。）
+
+4. **页头按钮（放在搜索框左侧；样式照既有 `S.addBtn` 家族 + `className: 'td-btn'`）**：
+
+```js
+      const filterActive = fCategory !== '' || fUncategorized || fPriority !== ''
+      const filterSummary = [
+        fUncategorized ? t('noCategory') : (fCategory !== '' ? fCategory : ''),
+        fPriority !== '' ? priorityLabel(fPriority, t) : '',
+      ].filter(Boolean).join(' · ')
+```
+
+按钮文案：未激活 `t('filter')`；激活 `${t('filter')} · ${filterSummary}`；`title` 属性放 filterSummary；激活时右侧带 `×` 小按钮（调 `setFCategory('')/setFUncategorized(false)/setFPriority('')` 三清，stopPropagation 防冒泡开面板）。
+
+5. **popover**：先读 `useAnchoredPopover`（client.js:519 起）与 `DateField`（:697 起）的既有用法对齐调用形态；锚点 `headFilterRef` 挂在筛选按钮上；面板宽 ~240、两组选择钮（选中态用既有的 `S.segItemOn` 风格或 `checked`+对勾——按 popover 内既有元素最接近的样式取用）。分类组：`t('all')` / `t('noCategory')` / `categoryRows` 按序的 `name`（点击写入 `setFCategory(name)`，选 `noCategory` 时 `setFUncategorized(true)`+清 fCategory，选 all 时清两项）；优先级组：`t('all')` / `priorityLabel('high', t)` 等（读写 fPriority）。**选择即 close**（`setFilterOpen(false)`），不做多选。
+
+6. **空态三分支（现有 noMatch/empty 逻辑旁）**：
+
+```js
+                    : (query !== '' || filterActive
+                      ? h('div', { style: S.empty }, query !== '' ? t('noMatch') : t('filterEmpty'))
+                      : h('div', { style: S.empty }, …原 empty 两段按钮原样…)
+```
+
+（语义：搜索优先；其次筛选空态；最后 idle 空态。）
+
+7. **收门**：`node --check client.js` + 裸 `node --test` 全绿（166 基线，例数照实报）。
+
+8. **Commit**：`feat(v3): 页头筛选弹层——分类/优先级/无分类与搜索 AND`
+
+9. **人工走查项挂 E39**（T13 承接）：选择分类减量正确、清 × 复原、搜索与筛选 AND、激活按钮文案、popover 关闭交互、刷新复位（不持久化）。
 
 ---
 
