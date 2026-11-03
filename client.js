@@ -130,7 +130,7 @@ window.__ModuleLoader__.load({
       count: { fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' },
       grow: { flex: 1 },
       search: { width: 200, height: 32, padding: '0 10px', borderRadius: 8, fontSize: 12.5, background: 'var(--dsw-alias-bg-module-platform)', color: 'var(--dsw-alias-label-primary)' },
-      body: { display: 'flex', flex: 1, minHeight: 0, width: '100%', maxWidth: 1240, margin: '0 auto' },
+      body: { display: 'flex', flex: 1, minHeight: 0, width: '100%' },
       list: { flex: 1, minWidth: 0, overflowY: 'auto', padding: '10px 8px 10px 12px' },
       sec: { display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 8px', marginTop: 6 },
       secT: { fontSize: 12, fontWeight: 600, color: 'var(--dsw-alias-label-secondary)' },
@@ -149,14 +149,13 @@ window.__ModuleLoader__.load({
       repeatBadge: { fontSize: 12, lineHeight: '18px', padding: '0 6px', borderRadius: 4, color: 'var(--dsw-alias-label-secondary)', background: 'var(--dsw-alias-bg-module-platform)', flex: 'none' },
       due: { fontSize: 11, color: 'var(--dsw-alias-label-tertiary)', flex: 'none', minWidth: 52, textAlign: 'right' },
       dueLate: { fontSize: 11, color: 'var(--dsw-alias-state-error-primary)', flex: 'none', minWidth: 52, textAlign: 'right' },
-      rightCol: { width: 380, flex: 'none', display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '0.5px solid var(--dsw-alias-border-l2)' },
+      rightCol: { flex: 1, minWidth: 320, maxWidth: 520, display: 'flex', flexDirection: 'column', minHeight: 0, borderLeft: '0.5px solid var(--dsw-alias-border-l2)' },
       detail: { flex: 1, minWidth: 0, overflowY: 'auto', padding: 16, fontSize: 12.5, color: 'var(--dsw-alias-label-secondary)' },
       detailEmpty: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--dsw-alias-label-tertiary)', textAlign: 'center', padding: '0 20px' },
-      dock: { flex: 'none', height: '42%', minHeight: 180, display: 'flex', flexDirection: 'column', borderTop: '0.5px solid var(--dsw-alias-border-l2)', transition: 'height 0.18s ease' },
-      dockHead: { flex: 'none', display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 14px', cursor: 'pointer', color: 'var(--dsw-alias-label-secondary)' },
+      dock: { flex: 'none', height: '50%', display: 'flex', flexDirection: 'column', borderTop: '0.5px solid var(--dsw-alias-border-l2)' },
+      dockHead: { flex: 'none', display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 14px', color: 'var(--dsw-alias-label-secondary)' },
       dockTitle: { fontSize: 12, fontWeight: 600 },
       dockCount: { fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
-      dockArrow: { marginLeft: 'auto', fontSize: 11, color: 'var(--dsw-alias-label-tertiary)' },
       dockBody: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '0 12px 10px' },
       empty: { padding: 40, textAlign: 'center', color: 'var(--dsw-alias-label-tertiary)', fontSize: 13 },
       error: { margin: 12, padding: '8px 12px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent)' },
@@ -338,8 +337,7 @@ window.__ModuleLoader__.load({
   .td-btn:active:not(:disabled), .td-primary:active:not(:disabled) { transform: none; }
 }
 
-/* 便签坞：头部整条可点折叠，行 hover 提底色，行操作默认隐藏、hover 显出、危险操作 hover 变红。 */
-.td-dock-head:hover { background: var(--dsw-alias-interactive-bg-hover); }
+/* 便签坞：行 hover 提底色，行操作默认隐藏、hover 显出、危险操作 hover 变红。 */
 .td-note-row { }
 .td-note-row:hover { background: var(--dsw-alias-interactive-bg-hover); }
 .td-note-row .td-note-act { opacity: 0; transition: opacity .12s ease; }
@@ -1628,12 +1626,10 @@ window.__ModuleLoader__.load({
       // 「已完成」的范围：today | week | month；默认看整周，而不是只看今天。
       const [doneRange, setDoneRange] = useState('week')
       const [noticeHidden, setNoticeHidden] = useState(corruptDismissed)
-      const [compactDetail, setCompactDetail] = useState(() => window.innerWidth < 1000)
       const [retrying, setRetrying] = useState(false)
       const [view, setView] = useState('list')
-      // 便签坞：notes 数据、坞体折叠态、正在行内编辑的便签 id、快速输入框内容与焦点。
+      // 便签坞：notes 数据、正在行内编辑的便签 id、快速输入框内容与焦点。
       const [notes, setNotes] = useState([])
-      const [dockOpen, setDockOpen] = useState(true)
       const [editingNote, setEditingNote] = useState(null)
       const [quickNote, setQuickNote] = useState('')
       const noteInputRef = useRef(null)
@@ -1648,13 +1644,6 @@ window.__ModuleLoader__.load({
       const [categoryRows, setCategoryRows] = useState([])
       const [filterOpen, setFilterOpen] = useState(false)
       const headFilterRef = useRef(null)
-      // 便签坞焦点防压缩（v3）：焦点记在 ref 里，不进渲染状态——useRef 的内部变更
-      // React 不追踪，改完 ref 要靠 dockTick 手动 bump 强制重渲。 quick input 与
-      // 行内编辑共用这一判定，只要焦点还在坞内就算「正在编辑」。
-      const dockRef = useRef(null)
-      const dockFocusRef = useRef(false)
-      const [, dockTick] = useState(0)
-      const forceDockTick = useCallback(() => dockTick((v) => v + 1), [])
       // 写操作（勾选/完成等）失败的可见提示，存服务端错误文案（null = 无错误）。
       // 它和读取失败的 state.error 分开：自己保留 5 秒，2.5 秒轮询成功也不会把它清掉。
       const [actionError, setActionError] = useState(null)
@@ -1832,7 +1821,7 @@ window.__ModuleLoader__.load({
         }
       }, [reload, retrying])
 
-      // 便签坞操作：快速输入回车提交、行内编辑保存、删除、坞体折叠开关。
+      // 便签坞操作：快速输入回车提交、行内编辑保存、删除。
       // mutate 返回 { ok }，noteAdd 失败即不落输入：快速输入保持不动，由用户重试。
       const addQuickNote = useCallback(async (event) => {
         event.preventDefault()
@@ -1854,8 +1843,6 @@ window.__ModuleLoader__.load({
       const removeNote = useCallback(async (note) => {
         await mutate('noteRemove', { id: note.id })
       }, [mutate])
-
-      const toggleDock = useCallback(() => setDockOpen((open) => !open), [])
 
       useEffect(() => { void reload() }, [reload])
 
@@ -1880,13 +1867,6 @@ window.__ModuleLoader__.load({
       // 卸载时清掉计时器，避免组件没了还 setConfirming / setActionError。
       useEffect(() => () => clearConfirmTimer(), [clearConfirmTimer])
       useEffect(() => () => clearActionErrorTimer(), [clearActionErrorTimer])
-
-      // 窄窗口（< 1000px）把详情列从 380 收到 320，避免挤压列表；监听随卸载解绑。
-      useEffect(() => {
-        const onResize = () => setCompactDetail(window.innerWidth < 1000)
-        window.addEventListener('resize', onResize)
-        return () => window.removeEventListener('resize', onResize)
-      }, [])
 
       const items = state.items
       const now = new Date()
@@ -2025,16 +2005,6 @@ window.__ModuleLoader__.load({
       const selectedRepeatEnded = Boolean(selectedItem?.isRepeating && !selectedItem?.dueDate)
       const selectedCompletionCount = selectedCompletionKeys.length
       const selectedCountLabel = `${t('completedTimes').replace('{n}', String(selectedCompletionCount))}${selectedRepeatEnded ? ` · ${t('seriesEnded')}` : ''}`
-
-      // 便签坞高度：未选中待办且不在当天清单时升满（idleDetail）；quick input 或
-      // 行内编辑获焦时不压缩，失焦后回落。折叠优先级最高——dockOpen=false 时高度
-      // auto、minHeight 归零且不渲染坞体，只剩码头一行（真实细条），grow 再强也
-      // 托不成空板。放在 selectedItem 之后才能读到它。
-      const dayDetailActive = dayKey !== null
-      const idleDetail = selectedItem === null && !dayDetailActive
-      const dockGrow = idleDetail || (dockFocusRef.current && dockOpen)
-      const dockHeight = dockOpen ? (dockGrow ? '100%' : '42%') : 'auto'
-      const dockMinHeight = dockOpen ? (dockGrow ? 320 : 180) : 0
 
       // 页头筛选按钮的激活文案：无分类优先代表分类轴；优先级轴独立在后。完整摘要进 title。
       const filterActive = fCategory !== '' || fUncategorized || fPriority !== ''
@@ -2352,7 +2322,7 @@ window.__ModuleLoader__.load({
                     ) : null,
                   ),
             ),
-          h('div', { style: compactDetail ? { ...S.rightCol, width: 320 } : S.rightCol },
+          h('div', { style: S.rightCol },
             h('div', { style: S.detail },
               dayKey !== null
                 ? h('div', null,
@@ -2462,45 +2432,13 @@ window.__ModuleLoader__.load({
                   )
                   : h('div', { style: S.detailEmpty }, h('div', null, t('pickOne'))),
             ),
-            h('div', {
-              className: 'td-dock',
-              // 焦点捕获防压缩：进坞（任何可聚焦子元素获焦）记「正在编辑」；失焦时
-              // 若新焦点仍在坞内（relatedTarget 复点 dock 内目标）则保持。命中变化
-              // 都 bump 一次 forceDockTick 撑起重渲，高度才能跟着 dockFocusRef 走。
-              ref: dockRef,
-              onFocusCapture: () => {
-                dockFocusRef.current = true
-                forceDockTick()
-              },
-              onBlurCapture: (event) => {
-                if (!dockRef.current?.contains(event.relatedTarget)) {
-                  dockFocusRef.current = false
-                  forceDockTick()
-                }
-              },
-              style: { ...S.dock, height: dockHeight, minHeight: dockMinHeight },
-            },
-              h('div', {
-                className: 'td-dock-head',
-                style: S.dockHead,
-                role: 'button',
-                'aria-expanded': dockOpen ? 'true' : 'false',
-                tabIndex: 0,
-                onClick: toggleDock,
-                onKeyDown: (event) => {
-                  if (event.nativeEvent?.isComposing === true) return
-                  if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleDock() }
-                },
-              },
+            h('div', { className: 'td-dock', style: S.dock },
+              h('div', { className: 'td-dock-head', style: S.dockHead },
               h('span', { style: S.dockTitle }, t('quickNote')),
               h('span', { style: S.dockCount }, notes.length > 0 ? ` · ${notes.length}` : ''),
-              h('span', { style: S.dockArrow }, dockOpen ? '▾' : '▸'),
               ),
-              dockOpen
-                ? h('div', { style: S.dockBody },
+              h('div', { style: S.dockBody },
                   [
-                    // 折叠时坞体连容器一起不渲染——容器带 padding('0 12px 10px')，
-                    // 只留 null 会靠这份 ~10px 托底，细条压不住。
                     h('form', { key: 'quick', style: { flex: 'none', display: 'flex', marginBottom: 8 }, onSubmit: addQuickNote },
                       h('input', {
                         className: 'td-input',
@@ -2564,8 +2502,7 @@ window.__ModuleLoader__.load({
                             onClick: () => void removeNote(note),
                           }, '✕'),
                         ))),
-                  ])
-                : null,
+                ]),
             ),
           ),
         ),
