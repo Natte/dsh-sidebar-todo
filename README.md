@@ -1,12 +1,12 @@
 # dsh-sidebar-todo
 
-DeepSeek Harness 的侧栏待办插件：清单、循环任务、月视图日历与便利贴，数据保存在本机一个 JSON 文件里，agent 通过工具读写同一份。
+DeepSeek Harness 的侧栏待办插件：清单、循环任务、月视图日历、便利贴与宿主自动化任务同步，数据保存在本机一个 JSON 文件里，agent 通过工具读写同一份。
 
 仓库、npm 包与插件标识统一为 `dsh-sidebar-todo`，侧栏显示的名字是「待办」。已发布：https://www.npmjs.com/package/dsh-sidebar-todo
 
 ![待办面板：左侧分组列表，右侧详情与便利贴](docs/images/panel-list.jpg)
 
-当前版本 0.3.0，功能包含编辑弹窗、循环任务、月视图日历、分类，以及 0.3.0 新增的便签、筛选与已结束循环组。改动记录见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本 0.4.0，功能包含编辑弹窗、循环任务、月视图日历、分类、便签、筛选与已结束循环组，以及 0.4.0 新增的宿主自动化任务同步。改动记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 安装
 
@@ -48,6 +48,7 @@ plugin_manager install_bundle  target: D:\dsh-sidebar-todo
 
 - `notes` 是 0.3.0 新增的顶层字段。从 0.3.x 回退到 0.2.x 后再改动待办，旧版本写盘不认识该字段，便签会整体丢失；回退前先复制一份 `todos.json`。
 - 便签没有日期、没有完成状态，也不会因为跨月或换年而消失，只有你（或 agent 的 `personal_note delete`）能删它。
+- 0.4.0 新增每条待办的 `automation` 字段与顶层 `automationOrphans`；从 0.4.x 回退到 0.2.x 后再改动待办同样会整体丢失（与 `notes` 同因），详见 [CHANGELOG.md](CHANGELOG.md) 的 0.4.0。
 
 ## 配置
 
@@ -75,6 +76,22 @@ plugin_manager install_bundle  target: D:\dsh-sidebar-todo
 重复方式：每天 / 每周（可多选周几）/ 每月（指定几号），可设结束日期。列表只显示本周期待完成的那一次，勾掉后该行消失，下一个周期再出现。
 
 其它规则：还没到第一个发生日的循环任务会先显示下一次发生日，不会建完就看不见；没写起始日时按创建日算；勾选完成的是行上显示的那一次，系列不受影响；循环任务不进「已完成」、不参与「积压」判定；「每月 31 号」在没有 31 号的月份直接跳过。在对话里说「每周一到周五 18 点交日报」，agent 会通过 `personal_todo` 的 `repeat` 参数直接建好。
+
+### 自动化任务同步
+
+![新建弹窗：自动化开关与节奏实时预览](docs/images/automation-toggle.jpg)
+
+新建与编辑弹窗里有「自动化」开关和提醒时间，开启后保存即同步创建 DSH 宿主自动化任务；触发节奏跟随待办的重复规则，弹窗内一行实时预览（如「每周五 17:30 提醒」）。编辑待办会联动修改宿主任务的触发条件（时刻 / 星期 / 几号 / 标题）；关闭开关或删除待办会同步删除宿主任务，删除失败时待办照常删除，宿主侧以 orphan 留痕（数据文件顶层 `automationOrphans`），不阻断操作。
+
+![编辑态：同步状态行](docs/images/automation-status.jpg)
+
+`repeat.until` 不映射到宿主任务，宿主提醒不会到点自动停止，同步后的状态徽标标 `partial` 并说明该差异。宿主不支持自动化时（CLI profile / 旧版宿主），开关禁用并提示「暂不可用」，待办功能零影响。
+
+agent 同样可用：`personal_todo` 的 `add` / `update` 接受 `automation: { enabled, time?, timeZone? }`，与界面共用同一映射（见下「agent 工具」）。
+
+同步出的任务在宿主的「自动化任务」页中：
+
+![宿主自动化任务页中的同步任务](docs/images/automation-host.jpg)
 
 ### 日历
 
@@ -113,6 +130,7 @@ plugin_manager install_bundle  target: D:\dsh-sidebar-todo
 管理日常待办，`action` 可选 `list` / `add` / `update` / `complete` / `confirm` / `delete`。
 
 - `add` / `update` 接受 `repeat: { freq, weekdays?, monthDay?, until? }`，工具会从口语里自行推断重复规则，不需要用户回答「你要哪种重复」；
+- `add` / `update` 可携带 `automation: { enabled, time?, timeZone? }`（0.4.0），把待办同步为宿主自动化任务，映射与界面共用同一模块；
 - `complete` 接受 `date`（默认今天），循环任务用它指定完成哪一次；
 - `list` 对循环任务标注「循环·本次 MM-DD」，即本周期待完成的那一次，另外 `occurrences` 返回区间内全部实例；
 - `list` 支持筛选参数：`category`（精确匹配，空串等于不过滤）、`priority`（high / medium / low）、`view`（open / today / week / stale / done / ended，默认 open）。`uncategorized`（只看无分类）只是 HTTP 路由层的参数，工具入参不透传。
@@ -135,6 +153,7 @@ plugin_manager install_bundle  target: D:\dsh-sidebar-todo
 
 | 宿主版本 | 插件版本 | 结论 | 日期 |
 |---|---|---|---|
+| `0.2.2-rc.3` | `0.4.0` | 已验证可用（live 走查：新建同步/编辑联动/关闭删除/降级提示） | 2026-11-16 |
 | `0.2.1-rc.5` | `0.3.0` | 已验证可用（走查与截图见 [docs/notes/testing.md](docs/notes/testing.md) §四） | 2026-11-03 |
 | `0.2.1-rc.5` | `0.2.3` | 已验证可用（走查记录同上） | 2026-10-30 |
 | `0.2.1-rc.3` | `0.2.1` | 已验证可用（修复 0.2.0 的启动崩溃） | 2026-10-28 |
@@ -162,7 +181,7 @@ plugin_manager install_bundle  target: D:\dsh-sidebar-todo
 ## 开发
 
 ```bash
-node --test          # 172 个测试（以命令输出为准）
+node --test          # 207 个测试（以命令输出为准）
 node --check client.js
 ```
 
