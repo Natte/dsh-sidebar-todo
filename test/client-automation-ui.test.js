@@ -29,6 +29,7 @@ const REQUIRED_AUTO_KEYS = [
   'automationNoticeUnavailable', 'automationNoticeFailed', 'automationNoticeCleared',
   'automationTooltipOk', 'automationTooltipPartial', 'automationTooltipError', 'automationTooltipOrphan',
   'automationTooltipStat', 'automationTooltipUnavailable', 'automationTooltipTimeNew', 'automationTooltipTimeEdit',
+  'automationPreviewWeekly', 'automationPreviewDaily', 'automationPreviewMonthly', 'automationPreviewOnce',
 ]
 
 test('automation 词典键 zh/en 成对完整且值非空（§十）', () => {
@@ -60,7 +61,9 @@ const RESIDENT_WHITELIST = [
   '将同时删除自动化任务', // 确认弹层正文
   '删除自动化任务', // 确认弹层确认按钮（「取消/保存」复用既有 cancel/save 键）
 ]
-const RESIDENT_KEYS = REQUIRED_AUTO_KEYS.filter((key) => !key.startsWith('automationNotice') && !key.startsWith('automationTooltip'))
+// automationPreview*（T9 节奏预览行）同样常驻，但值为运行期模板（占位符由预览函数替换），
+// 对应 §十① 白名单新增条目「节奏预览行」，不做逐字白名单。
+const RESIDENT_KEYS = REQUIRED_AUTO_KEYS.filter((key) => !key.startsWith('automationNotice') && !key.startsWith('automationTooltip') && !key.startsWith('automationPreview'))
 
 test('automation 常驻文案全部落在 §十① 白名单内（少字原则）', () => {
   for (const key of RESIDENT_KEYS) {
@@ -187,4 +190,56 @@ test('update 信封形态：构造点收敛为单一 const body，三键平级�
     /patch\s*:\s*\{[^}]*\bautomation\b/,
     'patch 字面量内不得夹带 automation 键（内层会被 PATCHABLE 静默丢弃）',
   )
+})
+
+// —— T9：节奏预览行（§十① 白名单新增「节奏预览行」）——
+// autoPreviewText 是纯函数：切片 dict…autoStatTooltip 段（纯展示语义、无 IO）后用 new Function 实例化直测五形态。
+function previewModule() {
+  const start = source.indexOf('const dict = {')
+  const end = source.indexOf('function autoStatTooltip')
+  assert.ok(start !== -1 && end > start, 'client.js 应存在 dict…autoStatTooltip 纯函数区')
+  const factory = new Function(source.slice(start, end) + '\nreturn { autoPreviewText }')
+  return factory()
+}
+
+const PREVIEW_T = (key) => ({
+  today: '今天', mon: '一', tue: '二', wed: '三', thu: '四', fri: '五', sat: '六', sun: '日',
+  automationPreviewWeekly: '{days} {time}提醒',
+  automationPreviewDaily: '每天 {time}提醒',
+  automationPreviewMonthly: '每月{day}日 {time}提醒',
+  automationPreviewOnce: '{date} {time}提醒一次',
+}[key] ?? key)
+
+test('T9 节奏预览五形态：weekly 多选 / daily / monthly / 无 repeat 未来 dueDate / 无 dueDate 不渲染', () => {
+  assert.ok(source.includes('S.autoPreview'), '预览行应以 S.autoPreview 样式渲染')
+  const { autoPreviewText } = previewModule()
+  assert.equal(
+    autoPreviewText(PREVIEW_T, { repeat: 'weekly', weekdays: [6, 5], monthDay: 1, dueDate: '' }, '17:30'),
+    '每周五、每周六 17:30提醒',
+    'weekly 多选应按周一→周日排序并逐字「每周X」',
+  )
+  assert.equal(autoPreviewText(PREVIEW_T, { repeat: 'daily', weekdays: [], monthDay: 1, dueDate: '' }, '09:00'), '每天 09:00提醒')
+  assert.equal(autoPreviewText(PREVIEW_T, { repeat: 'monthly', weekdays: [], monthDay: 31, dueDate: '' }, '08:15'), '每月31日 08:15提醒')
+  assert.equal(
+    autoPreviewText(PREVIEW_T, { repeat: '', weekdays: [], monthDay: 1, dueDate: '2999-01-02' }, '07:45'),
+    '2999-01-02 07:45提醒一次',
+  )
+  assert.equal(
+    autoPreviewText(PREVIEW_T, { repeat: '', weekdays: [], monthDay: 1, dueDate: '' }, '07:45'),
+    '',
+    '无 repeat 且无有效 dueDate 时不渲染预览行',
+  )
+})
+
+test('T9 用户可见 tooltip 无文档残留（§），降级原因改为可行动文案', () => {
+  for (const key of REQUIRED_AUTO_KEYS.filter((key) => key.startsWith('automationTooltip'))) {
+    const zhValue = new RegExp(`${key}: '([^']*)'`).exec(zhBlock)?.[1] ?? ''
+    const enValue = new RegExp(`${key}: '([^']*)'`).exec(enBlock)?.[1] ?? ''
+    assert.ok(!zhValue.includes('§'), `${key} zh 文案不得残留文档引用（§）`)
+    assert.ok(!enValue.includes('§'), `${key} en 文案不得残留文档引用（§）`)
+  }
+  const unavailable = new RegExp(`automationTooltipUnavailable: '([^']*)'`).exec(zhBlock)?.[1] ?? ''
+  assert.ok(unavailable.includes('重启 DSH'), '降级原因应给出可行动指引（完全重启 DSH）')
+  const unavailableEn = new RegExp(`automationTooltipUnavailable: '([^']*)'`).exec(enBlock)?.[1] ?? ''
+  assert.ok(unavailableEn.includes('restart DSH'), 'en 降级原因应给出 restart 指引')
 })

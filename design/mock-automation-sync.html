@@ -77,8 +77,9 @@
   .tmin{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px;border-radius:var(--r-sm);
         border:.5px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);font-size:12.5px;
         font-variant-numeric:tabular-nums;cursor:help}
+  .prev{font-size:11.5px;color:var(--dsw-alias-label-tertiary)}
 
-  /* ---------- 徽标（§三 status 枚举） ---------- */
+  /* ---------- 徽标（status 枚举） ---------- */
   .bdg{display:inline-flex;align-items:center;gap:4px;font-size:11px;line-height:18px;padding:0 7px;
        border-radius:4px;font-weight:500;flex:none;cursor:help}
   .bdg.ok{color:var(--dsw-static-green-900);background:color-mix(in srgb,var(--dsw-static-green-500) 15%,transparent)}
@@ -191,8 +192,9 @@
         <div class="auto-pane">
           <div class="arow">
             <span class="ak" data-zh="提醒时间" data-en="Time">提醒时间</span>
-            <span class="av"><span class="tmin" title="预填：新建取「时间」字段，为空则 09:00（§四）" data-tz="预填：新建取「时间」字段，为空则 09:00（§四）" data-te="Prefilled from the Time field; 09:00 when empty (§4)"><span class="mono">17:30</span></span></span>
+            <span class="av"><span class="tmin" title="预填：新建取「时间」字段，为空则 09:00" data-tz="预填：新建取「时间」字段，为空则 09:00" data-te="Prefilled from the Time field; 09:00 when empty"><span class="mono">17:30</span></span></span>
           </div>
+          <div class="prev" data-zh="每周五、每周六 17:30提醒" data-en="Reminds every Fri, every Sat at 17:30">每周五、每周六 17:30提醒</div>
         </div>
       </div>
 
@@ -243,7 +245,7 @@
         <div class="swrow">
           <span class="sw off dis"><span class="knob"></span></span>
           <span class="swlbl" style="color:var(--dsw-alias-label-tertiary)" data-zh="同时创建/同步自动化任务" data-en="Also create &amp; sync an automation task">同时创建/同步自动化任务</span>
-          <span class="swsub" title="当前 DSH 不支持自动化任务（capabilities.automation=false，§六）" data-tz="当前 DSH 不支持自动化任务（capabilities.automation=false，§六）" data-te="Automation tasks are not supported in this DSH (capabilities.automation=false, §6)" data-zh="暂不可用" data-en="Unavailable">暂不可用</span>
+          <span class="swsub" title="当前 DSH 宿主未提供自动化任务服务：若刚更新插件，请完全重启 DSH 后重试；CLI 模式或旧版宿主无此功能" data-tz="当前 DSH 宿主未提供自动化任务服务：若刚更新插件，请完全重启 DSH 后重试；CLI 模式或旧版宿主无此功能" data-te="This DSH host does not provide the automation service: if you just updated the plugin, fully restart DSH and retry; CLI mode or older hosts lack this feature" data-zh="暂不可用" data-en="Unavailable">暂不可用</span>
         </div>
       </div>
 
@@ -304,7 +306,7 @@
         <div class="auto-pane">
           <div class="arow">
             <span class="ak" data-zh="提醒时间" data-en="Time">提醒时间</span>
-            <span class="av"><span class="tmin" title="编辑回显：automation.time ?? dueTime ?? 09:00（§四）" data-tz="编辑回显：automation.time ?? dueTime ?? 09:00（§四）" data-te="Edit prefill: automation.time ?? dueTime ?? 09:00 (§4)"><span class="mono">17:30</span></span></span>
+            <span class="av"><span class="tmin" title="编辑回显：automation.time ?? dueTime ?? 09:00" data-tz="编辑回显：automation.time ?? dueTime ?? 09:00" data-te="Edit prefill: automation.time ?? dueTime ?? 09:00"><span class="mono">17:30</span></span></span>
           </div>
         </div>
       </div>
@@ -350,18 +352,18 @@
 <details class="rev">
   <summary data-zh="评审注记（非界面）" data-en="Review notes (non-UI)">评审注记（非界面）</summary>
   <div class="notes">
-    <div class="nt"><b>开关行与初始态（§十 / Q6）</b>：循环 / 结束日期字段区下方独立开关行；新建默认关，编辑 = initial.automation?.enabled === true；态①为用户手动开启后的表单。开启时展开 time（HH:mm）输入。</div>
-    <div class="nt"><b>提醒时间预填（§四）</b>：新建 = dueTime，为空则 09:00；编辑 = automation.time ?? dueTime ?? 09:00。示例 dueTime=17:30 → 预填 17:30。</div>
+    <div class="nt"><b>开关行与初始态（第十节 / Q6）</b>：循环 / 结束日期字段区下方独立开关行；新建默认关，编辑 = initial.automation?.enabled === true；态①为用户手动开启后的表单。开启时展开 time（HH:mm）输入。</div>
+    <div class="nt"><b>提醒时间预填（第四节）</b>：新建 = dueTime，为空则 09:00；编辑 = automation.time ?? dueTime ?? 09:00。示例 dueTime=17:30 → 预填 17:30。</div>
     <div class="nt"><b>Q1 · until→partial</b>：until 仅作用于待办侧，不映射宿主 rrule；创建期界面不做任何提示，同步后编辑回显 partial 徽标（语义解释进徽标 tooltip）。</div>
     <div class="nt"><b>Q2 / Q3 · 固定策略</b>：时区取宿主进程 IANA 时区落库（示例 Asia/Shanghai），后续同步沿用；执行位置固定 new_once。两者创建期均不在界面呈现（不在白名单、仅约定于 tooltip）。</div>
-    <div class="nt"><b>态② 降级（§六）</b>：CLI profile / 未挂载 Schedule → capabilities.automation=false，开关禁用 + 短标签「暂不可用」，完整原因收 tooltip；待办功能零影响；若强制带意图保存 → HTTP 400 automation-unavailable，待办本体照常保存（不落 automation 字段）。</div>
+    <div class="nt"><b>态② 降级（第六节）</b>：CLI profile / 未挂载 Schedule → capabilities.automation=false，开关禁用 + 短标签「暂不可用」，完整原因收 tooltip；待办功能零影响；若强制带意图保存 → HTTP 400 automation-unavailable，待办本体照常保存（不落 automation 字段）。</div>
     <div class="nt"><b>态③ 单行状态</b>：徽标 + HH:mm + 相对上次同步时间；taskId 尾 8 位 / lastSyncedAt 绝对时间 / lastError 全文 / orphan 详情全部收 tooltip，界面零常驻细节。</div>
-    <div class="nt"><b>关闭开关 = 删除编排（§七 / Q5）</b>：保存 automation={enabled:false} → 宿主 edit delete；成功或 schedule_not_found 视为成功并清除本地记录；其他失败 → status=error + lastError，下次保存重试（记录还在）。</div>
-    <div class="nt"><b>保存响应一次性提示（§十，非常驻 toast，不在界面常驻文案白名单内）</b>：automation-unavailable →「待办已保存，但当前 DSH 不支持自动化任务」；status=error →「待办已保存，自动化任务同步失败：&lt;lastError&gt;；下次编辑保存将自动重试」；notice →「自动化任务已不存在，已解除关联」。</div>
+    <div class="nt"><b>关闭开关 = 删除编排（第七节 / Q5）</b>：保存 automation={enabled:false} → 宿主 edit delete；成功或 schedule_not_found 视为成功并清除本地记录；其他失败 → status=error + lastError，下次保存重试（记录还在）。</div>
+    <div class="nt"><b>保存响应一次性提示（第十节，非常驻 toast，不在界面常驻文案白名单内）</b>：automation-unavailable →「待办已保存，但当前 DSH 不支持自动化任务」；status=error →「待办已保存，自动化任务同步失败：&lt;lastError&gt;；下次编辑保存将自动重试」；notice →「自动化任务已不存在，已解除关联」。</div>
   </div>
 </details>
 
-<p class="ft" data-zh="纯静态原型 · 唯一外链为相对路径 design/tokens.css · 界面常驻文案与《2026-11-16-dsh-todolist-v4-design.md》§十 少字白名单一致" data-en="Static prototype · the only external ref is design/tokens.css · resident UI copy matches the §10 low-copy whitelist of 2026-11-16-dsh-todolist-v4-design.md">纯静态原型 · 唯一外链为相对路径 design/tokens.css · 界面常驻文案与《2026-11-16-dsh-todolist-v4-design.md》§十 少字白名单一致</p>
+<p class="ft" data-zh="纯静态原型 · 唯一外链为相对路径 design/tokens.css · 界面常驻文案与《2026-11-16-dsh-todolist-v4-design.md》第十节 少字白名单一致" data-en="Static prototype · the only external ref is design/tokens.css · resident UI copy matches the Section 10 low-copy whitelist of 2026-11-16-dsh-todolist-v4-design.md">纯静态原型 · 唯一外链为相对路径 design/tokens.css · 界面常驻文案与《2026-11-16-dsh-todolist-v4-design.md》第十节 少字白名单一致</p>
 
 <script>
 (function () {

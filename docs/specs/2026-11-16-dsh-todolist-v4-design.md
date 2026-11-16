@@ -307,6 +307,7 @@ TodoDialog（[client.js](../../client.js) ~1042 行起）结构不变项：循�
 |---|---|---|
 | 开关标签 | 同时创建/同步自动化任务 | Also create & sync an automation task |
 | 时间控件标签 | 提醒时间 | Time |
+| 节奏预览行（T9） | 每天 / 每周X、每周Y / 每月N日 / `YYYY-MM-DD` + HH:mm 提醒（实时模板预览） | Reminds daily / every X / monthly on day N / once on YYYY-MM-DD at HH:mm |
 | 降级短标签 | 暂不可用 | Unavailable |
 | 状态徽标 | ok / partial / error / orphan（§三枚举原词，不另译） | 同 zh |
 | 同步状态行 | `<HH:mm>` + `<n> 小时前`（相对上次同步） | `<HH:mm>` + `<n>h ago` |
@@ -320,14 +321,14 @@ TodoDialog（[client.js](../../client.js) ~1042 行起）结构不变项：循�
 
 | 载体 | tooltip 内容 |
 |---|---|
-| 提醒时间控件 | 预填规则：新建 = dueTime，为空则 09:00；编辑 = automation.time ?? dueTime ?? 09:00（§四） |
+| 提醒时间控件 | 预填规则：新建 = dueTime，为空则 09:00；编辑 = automation.time ?? dueTime ?? 09:00 |
 | 时区 | 固定策略（Q2：宿主进程 IANA 时区落库、后续沿用）；创建期不在界面呈现 |
 | 执行位置 | 固定策略（Q3：new_once）；创建期不在界面呈现 |
 | 同步状态行 | taskId 尾 8 位 + lastSyncedAt 绝对时间 |
 | 状态徽标 partial | partial 语义：until 不映射（Q1），宿主任务到点不会自动停止 |
 | 状态徽标 error | lastError 全文（宿主错误码 + message） |
 | 状态徽标 orphan | orphan 详情 `{todoId, taskId, reason, at}`；引导「定时任务」页手动删除（Q5） |
-| 降级短标签「暂不可用」 | 完整原因：当前 DSH 不支持自动化任务（`capabilities.automation=false`，§六） |
+| 降级短标签「暂不可用」 | zh：当前 DSH 宿主未提供自动化任务服务：若刚更新插件，请完全重启 DSH 后重试；CLI 模式或旧版宿主无此功能 · en：This DSH host does not provide the automation service: if you just updated the plugin, fully restart DSH and retry; CLI mode or older hosts lack this feature |
 
 ### ③ 明确删除项（原稿常驻文案，本次返工移除）
 
@@ -343,7 +344,7 @@ TodoDialog（[client.js](../../client.js) ~1042 行起）结构不变项：循�
 - `result.automation.status='error'` → 关闭弹窗 + 非阻断提示「待办已保存，自动化任务同步失败：<lastError>；下次编辑保存将自动重试」/ "Todo saved, but automation sync failed: <lastError>; it will retry on the next edit & save"；
 - `automationNotice='schedule_not_found-cleared'` → 提示「自动化任务已不存在，已解除关联」/ "The automation task no longer exists; the link was removed"。
 
-内联 `dict.zh/en` 双语新增键（两份词典都要加）：automationToggle / automationTime / automationUnavailable / automationStatusLine / automationErrorShort / automationConfirmTitle / automationConfirmBody / automationConfirmOk / automationBadge* / automationTooltip* 等。
+内联 `dict.zh/en` 双语新增键（两份词典都要加）：automationToggle / automationTime / automationUnavailable / automationStatusLine / automationErrorShort / automationConfirmTitle / automationConfirmBody / automationConfirmOk / automationBadge* / automationTooltip* / automationPreview*（T9 节奏预览行）等。
 
 ---
 
