@@ -1,7 +1,7 @@
 {
   "name": "dsh-sidebar-todo",
   "version": "0.4.0",
-  "description": "DeepSeek Harness 侧栏待办清单：分组、循环任务、月视图日历、分类、便签坞与筛选，agent 可读写",
+  "description": "DeepSeek Harness 侧栏待办清单：分组、循环任务、月视图日历、分类、便签坞与筛选，可同步宿主自动化任务到点提醒，agent 可读写",
   "type": "module",
   "license": "MIT",
   "author": "Natte",
