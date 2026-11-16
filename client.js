@@ -319,7 +319,6 @@ window.__ModuleLoader__.load({
       swLabel: { fontSize: 13, fontWeight: 500, minWidth: 0 },
       swSub: { flex: 'none', fontSize: 11.5, color: 'var(--dsw-alias-state-warn-primary)', cursor: 'help' },
       autoPreview: { flex: 'none', fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)' },
-      autoPreview: { flex: 'none', fontSize: 11.5, color: 'var(--dsw-alias-label-tertiary)' },
       autoPane: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, padding: '10px 12px', borderRadius: 8, background: 'var(--dsw-alias-bg-module-platform)' },
       autoKey: { flex: 'none', width: 62, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' },
       autoTimeWrap: { position: 'relative', width: 140 },
@@ -578,28 +577,6 @@ window.__ModuleLoader__.load({
       }
       const due = asText(initial?.dueTime)
       return splitTimeKey(due) !== null ? due : '09:00'
-    }
-
-    /** 节奏预览行（§十① 白名单新增「节奏预览行」，T9）：按 repeat 形态 + 提醒时间输出一行实时预览；无可预览节奏返回空串（不渲染）。 */
-    function autoPreviewText(t, info, time) {
-      if (splitTimeKey(time) === null) return ''
-      const data = info !== null && typeof info === 'object' ? info : {}
-      const zh = t('today') === dict.zh.today
-      if (data.repeat === 'daily') return t('automationPreviewDaily').replace('{time}', time)
-      if (data.repeat === 'weekly') {
-        const picks = WEEKDAY_OPTIONS.filter(([, iso]) => Array.isArray(data.weekdays) && data.weekdays.includes(iso))
-        if (picks.length === 0) return ''
-        const days = picks.map(([key]) => (zh ? `每周${t(key)}` : `every ${t(key)}`)).join(zh ? '、' : ', ')
-        return t('automationPreviewWeekly').replace('{days}', days).replace('{time}', time)
-      }
-      if (data.repeat === 'monthly') {
-        const day = Number(data.monthDay)
-        if (!Number.isInteger(day) || day < 1 || day > 31) return ''
-        return t('automationPreviewMonthly').replace('{day}', String(day)).replace('{time}', time)
-      }
-      const date = parseDateKey(asText(data.dueDate))
-      if (date === null || date.getTime() < startOfDay(new Date()).getTime()) return ''
-      return t('automationPreviewOnce').replace('{date}', dateKeyOf(date)).replace('{time}', time)
     }
 
     /** 节奏预览行（§十① 白名单新增「节奏预览行」，T9）：按 repeat 形态 + 提醒时间输出一行实时预览；无可预览节奏返回空串（不渲染）。 */
@@ -1417,10 +1394,6 @@ window.__ModuleLoader__.load({
       }
 
       const modeLabel = t(editing ? 'dialogEdit' : 'dialogNew')
-      // 节奏预览行（§十①「节奏预览行」，T9）：开关开启时按表单实时计算；无有效节奏为空串、不渲染。
-      const autoPreview = autoOn
-        ? autoPreviewText(t, { repeat: form.repeatFreq, weekdays: form.weekdays, monthDay: form.monthDay, dueDate: form.dueDate }, autoTime)
-        : ''
       // 节奏预览行（§十①「节奏预览行」，T9）：开关开启时按表单实时计算；无有效节奏为空串、不渲染。
       const autoPreview = autoOn
         ? autoPreviewText(t, { repeat: form.repeatFreq, weekdays: form.weekdays, monthDay: form.monthDay, dueDate: form.dueDate }, autoTime)
