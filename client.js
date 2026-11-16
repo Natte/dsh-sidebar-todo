@@ -51,6 +51,25 @@ window.__ModuleLoader__.load({
         noMatch: '没有匹配的待办', staleFor: '挂了 {n} 天',
         priorityHigh: '高', priorityMedium: '中', priorityLow: '低',
         badResponse: '响应格式不正确', requestFailed: '请求失败', dismiss: '关闭',
+        automationToggle: '同时创建/同步自动化任务',
+        automationTime: '提醒时间',
+        automationUnavailable: '暂不可用',
+        automationStatLabel: '自动化同步',
+        automationErrorShort: '同步失败，保存时重试',
+        automationConfirmTitle: '关闭自动化同步？',
+        automationConfirmBody: '将同时删除自动化任务',
+        automationConfirmOk: '删除自动化任务',
+        automationNoticeUnavailable: '待办已保存，但当前 DSH 不支持自动化任务',
+        automationNoticeFailed: '待办已保存，自动化任务同步失败：{err}；下次编辑保存将自动重试',
+        automationNoticeCleared: '自动化任务已不存在，已解除关联',
+        automationTooltipOk: '映射完整，最近一次创建/保存成功，宿主任务与待办当前值一致',
+        automationTooltipPartial: '同步成功但有语义损失：until 不映射（Q1），宿主任务到点不会自动停止',
+        automationTooltipError: '最近一次同步失败：{err}',
+        automationTooltipOrphan: '待办已删除但宿主任务删除失败（Q5），可在「定时任务」页手动删除',
+        automationTooltipStat: 'taskId: {task} · 上次同步 {at}',
+        automationTooltipUnavailable: '当前 DSH 不支持自动化任务（capabilities.automation=false）',
+        automationTooltipTimeNew: '预填：新建取「时间」字段，为空则 09:00（§四）',
+        automationTooltipTimeEdit: '编辑回显：automation.time ?? dueTime ?? 09:00（§四）',
       },
       en: {
         nav: 'To-do', title: 'To-do', new: 'New', search: 'Search',
@@ -96,6 +115,25 @@ window.__ModuleLoader__.load({
         noMatch: 'No matching todos', staleFor: 'Open {n} days',
         priorityHigh: 'High', priorityMedium: 'Medium', priorityLow: 'Low',
         badResponse: 'Unexpected response', requestFailed: 'Request failed', dismiss: 'Dismiss',
+        automationToggle: 'Also create & sync an automation task',
+        automationTime: 'Time',
+        automationUnavailable: 'Unavailable',
+        automationStatLabel: 'Automation sync',
+        automationErrorShort: 'Sync failed; retry on save',
+        automationConfirmTitle: 'Turn off automation sync?',
+        automationConfirmBody: 'This will also delete the automation task',
+        automationConfirmOk: 'Delete automation task',
+        automationNoticeUnavailable: 'Todo saved, but automation tasks are not supported in this DSH',
+        automationNoticeFailed: 'Todo saved, but automation sync failed: {err}; it will retry on the next edit & save',
+        automationNoticeCleared: 'The automation task no longer exists; the link was removed',
+        automationTooltipOk: 'Mapped fully; the last create/save succeeded and the host task matches the todo',
+        automationTooltipPartial: 'Synced with a known loss: until is not mapped (Q1); the host task never stops by itself',
+        automationTooltipError: 'Last sync failed: {err}',
+        automationTooltipOrphan: 'Todo deleted but the host delete failed (Q5); delete it manually in Scheduled tasks',
+        automationTooltipStat: 'taskId: {task} · last synced {at}',
+        automationTooltipUnavailable: 'Automation tasks are not supported in this DSH (capabilities.automation=false)',
+        automationTooltipTimeNew: 'Prefilled from the Time field; 09:00 when empty (§4)',
+        automationTooltipTimeEdit: 'Edit prefill: automation.time ?? dueTime ?? 09:00 (§4)',
       },
     }
     const ORDER = ['overdue', 'today', 'tomorrow', 'week', 'later', 'stale', 'unplanned', 'ended', 'done']
@@ -261,6 +299,34 @@ window.__ModuleLoader__.load({
       // 点某天后，详情列改成当天清单；行只展示，不承担列表的选中态。
       dayRow: { display: 'flex', alignItems: 'center', gap: 8, minHeight: 30, padding: '0 4px', borderRadius: 6 },
       detailTitle: { fontSize: 15, fontWeight: 600, color: 'var(--dsw-alias-label-primary)', marginBottom: 12 },
+      // —— 自动化同步（v4 §十，对照 design/mock-automation-sync.html）：开关行 / 内联提醒时间 /
+      // 单行同步状态 / 四态徽标 / 关闭二次确认。颜色全部走主题 token（mock 的 color-mix 用 token 底色）。
+      auto: { borderTop: '0.5px dashed var(--dsw-alias-border-l3)', marginTop: 14, paddingTop: 12 },
+      swRow: { display: 'flex', alignItems: 'center', gap: 10 },
+      sw: { position: 'relative', width: 34, height: 20, padding: 0, border: 'none', borderRadius: 999, flex: 'none', cursor: 'pointer', background: 'var(--dsw-alias-bg-module-platform)' },
+      swOn: { background: 'var(--dsw-alias-state-business-primary)' },
+      swDisabled: { opacity: 0.4, cursor: 'default' },
+      swKnob: { position: 'absolute', top: 2, left: 2, width: 16, height: 16, borderRadius: '50%', background: 'var(--dsw-static-neutral-00)', boxShadow: '0 1px 2px rgba(0, 0, 0, 0.2)' },
+      swKnobOn: { left: 16 },
+      swLabel: { fontSize: 13, fontWeight: 500, minWidth: 0 },
+      swSub: { flex: 'none', fontSize: 11.5, color: 'var(--dsw-alias-state-warn-primary)', cursor: 'help' },
+      autoPane: { display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, padding: '10px 12px', borderRadius: 8, background: 'var(--dsw-alias-bg-module-platform)' },
+      autoKey: { flex: 'none', width: 62, fontSize: 12, color: 'var(--dsw-alias-label-tertiary)' },
+      autoTimeWrap: { position: 'relative', width: 140 },
+      statLine: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', margin: '0 0 10px', padding: '8px 10px', borderRadius: 8, fontSize: 12, color: 'var(--dsw-alias-label-secondary)', background: 'var(--dsw-alias-bg-module-platform)', cursor: 'help' },
+      statName: { color: 'var(--dsw-alias-label-primary)', fontWeight: 500 },
+      mono: { fontFamily: 'Consolas, "Courier New", monospace', fontSize: 11, fontVariantNumeric: 'tabular-nums' },
+      badge: { display: 'inline-flex', alignItems: 'center', flex: 'none', padding: '0 7px', borderRadius: 4, fontSize: 11, lineHeight: '18px', fontWeight: 500, cursor: 'help' },
+      badgeOk: { color: 'var(--dsw-static-green-900)', background: 'var(--dsw-static-green-500-a12)' },
+      badgePartial: { color: 'var(--dsw-alias-state-warn-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, transparent)' },
+      badgeError: { color: 'var(--dsw-alias-state-error-primary)', background: 'color-mix(in srgb, var(--dsw-alias-state-error-primary) 9%, transparent)' },
+      badgeOrphan: { color: 'var(--dsw-alias-label-secondary)', background: 'var(--dsw-alias-bg-module-platform)', border: '0.5px dashed var(--dsw-alias-border-l3)' },
+      lgMsg: { cursor: 'help' },
+      confirm: { width: 360, maxWidth: 'calc(100vw - 48px)', boxSizing: 'border-box', padding: '16px 18px 14px', borderRadius: 'var(--dsw-radius-xl)', background: 'var(--dsw-specific-input-major)', boxShadow: 'var(--dsw-elevation-panel)', color: 'var(--dsw-alias-label-primary)' },
+      confirmTitle: { display: 'flex', alignItems: 'center', gap: 7, margin: '0 0 8px', fontSize: 14, fontWeight: 600 },
+      confirmWarnIcon: { flex: 'none', color: 'var(--dsw-alias-state-warn-primary)' },
+      confirmBody: { margin: '0 0 10px', fontSize: 12.5, lineHeight: '19px', color: 'var(--dsw-alias-label-secondary)' },
+      btnDanger: { height: 32, padding: '0 14px', borderRadius: 8, border: 'none', background: 'var(--dsw-alias-state-error-primary)', color: 'var(--dsw-alias-label-primary-inverted)', fontSize: 12.5, cursor: 'pointer' },
     }
 
     // 内联 style 表达不了 :hover / :active / :focus-visible，所以全局插一份样式表。
@@ -481,6 +547,52 @@ window.__ModuleLoader__.load({
       if (diff < 3600000) return t('minutesAgo').replace('{n}', String(Math.floor(diff / 60000)))
       if (diff < 86400000) return t('hoursAgo').replace('{n}', String(Math.floor(diff / 3600000)))
       return dateKeyOf(new Date(ts))
+    }
+
+    // —— 自动化同步（v4 §十/§三）：状态枚举、tooltip 组装与提醒时间预填序（§四）。 ——
+    // 这里只有展示语义与兜底序，禁止出现任何 timing/cron/rrule 构造（§八 评审红线）。
+    const AUTO_STATUS_KEYS = ['ok', 'partial', 'error', 'orphan']
+
+    function autoStatusOf(automation) {
+      const status = automation !== null && typeof automation === 'object' ? automation.status : null
+      return AUTO_STATUS_KEYS.includes(status) ? status : null
+    }
+
+    /** 提醒时间预填序（§四）：新建 = dueTime ?? '09:00'；编辑 = automation.time ?? dueTime ?? '09:00'。 */
+    function autoTimePrefill(initial, editing) {
+      if (editing) {
+        const synced = initial !== null && typeof initial === 'object' && initial.automation !== null && typeof initial.automation === 'object'
+          ? asText(initial.automation.time)
+          : ''
+        if (splitTimeKey(synced) !== null) return synced
+      }
+      const due = asText(initial?.dueTime)
+      return splitTimeKey(due) !== null ? due : '09:00'
+    }
+
+    /** 单行同步状态 tooltip：taskId 尾 8 位 + lastSyncedAt 绝对时间；两者皆缺时退回状态语义 tooltip。 */
+    function autoStatTooltip(t, automation, status) {
+      const record = automation !== null && typeof automation === 'object' ? automation : {}
+      const taskId = asText(record.taskId)
+      const lastSyncedAt = asText(record.lastSyncedAt)
+      if (taskId !== '' || lastSyncedAt !== '') {
+        return t('automationTooltipStat')
+          .replace('{task}', taskId !== '' ? taskId.slice(-8) : '—')
+          .replace('{at}', lastSyncedAt !== '' ? formatDateTime(lastSyncedAt) : '—')
+      }
+      return autoBadgeTooltip(t, status, automation)
+    }
+
+    /** 徽标 tooltip（§十②）：partial 讲语义损失，error 带 lastError 全文，orphan 引导手动删除。 */
+    function autoBadgeTooltip(t, status, automation) {
+      if (status === 'error') {
+        const lastError = automation !== null && typeof automation === 'object' ? asText(automation.lastError) : ''
+        return t('automationTooltipError').replace('{err}', lastError)
+      }
+      const key = status === 'ok'
+        ? 'automationTooltipOk'
+        : status === 'partial' ? 'automationTooltipPartial' : 'automationTooltipOrphan'
+      return t(key)
     }
 
     const PRIORITY_COLOR = {
@@ -1039,7 +1151,7 @@ window.__ModuleLoader__.load({
      * 空字符串一律转成 null 再提交，否则宿主会把 '' 当成「有值」。
      * 保存失败时只在弹窗内报错，不关闭、不清空用户已经填的内容。
      */
-    function TodoDialog({ t, initial, mutate, onClose, onSaved, onManageCategories, escSuspended }) {
+    function TodoDialog({ t, initial, mutate, onClose, onSaved, onManageCategories, escSuspended, autoAvailable, onNotice }) {
       // `initial` 有两种语义：带 id 是编辑；只带 dueDate 是从某一天「新建」时的预填。
       const editing = initial !== null && initial !== undefined && initial.id !== null && initial.id !== undefined
       const [form, setForm] = useState(() => ({
@@ -1058,6 +1170,15 @@ window.__ModuleLoader__.load({
       const [quick, setQuick] = useState('')
       const [error, setError] = useState(null)
       const [saving, setSaving] = useState(false)
+      // 自动化同步（v4 §十）：开关初始态 编辑 = 既有 automation.enabled === true，新建 = 关（Q6）。
+      const initialAutomation = editing && initial.automation !== null && typeof initial.automation === 'object' ? initial.automation : null
+      const hadAutoSync = editing && initialAutomation?.enabled === true
+      const [autoOn, setAutoOn] = useState(() => hadAutoSync)
+      const [autoTime, setAutoTime] = useState(() => (editing ? autoTimePrefill(initial, true) : ''))
+      // 动过开关 / 改过提醒时间才在提交里带 automation 意图（§五：未动过 = 不发无谓同步请求）。
+      const [autoTouched, setAutoTouched] = useState(false)
+      // 关闭既有同步的二次确认（§七：enabled=false 会触发宿主删除编排，将同时删除自动化任务）。
+      const [autoConfirm, setAutoConfirm] = useState(false)
       // 分类候选只在弹窗打开时拉一次；保存后页面自己会刷新，下一次开窗再拉。
       const [categoryRows, setCategoryRows] = useState([])
 
@@ -1095,6 +1216,53 @@ window.__ModuleLoader__.load({
         document.addEventListener('keydown', onKeyDown)
         return () => document.removeEventListener('keydown', onKeyDown)
       }, [escSuspended])
+
+      // 确认弹层开着时，Esc 先取消确认（capture 阶段拦下），不穿透关掉整个弹窗丢用户已填内容。
+      useEffect(() => {
+        if (!autoConfirm) return undefined
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') return
+          event.stopPropagation?.()
+          setAutoConfirm(false)
+        }
+        document.addEventListener('keydown', onKeyDown, true)
+        return () => document.removeEventListener('keydown', onKeyDown, true)
+      }, [autoConfirm])
+
+      const turnAutoOn = () => {
+        setAutoTouched(true)
+        setAutoOn(true)
+        // 预填序（§四）：已有合法值保持；否则回退「时间」字段，再回退 09:00（编辑态已在挂载时预填过）。
+        setAutoTime((prev) => (splitTimeKey(prev) !== null
+          ? prev
+          : (splitTimeKey(form.dueTime) !== null ? form.dueTime : '09:00')))
+      }
+
+      const requestAutoToggle = (next) => {
+        if (autoAvailable !== true) return
+        if (next) {
+          turnAutoOn()
+          return
+        }
+        // 关闭「既有同步」要先确认（将同时删除宿主自动化任务）；新建或本无同步直接关。
+        if (hadAutoSync) {
+          setAutoConfirm(true)
+          return
+        }
+        setAutoTouched(true)
+        setAutoOn(false)
+      }
+
+      const confirmAutoOff = () => {
+        setAutoConfirm(false)
+        setAutoTouched(true)
+        setAutoOn(false)
+      }
+
+      const changeAutoTime = (next) => {
+        setAutoTouched(true)
+        setAutoTime(next)
+      }
 
       // 输入停顿 200ms 后解析；seq 保证只有最后一次输入的结果能写表单。
       useEffect(() => {
@@ -1146,14 +1314,44 @@ window.__ModuleLoader__.load({
                 : { freq: 'daily' },
         }
         if (form.until !== '' && payload.repeat !== null) payload.repeat.until = form.until
+        // automation 意图（§五，与 patch 平级）：动过开关才发。开启 = 建立/更新（带合法 HH:mm）；
+        // 关闭既有同步 = 触发删除编排；未动过开关 = 不传，避免无谓同步请求。
+        if (autoTouched && autoOn) {
+          payload.automation = { enabled: true }
+          if (splitTimeKey(autoTime) !== null) payload.automation.time = autoTime
+        } else if (autoTouched && !autoOn && hadAutoSync) {
+          payload.automation = { enabled: false }
+        }
         setError(null)
         setSaving(true)
         try {
-          const res = form.id === null
-            ? await mutate('create', payload)
-            : await mutate('update', { id: form.id, patch: payload })
+          // §五/§九B2/B3：update 请求体 { id, patch, automation } 三键平级——宿主 automationIntentOf
+          // 只认顶层 automation 键；未动过开关时 payload.automation 为 undefined，
+          // JSON.stringify 自动省略该键（沿用既有保存语义：未动不发、关闭触发删除编排）。
+          const body = form.id === null ? payload : { id: form.id, patch: payload, automation: payload.automation }
+          const res = await mutate(form.id === null ? 'create' : 'update', body)
           if (!res.ok) {
+            // 降级（§六）：宿主无 schedule 时待办本体已保存成功——关弹窗 + 一次性提示，
+            // 绝不能让用户以为保存失败。
+            if (res.error?.code === 'automation-unavailable') {
+              onNotice?.(t('automationNoticeUnavailable'))
+              onSaved()
+              return
+            }
             setError(res.error?.message ?? t('requestFailed'))
+            return
+          }
+          const result = res.result ?? null
+          // 关联已被外部删除：本次响应已清空记录，重开后回显自然为空 + 一次性轻提示。
+          if (result?.automationNotice === 'schedule_not_found-cleared') {
+            onNotice?.(t('automationNoticeCleared'))
+            onSaved()
+            return
+          }
+          // 同步失败但待办已保存（§九）：非阻断提示，下次编辑保存将自动重试。
+          if (result?.automation?.status === 'error') {
+            onNotice?.(t('automationNoticeFailed').replace('{err}', asText(result.automation.lastError)))
+            onSaved()
             return
           }
           onSaved()
@@ -1165,14 +1363,40 @@ window.__ModuleLoader__.load({
       }
 
       const modeLabel = t(editing ? 'dialogEdit' : 'dialogNew')
+      // 编辑回显（§十③）：标题旁状态徽标 + 单行同步状态（徽标 + 已同步时刻 + 相对上次同步）；
+      // taskId 尾 8 位 / lastSyncedAt 绝对时间 / lastError 全文 / orphan 详情全部收 tooltip。
+      const autoStatus = editing ? autoStatusOf(initialAutomation) : null
+      const autoBadgeElement = autoStatus !== null
+        ? h('span', {
+            style: {
+              ...S.badge,
+              ...(autoStatus === 'ok' ? S.badgeOk : autoStatus === 'partial' ? S.badgePartial : autoStatus === 'error' ? S.badgeError : S.badgeOrphan),
+            },
+            title: autoBadgeTooltip(t, autoStatus, initialAutomation),
+          }, autoStatus)
+        : null
+      const autoSyncedAt = initialAutomation !== null && typeof initialAutomation.lastSyncedAt === 'string' ? initialAutomation.lastSyncedAt : ''
+      const autoSyncTime = initialAutomation !== null ? asText(initialAutomation.time) : ''
+      const autoStatElement = editing && autoOn && autoStatus !== null
+        ? h('div', { style: S.statLine, title: autoStatTooltip(t, initialAutomation, autoStatus) },
+            h('span', { style: S.statName }, t('automationStatLabel')),
+            autoBadgeElement,
+            autoStatus === 'error'
+              ? h('span', { style: S.lgMsg, title: autoBadgeTooltip(t, autoStatus, initialAutomation) }, t('automationErrorShort'))
+              : [
+                  autoSyncTime !== '' ? h('span', { key: 'time', style: S.mono }, autoSyncTime) : null,
+                  autoSyncedAt !== '' ? h('span', { key: 'rel' }, noteRelTime(t, autoSyncedAt)) : null,
+                ])
+        : null
 
-      return h('div', {
+      return h('div', null,
+      h('div', {
         className: 'td-overlay',
         style: S.overlay,
         onClick: (event) => { if (event.target === event.currentTarget) onClose() },
       },
       h('div', { className: 'td-dialog', style: S.dialog, role: 'dialog', 'aria-modal': 'true', 'aria-label': modeLabel },
-        h('div', { style: S.dialogHead }, modeLabel),
+        h('div', { style: { ...S.dialogHead, display: 'flex', alignItems: 'center', gap: 8 } }, modeLabel, editing && autoOn ? autoBadgeElement : null),
         h('div', { style: { marginBottom: 12 } },
           h('input', {
             className: 'td-input',
@@ -1294,11 +1518,67 @@ window.__ModuleLoader__.load({
               }))
           : null,
 
+        // —— 自动化同步（v4 §十，mock 三态）：开关行在结束日期字段区之下；开启内联展开提醒时间；
+        // capabilities.automation=false/缺失时禁用 + 「暂不可用」，完整原因收 tooltip，主流程零影响。
+        autoStatElement,
+        h('div', { style: S.auto },
+          h('div', { style: S.swRow },
+            h('button', {
+              type: 'button',
+              className: 'td-btn',
+              role: 'switch',
+              'aria-checked': autoOn ? 'true' : 'false',
+              'aria-label': t('automationToggle'),
+              disabled: autoAvailable !== true,
+              style: {
+                ...S.sw,
+                ...(autoOn ? S.swOn : null),
+                ...(autoAvailable !== true ? S.swDisabled : null),
+              },
+              onClick: () => requestAutoToggle(!autoOn),
+            }, h('span', { style: { ...S.swKnob, ...(autoOn ? S.swKnobOn : null) }, 'aria-hidden': 'true' })),
+            h('span', {
+              style: { ...S.swLabel, ...(autoAvailable !== true ? { color: 'var(--dsw-alias-label-tertiary)' } : null) },
+            }, t('automationToggle')),
+            autoAvailable !== true
+              ? h('span', { style: S.swSub, title: t('automationTooltipUnavailable') }, t('automationUnavailable'))
+              : null,
+          ),
+          autoOn
+            ? h('div', { style: S.autoPane },
+                h('span', { style: S.autoKey }, t('automationTime')),
+                h('div', {
+                  style: S.autoTimeWrap,
+                  title: editing ? t('automationTooltipTimeEdit') : t('automationTooltipTimeNew'),
+                },
+                h(TimeField, { t, value: autoTime, onChange: changeAutoTime })))
+            : null,
+        ),
+
         error !== null ? h('div', { style: S.dialogError }, error) : null,
         h('div', { style: S.dialogFoot },
           h('button', { type: 'button', className: 'td-btn', style: S.btnGhost, onClick: onClose, disabled: saving }, t('cancel')),
           h('button', { type: 'button', className: 'td-primary', style: S.btnPrimary, onClick: () => void submit(), disabled: saving }, t('save'))),
-      ))
+      )),
+      // 关闭既有同步的二次确认（§七）：确认后才提交 automation={enabled:false} 触发删除编排。
+      autoConfirm
+        ? h('div', {
+            className: 'td-overlay',
+            style: S.overlay,
+            onClick: (event) => { if (event.target === event.currentTarget) setAutoConfirm(false) },
+          },
+          h('div', { className: 'td-dialog', style: S.confirm, role: 'alertdialog', 'aria-modal': 'true', 'aria-label': t('automationConfirmTitle') },
+            h('div', { style: S.confirmTitle },
+              h('svg', { width: 15, height: 15, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, style: S.confirmWarnIcon, 'aria-hidden': 'true' },
+                h('path', { d: 'M8 5.4v3.8M8 11.4v.6', strokeLinecap: 'round' }),
+                h('path', { d: 'M8 1.8 14.6 13.6H1.4L8 1.8Z', strokeLinejoin: 'round' })),
+              h('span', null, t('automationConfirmTitle'))),
+            h('p', { style: S.confirmBody }, t('automationConfirmBody')),
+            h('div', { style: { ...S.dialogFoot, marginTop: 2 } },
+              h('button', { type: 'button', className: 'td-btn', style: S.btnGhost, onClick: () => setAutoConfirm(false) }, t('cancel')),
+              h('button', { type: 'button', className: 'td-primary', style: S.btnDanger, onClick: confirmAutoOff }, t('automationConfirmOk')))))
+        : null,
+      )
     }
 
     /**
@@ -1615,7 +1895,7 @@ window.__ModuleLoader__.load({
 
     function TodoPage(props) {
       const t = props.t ?? ((key) => dict.zh[key] ?? key)
-      const [state, setState] = useState({ loading: true, error: null, items: [], summary: {}, notices: [], staleDays: 7 })
+      const [state, setState] = useState({ loading: true, error: null, items: [], summary: {}, notices: [], staleDays: 7, capabilities: {} })
       const [query, setQuery] = useState('')
       const [selected, setSelected] = useState(null)
       const [dialog, setDialog] = useState(null)
@@ -1707,6 +1987,25 @@ window.__ModuleLoader__.load({
         }, 5000)
       }, [clearActionErrorTimer])
 
+      // 自动化同步的一次性提示（v4 §十）：toast 性质、非常驻、5 秒自动消失；独立于写失败红条，
+      // 因为「待办已保存」类提示绝不能长成红色失败样式误导用户。
+      const [autoNotice, setAutoNotice] = useState(null)
+      const autoNoticeTimer = useRef(null)
+      const clearAutoNoticeTimer = useCallback(() => {
+        if (autoNoticeTimer.current !== null) {
+          window.clearTimeout(autoNoticeTimer.current)
+          autoNoticeTimer.current = null
+        }
+      }, [])
+      const showAutoNotice = useCallback((message) => {
+        clearAutoNoticeTimer()
+        setAutoNotice(message ?? null)
+        autoNoticeTimer.current = window.setTimeout(() => {
+          autoNoticeTimer.current = null
+          setAutoNotice(null)
+        }, 5000)
+      }, [clearAutoNoticeTimer])
+
       const reload = useCallback(async () => {
         const seq = ++seqRef.current
         try {
@@ -1747,6 +2046,8 @@ window.__ModuleLoader__.load({
             summary: result.summary && typeof result.summary === 'object' ? result.summary : {},
             notices: Array.isArray(result.notices) ? result.notices : [],
             staleDays: Number.isInteger(result.staleDays) ? result.staleDays : 7,
+            // 能力探测（v4 §五）：老宿主不带 capabilities 时按 false 处理，开关降级禁用。
+            capabilities: result.capabilities && typeof result.capabilities === 'object' ? result.capabilities : {},
           })
           // 只取循环任务已完成的那次，按完成日期倒序进「已完成」分组。
           setRecurringDone((Array.isArray(occ?.items) ? occ.items : [])
@@ -1765,18 +2066,21 @@ window.__ModuleLoader__.load({
       /** 写操作：返回 { ok: true } | { ok: false, error }，调用方（如 TodoDialog）据此决定要不要关闭/内联报错。 */
       const mutate = useCallback(async (method, payload) => {
         try {
-          await fetchApi(method, payload, tRef.current)
+          const result = await fetchApi(method, payload, tRef.current)
           // 写成功后让日历和当天清单重拉 occurrences（它们都依赖 dataVersion）。
           dismissActionError()
           setDataVersion((v) => v + 1)
           await reload()
-          return { ok: true }
+          // result 原样回传：TodoDialog 要读 result.automation / automationNotice（v4 §五）。
+          return { ok: true, result }
         } catch (err) {
           console.error(`[dsh-sidebar-todo] ${method} failed`, err)
           // 勾选/完成等写失败必须有可见反馈：独立的红条保留 5 秒，避免被
           // 随后成功的 2.5s 轮询立刻清掉；同时重新拉一次 list，让宿主把
           // notices 里的 write-error 带回来。
-          showActionError(err?.message ?? '')
+          // automation-unavailable（§六）不是写失败：待办本体已保存，提示由 TodoDialog
+          // 关弹窗时以一次性轻提示给出，这里不弹红条，只照常 reload 让新待办可见。
+          if (err?.code !== 'automation-unavailable') showActionError(err?.message ?? '')
           await reload()
           return { ok: false, error: err }
         }
@@ -1867,6 +2171,7 @@ window.__ModuleLoader__.load({
       // 卸载时清掉计时器，避免组件没了还 setConfirming / setActionError。
       useEffect(() => () => clearConfirmTimer(), [clearConfirmTimer])
       useEffect(() => () => clearActionErrorTimer(), [clearActionErrorTimer])
+      useEffect(() => () => clearAutoNoticeTimer(), [clearAutoNoticeTimer])
 
       const items = state.items
       const now = new Date()
@@ -2204,6 +2509,15 @@ window.__ModuleLoader__.load({
         actionError
           ? h('div', { role: 'alert', style: S.error }, `操作失败：${actionError}`)
           : null,
+        autoNotice
+          ? h('div', { role: 'status', style: S.warn },
+              h('span', { style: { flex: 1 } }, autoNotice),
+              h('button', {
+                className: 'td-btn',
+                style: S.noticeClose, 'aria-label': t('dismiss'),
+                onClick: () => { clearAutoNoticeTimer(); setAutoNotice(null) },
+              }, '×'))
+          : null,
         state.error
           ? h('div', { style: S.error }, `${t('failed')}　`, h('button', {
             type: 'button',
@@ -2520,6 +2834,8 @@ window.__ModuleLoader__.load({
               onSaved: () => setDialog(null),
               onManageCategories: () => setCategoryOpen(true),
               escSuspended: categoryOpen,
+              autoAvailable: state.capabilities?.automation === true,
+              onNotice: showAutoNotice,
             })
           : null,
         categoryOpen

@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>待办 ↔ 自动化任务同步 · UI 原型（v0.4.0 · T6 少字返工）</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  :root{ --r-md: var(--dsw-radius-md, 8px); --r-sm: var(--dsw-radius-sm, 6px); }
+  *{box-sizing:border-box}
+  body{margin:0;padding:34px 40px 44px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);
+       font:14px/22px "Segoe UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+  .cap{display:flex;align-items:baseline;gap:10px;margin:0 0 16px;flex-wrap:wrap}
+  .cap h1{font-size:18px;font-weight:600;margin:0}
+  .cap span{font-size:12px;color:var(--dsw-alias-label-tertiary)}
+
+  /* toolbar: state tabs + language toggle */
+  .bar{display:flex;align-items:center;gap:12px;margin:0 0 20px;flex-wrap:wrap}
+  .seg{display:flex;align-items:center;gap:2px;height:32px;padding:2px;border-radius:var(--r-md);
+       background:var(--dsw-alias-bg-module-platform,#eef0f4)}
+  .seg i{font-style:normal;font-size:12.5px;line-height:26px;height:26px;padding:0 12px;border-radius:var(--r-sm);
+         color:var(--dsw-alias-label-secondary);cursor:pointer;user-select:none;white-space:nowrap}
+  .seg i.on{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);
+            box-shadow:0 1px 2px #00000012;font-weight:500}
+  .lang{margin-left:auto}
+  .hidden{display:none !important}
+
+  .panel{display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap}
+  .col{display:flex;flex-direction:column;gap:22px}
+
+  /* ---------- dialog card (TodoDialog 形态) ---------- */
+  .dlg{width:474px;flex:none;border:.5px solid var(--dsw-alias-border-l2);border-radius:12px;
+       background:var(--dsw-alias-bg-base);box-shadow:0 8px 24px #00000014,0 1px 3px #0000000f;
+       padding:16px 18px 14px}
+  .dlg-h{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;margin:0 0 12px}
+  .quick{display:flex;align-items:center;gap:6px;width:100%;height:32px;padding:0 10px;border-radius:var(--r-md);
+         border:.5px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);
+         color:var(--dsw-alias-label-tertiary);font-size:12.5px;cursor:help}
+  .fld{margin:0 0 10px}
+  .lbl{display:block;font-size:12px;color:var(--dsw-alias-label-secondary);margin:0 0 4px}
+  .inp{display:flex;align-items:center;gap:6px;width:100%;height:32px;padding:0 10px;border-radius:var(--r-md);
+       border:.5px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);
+       color:var(--dsw-alias-label-primary);font-size:13px}
+  .inp .ph{color:var(--dsw-alias-label-tertiary)}
+  .inp.sel{justify-content:space-between}
+  .ta{height:auto;min-height:56px;padding:6px 10px;align-items:flex-start;color:var(--dsw-alias-label-tertiary);font-size:12.5px}
+  .row2{display:flex;gap:10px}
+  .row2 .fld{flex:1;min-width:0}
+  .opts{display:flex;gap:2px;padding:2px;border-radius:var(--r-md);background:var(--dsw-alias-bg-module-platform,#eef0f4)}
+  .opts i{font-style:normal;flex:1;text-align:center;font-size:12.5px;line-height:26px;height:26px;border-radius:var(--r-sm);
+          color:var(--dsw-alias-label-secondary)}
+  .opts i.on{background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);
+             box-shadow:0 1px 2px #00000012;font-weight:500}
+  .foot{display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:.5px solid var(--dsw-alias-border-l2)}
+  .btn{flex:none;height:30px;padding:0 14px;border-radius:var(--r-md);font-size:13px;font-weight:500;
+       display:inline-flex;align-items:center;justify-content:center}
+  .btn.ghost{border:.5px solid var(--dsw-alias-border-l3);color:var(--dsw-alias-label-secondary);background:transparent}
+  .btn.primary{background:var(--dsw-alias-state-business-primary);color:var(--dsw-static-neutral-00);flex:1}
+  .btn.danger{background:var(--dsw-alias-state-error-primary);color:var(--dsw-static-neutral-00);flex:1}
+
+  /* ---------- automation 开关行（循环/结束日期字段区下方） ---------- */
+  .auto{border-top:.5px dashed var(--dsw-alias-border-l3);margin-top:14px;padding-top:12px}
+  .swrow{display:flex;align-items:center;gap:10px}
+  .sw{width:34px;height:20px;border-radius:999px;position:relative;flex:none;cursor:pointer}
+  .sw .knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;
+            background:var(--dsw-static-neutral-00);box-shadow:0 1px 2px #00000033}
+  .sw.on{background:var(--dsw-alias-state-business-primary)}
+  .sw.on .knob{left:16px}
+  .sw.off{background:var(--dsw-alias-bg-module-platform,#eef0f4);border:.5px solid var(--dsw-alias-border-l3)}
+  .sw.dis{opacity:.4;cursor:not-allowed}
+  .swlbl{font-size:13px;font-weight:500}
+  .swsub{font-size:11.5px;color:var(--dsw-alias-state-warn-primary);cursor:help}
+  .auto-pane{margin-top:10px;background:var(--dsw-alias-bg-module-platform,#eef0f4);border-radius:var(--r-md);
+             padding:10px 12px;display:flex;flex-direction:column;gap:9px}
+  .arow{display:flex;align-items:center;gap:10px;font-size:12.5px}
+  .ak{flex:none;width:62px;color:var(--dsw-alias-label-tertiary);font-size:12px}
+  .av{flex:1;min-width:0;color:var(--dsw-alias-label-primary)}
+  .tmin{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 8px;border-radius:var(--r-sm);
+        border:.5px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-layer-1);font-size:12.5px;
+        font-variant-numeric:tabular-nums;cursor:help}
+
+  /* ---------- 徽标（§三 status 枚举） ---------- */
+  .bdg{display:inline-flex;align-items:center;gap:4px;font-size:11px;line-height:18px;padding:0 7px;
+       border-radius:4px;font-weight:500;flex:none;cursor:help}
+  .bdg.ok{color:var(--dsw-static-green-900);background:color-mix(in srgb,var(--dsw-static-green-500) 15%,transparent)}
+  .bdg.partial{color:var(--dsw-alias-state-warn-primary);background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 10%,transparent)}
+  .bdg.error{color:var(--dsw-alias-state-error-primary);background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 9%,transparent)}
+  .bdg.orphan{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-module-platform,#eef0f4);
+              border:.5px dashed var(--dsw-alias-border-l3)}
+  .mono{font-family:Consolas,"Courier New",monospace;font-size:11px;font-variant-numeric:tabular-nums}
+
+  /* ---------- 态③：单行同步状态 / 徽标速览 / 二次确认 ---------- */
+  .statline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--dsw-alias-label-secondary);
+            background:var(--dsw-alias-bg-module-platform,#eef0f4);border-radius:var(--r-md);padding:8px 10px;margin:0 0 10px;
+            cursor:help}
+  .statline b{color:var(--dsw-alias-label-primary);font-weight:500}
+  .legend{width:474px;flex:none;border:.5px solid var(--dsw-alias-border-l2);border-radius:12px;
+          background:var(--dsw-alias-bg-base);box-shadow:0 1px 3px #0000000f;padding:10px 16px 12px}
+  .legend h3{font-size:13px;font-weight:600;margin:0 0 8px}
+  .lgrid{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--dsw-alias-label-secondary)}
+  .lgmsg{cursor:help}
+  .cnf-wrap{position:relative;width:474px;height:176px;border-radius:12px;overflow:hidden;
+            background:var(--dsw-alias-bg-overlay);border:.5px solid var(--dsw-alias-border-l2)}
+  .cnf{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:360px;
+       background:var(--dsw-alias-bg-base);border:.5px solid var(--dsw-alias-border-l3);border-radius:12px;
+       box-shadow:0 8px 24px #0000001f,0 1px 3px #00000014;padding:16px 18px 14px}
+  .cnf h4{font-size:14px;font-weight:600;margin:0 0 8px;display:flex;align-items:center;gap:7px}
+  .cnf h4 svg{color:var(--dsw-alias-state-warn-primary);flex:none}
+  .cnf p{font-size:12.5px;line-height:19px;color:var(--dsw-alias-label-secondary);margin:0 0 10px}
+
+  /* ---------- 底部评审注记（非界面） ---------- */
+  .rev{margin:30px 0 0;border-top:.5px solid var(--dsw-alias-border-l2);padding-top:12px}
+  .rev summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--dsw-alias-label-secondary);user-select:none}
+  .notes{margin-top:12px;display:flex;flex-direction:column;gap:8px;max-width:860px}
+  .nt{font-size:12px;line-height:19px;color:var(--dsw-alias-label-secondary);
+      background:var(--dsw-alias-bg-module-platform,#eef0f4);border-radius:var(--r-md);padding:9px 12px}
+  .nt b{color:var(--dsw-alias-label-primary);font-weight:600}
+  .ft{margin:26px 0 0;font-size:11.5px;color:var(--dsw-alias-label-tertiary)}
+</style>
+</head>
+<body>
+
+<div class="cap">
+  <h1 data-zh="待办 ↔ 自动化任务同步 · UI 原型（v0.4.0 · T6 少字返工）" data-en="Todo ↔ Automation Sync · UI Prototype (v0.4.0 · T6 low-copy rework)">待办 ↔ 自动化任务同步 · UI 原型（v0.4.0 · T6 少字返工）</h1>
+  <span data-zh="少字原则：界面常驻文案仅控件标签 / 状态徽标 / 错误短消息 / 确认一句话，细节一律收 tooltip；颜色 / 圆角 / 间距引用 design/tokens.css" data-en="Low-copy rule: resident UI copy is limited to control labels / status badges / the error short message / one confirm sentence; all details live in tooltips. Colors, radii and spacing come from design/tokens.css">少字原则：界面常驻文案仅控件标签 / 状态徽标 / 错误短消息 / 确认一句话，细节一律收 tooltip；颜色 / 圆角 / 间距引用 design/tokens.css</span>
+</div>
+
+<div class="bar">
+  <div class="seg tabs" role="tablist">
+    <i class="on" data-tab="s1" data-zh="态① 新建 · 开关开启" data-en="State 1 · Create · sync on">态① 新建 · 开关开启</i>
+    <i data-tab="s2" data-zh="态② 宿主不支持 · 降级" data-en="State 2 · Host unsupported">态② 宿主不支持 · 降级</i>
+    <i data-tab="s3" data-zh="态③ 编辑 · 同步回显" data-en="State 3 · Edit · sync status">态③ 编辑 · 同步回显</i>
+  </div>
+  <div class="seg lang">
+    <i class="on" data-lang="zh">中文</i>
+    <i data-lang="en">EN</i>
+  </div>
+</div>
+
+<!-- ================= 态① 新建待办 + 开关开启 ================= -->
+<section id="s1" class="panel">
+  <div class="col">
+    <div class="dlg">
+      <div class="dlg-h"><span data-zh="新建待办" data-en="New todo">新建待办</span></div>
+      <div class="fld">
+        <div class="quick" title="也可以只填标题，之后在对话里让我改日期" data-tz="也可以只填标题，之后在对话里让我改日期" data-te="You can fill in just the title and ask me in chat to set the date later">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7.2" cy="7.2" r="4"/><path d="M10.3 10.3 13.5 13.5" stroke-linecap="round"/></svg>
+          <span data-zh="一句话填写，例如：明天下午3点 交周报 #工作" data-en="Quick fill, e.g. 'tomorrow 3pm report #work'">一句话填写，例如：明天下午3点 交周报 #工作</span>
+        </div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="标题" data-en="Title">标题</span>
+        <div class="inp"><span data-zh="提交每周工时" data-en="Submit weekly hours">提交每周工时</span></div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="备注" data-en="Note">备注</span>
+        <div class="inp ta" title="最长 2000 字" data-tz="最长 2000 字" data-te="Up to 2000 chars"><span class="ph" data-zh="可选" data-en="Optional">可选</span></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><span class="lbl" data-zh="日期" data-en="Date">日期</span>
+          <div class="inp"><span class="mono">2026-11-20</span><span style="font-size:11.5px;color:var(--dsw-alias-label-tertiary)" data-zh="周五" data-en="Fri">周五</span></div>
+        </div>
+        <div class="fld"><span class="lbl" data-zh="时间" data-en="Time">时间</span>
+          <div class="inp"><span class="mono">17:30</span></div>
+        </div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="优先级" data-en="Priority">优先级</span>
+        <div class="opts"><i data-zh="高" data-en="High">高</i><i class="on" data-zh="中" data-en="Medium">中</i><i data-zh="低" data-en="Low">低</i></div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="分类" data-en="Category">分类</span>
+        <div class="inp"><span data-zh="工作" data-en="Work">工作</span></div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="重复" data-en="Repeat">重复</span>
+        <div class="inp sel"><span data-zh="每周" data-en="Weekly">每周</span>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--dsw-alias-label-tertiary)" stroke-width="1.6"><path d="M4 10.5 8 6.5l4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="星期" data-en="Weekdays">星期</span>
+        <div class="opts">
+          <i data-zh="一" data-en="Mon">一</i><i data-zh="二" data-en="Tue">二</i><i data-zh="三" data-en="Wed">三</i><i data-zh="四" data-en="Thu">四</i>
+          <i class="on" data-zh="五" data-en="Fri">五</i><i data-zh="六" data-en="Sat">六</i><i data-zh="日" data-en="Sun">日</i>
+        </div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="结束日期" data-en="Until">结束日期</span>
+        <div class="inp"><span class="mono">2026-12-31</span></div>
+      </div>
+
+      <!-- 自动化同步：仅开关 + 内联时间选择两个控件，无任何常驻说明 -->
+      <div class="auto">
+        <div class="swrow">
+          <span class="sw on"><span class="knob"></span></span>
+          <span class="swlbl" data-zh="同时创建/同步自动化任务" data-en="Also create &amp; sync an automation task">同时创建/同步自动化任务</span>
+        </div>
+        <div class="auto-pane">
+          <div class="arow">
+            <span class="ak" data-zh="提醒时间" data-en="Time">提醒时间</span>
+            <span class="av"><span class="tmin" title="预填：新建取「时间」字段，为空则 09:00（§四）" data-tz="预填：新建取「时间」字段，为空则 09:00（§四）" data-te="Prefilled from the Time field; 09:00 when empty (§4)"><span class="mono">17:30</span></span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <span class="btn ghost" data-zh="取消" data-en="Cancel">取消</span>
+        <span class="btn primary" data-zh="保存" data-en="Save">保存</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 态② 宿主不支持 · 降级 ================= -->
+<section id="s2" class="panel hidden">
+  <div class="col">
+    <div class="dlg">
+      <div class="dlg-h"><span data-zh="新建待办" data-en="New todo">新建待办</span></div>
+      <div class="fld">
+        <div class="quick" title="也可以只填标题，之后在对话里让我改日期" data-tz="也可以只填标题，之后在对话里让我改日期" data-te="You can fill in just the title and ask me in chat to set the date later">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7.2" cy="7.2" r="4"/><path d="M10.3 10.3 13.5 13.5" stroke-linecap="round"/></svg>
+          <span data-zh="一句话填写，例如：明天下午3点 交周报 #工作" data-en="Quick fill, e.g. 'tomorrow 3pm report #work'">一句话填写，例如：明天下午3点 交周报 #工作</span>
+        </div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="标题" data-en="Title">标题</span>
+        <div class="inp"><span data-zh="给服务器续费" data-en="Renew the server">给服务器续费</span></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><span class="lbl" data-zh="日期" data-en="Date">日期</span>
+          <div class="inp"><span class="mono">2026-11-25</span></div>
+        </div>
+        <div class="fld"><span class="lbl" data-zh="时间" data-en="Time">时间</span>
+          <div class="inp"><span class="mono">10:00</span></div>
+        </div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="优先级" data-en="Priority">优先级</span>
+        <div class="opts"><i class="on" data-zh="高" data-en="High">高</i><i data-zh="中" data-en="Medium">中</i><i data-zh="低" data-en="Low">低</i></div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="分类" data-en="Category">分类</span>
+        <div class="inp"><span data-zh="工作" data-en="Work">工作</span></div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="重复" data-en="Repeat">重复</span>
+        <div class="inp sel"><span data-zh="每天" data-en="Daily">每天</span>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--dsw-alias-label-tertiary)" stroke-width="1.6"><path d="M4 10.5 8 6.5l4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+
+      <!-- 降级：禁用开关 + 极短标签，完整原因收 tooltip -->
+      <div class="auto">
+        <div class="swrow">
+          <span class="sw off dis"><span class="knob"></span></span>
+          <span class="swlbl" style="color:var(--dsw-alias-label-tertiary)" data-zh="同时创建/同步自动化任务" data-en="Also create &amp; sync an automation task">同时创建/同步自动化任务</span>
+          <span class="swsub" title="当前 DSH 不支持自动化任务（capabilities.automation=false，§六）" data-tz="当前 DSH 不支持自动化任务（capabilities.automation=false，§六）" data-te="Automation tasks are not supported in this DSH (capabilities.automation=false, §6)" data-zh="暂不可用" data-en="Unavailable">暂不可用</span>
+        </div>
+      </div>
+
+      <div class="foot">
+        <span class="btn ghost" data-zh="取消" data-en="Cancel">取消</span>
+        <span class="btn primary" data-zh="保存" data-en="Save">保存</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 态③ 编辑 · 同步回显 ================= -->
+<section id="s3" class="panel hidden">
+  <div class="col">
+    <div class="dlg">
+      <div class="dlg-h"><span data-zh="编辑待办" data-en="Edit todo">编辑待办</span>
+        <span class="bdg partial" title="同步成功但有语义损失：until 不映射（Q1），宿主任务到点不会自动停止" data-tz="同步成功但有语义损失：until 不映射（Q1），宿主任务到点不会自动停止" data-te="Synced with a known loss: until is not mapped (Q1); the host task never stops by itself" data-zh="partial" data-en="partial">partial</span>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="标题" data-en="Title">标题</span>
+        <div class="inp"><span data-zh="提交每周工时" data-en="Submit weekly hours">提交每周工时</span></div>
+      </div>
+      <div class="row2">
+        <div class="fld"><span class="lbl" data-zh="日期" data-en="Date">日期</span>
+          <div class="inp"><span class="mono">2026-11-20</span></div>
+        </div>
+        <div class="fld"><span class="lbl" data-zh="时间" data-en="Time">时间</span>
+          <div class="inp"><span class="mono">17:30</span></div>
+        </div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="重复" data-en="Repeat">重复</span>
+        <div class="inp sel"><span data-zh="每周" data-en="Weekly">每周</span>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--dsw-alias-label-tertiary)" stroke-width="1.6"><path d="M4 10.5 8 6.5l4 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="星期" data-en="Weekdays">星期</span>
+        <div class="opts">
+          <i data-zh="一" data-en="Mon">一</i><i data-zh="二" data-en="Tue">二</i><i data-zh="三" data-en="Wed">三</i><i data-zh="四" data-en="Thu">四</i>
+          <i class="on" data-zh="五" data-en="Fri">五</i><i data-zh="六" data-en="Sat">六</i><i data-zh="日" data-en="Sun">日</i>
+        </div>
+      </div>
+      <div class="fld"><span class="lbl" data-zh="结束日期" data-en="Until">结束日期</span>
+        <div class="inp"><span class="mono">2026-12-31</span></div>
+      </div>
+
+      <!-- 单行同步状态：徽标 + HH:mm + 相对上次同步；taskId 尾 8 位与绝对时间收 tooltip -->
+      <div class="statline" title="taskId: sch_8f3a91c2…e7d6b5a4 · 上次同步 2026-11-16 08:03" data-tz="taskId: sch_8f3a91c2…e7d6b5a4 · 上次同步 2026-11-16 08:03" data-te="taskId: sch_8f3a91c2…e7d6b5a4 · last synced 2026-11-16 08:03">
+        <b data-zh="自动化同步" data-en="Automation sync">自动化同步</b>
+        <span class="bdg partial" title="同步成功但有语义损失：until 不映射（Q1），宿主任务到点不会自动停止" data-tz="同步成功但有语义损失：until 不映射（Q1），宿主任务到点不会自动停止" data-te="Synced with a known loss: until is not mapped (Q1); the host task never stops by itself" data-zh="partial" data-en="partial">partial</span>
+        <span class="mono">17:30</span>
+        <span data-zh="3 小时前" data-en="3h ago">3 小时前</span>
+      </div>
+
+      <div class="auto">
+        <div class="swrow">
+          <span class="sw on"><span class="knob"></span></span>
+          <span class="swlbl" data-zh="同时创建/同步自动化任务" data-en="Also create &amp; sync an automation task">同时创建/同步自动化任务</span>
+        </div>
+        <div class="auto-pane">
+          <div class="arow">
+            <span class="ak" data-zh="提醒时间" data-en="Time">提醒时间</span>
+            <span class="av"><span class="tmin" title="编辑回显：automation.time ?? dueTime ?? 09:00（§四）" data-tz="编辑回显：automation.time ?? dueTime ?? 09:00（§四）" data-te="Edit prefill: automation.time ?? dueTime ?? 09:00 (§4)"><span class="mono">17:30</span></span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <span class="btn ghost" data-zh="取消" data-en="Cancel">取消</span>
+        <span class="btn primary" data-zh="保存" data-en="Save">保存</span>
+      </div>
+    </div>
+
+    <!-- 关闭开关二次确认：正文一句话 + 确认/取消 -->
+    <div class="cnf-wrap">
+      <div class="cnf">
+        <h4>
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 5.4v3.8M8 11.4v.6" stroke-linecap="round"/><path d="M8 1.8 14.6 13.6H1.4L8 1.8Z" stroke-linejoin="round"/></svg>
+          <span data-zh="关闭自动化同步？" data-en="Turn off automation sync?">关闭自动化同步？</span>
+        </h4>
+        <p data-zh="将同时删除自动化任务" data-en="This will also delete the automation task">将同时删除自动化任务</p>
+        <div class="foot" style="border-top:none;padding-top:6px;margin-top:2px">
+          <span class="btn ghost" data-zh="取消" data-en="Cancel">取消</span>
+          <span class="btn danger" data-zh="删除自动化任务" data-en="Delete automation task">删除自动化任务</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <!-- 四枚举徽标速览：语义解释全部收 tooltip -->
+    <div class="legend">
+      <h3 data-zh="automation.status 徽标" data-en="automation.status badges">automation.status 徽标</h3>
+      <div class="lgrid">
+        <span class="bdg ok" title="映射完整，最近一次 create/edit 成功，宿主任务与待办当前值一致" data-tz="映射完整，最近一次 create/edit 成功，宿主任务与待办当前值一致" data-te="Mapped fully; the last create/edit succeeded and the host task matches the todo" data-zh="ok" data-en="ok">ok</span>
+        <span class="bdg partial" title="同步成功但有语义损失：until 不映射（Q1），宿主任务到点不会自动停止" data-tz="同步成功但有语义损失：until 不映射（Q1），宿主任务到点不会自动停止" data-te="Synced with a known loss: until is not mapped (Q1); the host task never stops by itself" data-zh="partial" data-en="partial">partial</span>
+        <span class="bdg error" title="最近一次同步失败：本地以待办为准，宿主保持旧值；下次带 enabled 意图保存时自动重试" data-tz="最近一次同步失败：本地以待办为准，宿主保持旧值；下次带 enabled 意图保存时自动重试" data-te="Last sync failed: the todo side wins, the host keeps its old value; auto-retry on the next save with an enabled intent" data-zh="error" data-en="error">error</span>
+        <span class="lgmsg" title="lastError 全文收 tooltip，如 schedule_conflict: expectedUpdatedAt mismatch（updatedAt=2026-11-16T02:11:40Z）" data-tz="lastError 全文收 tooltip，如 schedule_conflict: expectedUpdatedAt mismatch（updatedAt=2026-11-16T02:11:40Z）" data-te="Full lastError lives in the tooltip, e.g. schedule_conflict: expectedUpdatedAt mismatch (updatedAt=2026-11-16T02:11:40Z)" data-zh="同步失败，保存时重试" data-en="Sync failed; retry on save">同步失败，保存时重试</span>
+        <span class="bdg orphan" title="待办已删除但宿主任务删除失败（Q5）：留痕于 automationOrphans（todoId/taskId/reason/at），可在「定时任务」页手动删除" data-tz="待办已删除但宿主任务删除失败（Q5）：留痕于 automationOrphans（todoId/taskId/reason/at），可在「定时任务」页手动删除" data-te="Todo deleted but the host delete failed (Q5): recorded in automationOrphans (todoId/taskId/reason/at); delete manually in Scheduled tasks" data-zh="orphan" data-en="orphan">orphan</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 评审注记（非界面，全部移出三态 UI 框架区） ================= -->
+<details class="rev">
+  <summary data-zh="评审注记（非界面）" data-en="Review notes (non-UI)">评审注记（非界面）</summary>
+  <div class="notes">
+    <div class="nt"><b>开关行与初始态（§十 / Q6）</b>：循环 / 结束日期字段区下方独立开关行；新建默认关，编辑 = initial.automation?.enabled === true；态①为用户手动开启后的表单。开启时展开 time（HH:mm）输入。</div>
+    <div class="nt"><b>提醒时间预填（§四）</b>：新建 = dueTime，为空则 09:00；编辑 = automation.time ?? dueTime ?? 09:00。示例 dueTime=17:30 → 预填 17:30。</div>
+    <div class="nt"><b>Q1 · until→partial</b>：until 仅作用于待办侧，不映射宿主 rrule；创建期界面不做任何提示，同步后编辑回显 partial 徽标（语义解释进徽标 tooltip）。</div>
+    <div class="nt"><b>Q2 / Q3 · 固定策略</b>：时区取宿主进程 IANA 时区落库（示例 Asia/Shanghai），后续同步沿用；执行位置固定 new_once。两者创建期均不在界面呈现（不在白名单、仅约定于 tooltip）。</div>
+    <div class="nt"><b>态② 降级（§六）</b>：CLI profile / 未挂载 Schedule → capabilities.automation=false，开关禁用 + 短标签「暂不可用」，完整原因收 tooltip；待办功能零影响；若强制带意图保存 → HTTP 400 automation-unavailable，待办本体照常保存（不落 automation 字段）。</div>
+    <div class="nt"><b>态③ 单行状态</b>：徽标 + HH:mm + 相对上次同步时间；taskId 尾 8 位 / lastSyncedAt 绝对时间 / lastError 全文 / orphan 详情全部收 tooltip，界面零常驻细节。</div>
+    <div class="nt"><b>关闭开关 = 删除编排（§七 / Q5）</b>：保存 automation={enabled:false} → 宿主 edit delete；成功或 schedule_not_found 视为成功并清除本地记录；其他失败 → status=error + lastError，下次保存重试（记录还在）。</div>
+    <div class="nt"><b>保存响应一次性提示（§十，非常驻 toast，不在界面常驻文案白名单内）</b>：automation-unavailable →「待办已保存，但当前 DSH 不支持自动化任务」；status=error →「待办已保存，自动化任务同步失败：&lt;lastError&gt;；下次编辑保存将自动重试」；notice →「自动化任务已不存在，已解除关联」。</div>
+  </div>
+</details>
+
+<p class="ft" data-zh="纯静态原型 · 唯一外链为相对路径 design/tokens.css · 界面常驻文案与《2026-11-16-dsh-todolist-v4-design.md》§十 少字白名单一致" data-en="Static prototype · the only external ref is design/tokens.css · resident UI copy matches the §10 low-copy whitelist of 2026-11-16-dsh-todolist-v4-design.md">纯静态原型 · 唯一外链为相对路径 design/tokens.css · 界面常驻文案与《2026-11-16-dsh-todolist-v4-design.md》§十 少字白名单一致</p>
+
+<script>
+(function () {
+  var tabs = document.querySelectorAll('.tabs i')
+  var panels = document.querySelectorAll('.panel')
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      tabs.forEach(function (t) { t.classList.remove('on') })
+      tab.classList.add('on')
+      var target = tab.getAttribute('data-tab')
+      panels.forEach(function (p) { p.classList.toggle('hidden', p.id !== target) })
+    })
+  })
+  var langBtns = document.querySelectorAll('.lang i')
+  function setLang (lang) {
+    langBtns.forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-lang') === lang) })
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en'
+    document.querySelectorAll('[data-zh]').forEach(function (el) {
+      el.textContent = lang === 'zh' ? el.getAttribute('data-zh') : el.getAttribute('data-en')
+    })
+    document.querySelectorAll('[data-tz]').forEach(function (el) {
+      el.title = lang === 'zh' ? el.getAttribute('data-tz') : el.getAttribute('data-te')
+    })
+  }
+  langBtns.forEach(function (b) {
+    b.addEventListener('click', function () { setLang(b.getAttribute('data-lang')) })
+  })
+})()
+</script>
+</body>
+</html>

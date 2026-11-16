@@ -3,11 +3,12 @@
 import { createStore, resolveDataFile } from './lib/store.js'
 import { createApi } from './lib/api.js'
 import { createTool, createNoteTool } from './lib/tool.js'
+import { createAutomationGateway } from './lib/automation.js'
 
 export const inject = ['webServer', 'connection', 'tools']
 
 const PREFIX = '/todo/api/'
-const STATUS = { 'invalid-input': 400, 'not-found': 404, 'io-error': 500 }
+const STATUS = { 'invalid-input': 400, 'not-found': 404, 'io-error': 500, 'automation-unavailable': 400 }
 
 function writeJson(res, status, body) {
   const text = JSON.stringify(body)
@@ -35,7 +36,14 @@ export function apply(ctx, config = {}) {
   })
   const ready = store.load()
   void ready.catch(() => {}) // 不让 load 失败变成未处理拒绝；错误仍由 await ready 的调用方拿到
-  const api = createApi(store)
+  // §八：静态 inject 必须保持 ['webServer', 'connection', 'tools'] —— 不得把 'schedule' 加进静态
+  // inject（否则 CLI profile 下整个插件失活）。改用 ctx.inject(['schedule'], cb) 软注入建立
+  // automation 网关；宿主无 schedule 时回调不触发，gateway 保持 null（§六 降级）。
+  let gateway = null
+  if (typeof ctx.inject === 'function') {
+    ctx.inject(['schedule'], (c) => { gateway = createAutomationGateway(c.schedule) })
+  }
+  const api = createApi(store, () => gateway)
 
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
@@ -59,6 +67,7 @@ export function apply(ctx, config = {}) {
         await ready
         const body = await readJson(req)
         const result = await api[method](body)
+        if (method === 'list') result.capabilities = { automation: gateway !== null } // §五 能力探测
         writeJson(res, 200, { ok: true, result })
       } catch (err) {
         const code = err?.code ?? 'internal'
