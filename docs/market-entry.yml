@@ -11,5 +11,5 @@ url: https://github.com/Natte/dsh-sidebar-todo
 name: Natte/dsh-sidebar-todo
 category: workflow
 description:
-  en: Sidebar todo list for DeepSeek Harness — grouped buckets, recurring tasks with a month-view calendar, hover-to-act sticky notes (convert to todo), header filters, and agent tools that read and write the same JSON file. Requires DSH 0.2.1-rc.2+.
-  zh: 侧栏待办清单——逾期/今天/本周等分组、循环任务与月视图日历、悬停即可转待办的便利贴坞、页头筛选；agent 通过工具读写同一份 JSON。需要 DSH 0.2.1-rc.2 及以上。
+  en: 'A sidebar todo for [DSH]: jot tasks, recurring rules, month calendar and sticky notes, and turn important items into scheduled reminders delivered by the host; all data stays on your own machine.'
+  zh: 给 [DSH] 加一个侧栏待办：随手记任务、循环任务、月视图日历和便利贴，重要的事还能自动设成到点提醒；数据只保存在你自己的电脑上。
